@@ -158,17 +158,60 @@ fn respond_popup(
 
 #[tauri::command]
 fn jump_to_instance(session_id: String) -> Result<(), String> {
+    // First, try to refresh process info in case terminal detection failed
+    {
+        let state = SHARED_STATE.read();
+        if let Some(instance) = state.instances.get_instance(&session_id) {
+            if let Some(info) = &instance.process_info {
+                if info.terminal_type == instance_manager::TerminalType::Unknown {
+                    tracing::info!("Terminal type unknown, attempting refresh");
+                    drop(state); // Release read lock
+                    let _ = refresh_instance_process_internal(&session_id);
+                }
+            }
+        }
+    }
+
     let state = SHARED_STATE.read();
     if let Some(instance) = state.instances.get_instance(&session_id) {
         if let Some(process_info) = &instance.process_info {
-            platform::jump_to_terminal(process_info);
-            Ok(())
+            let result = platform::jump_to_terminal(process_info);
+            if result {
+                Ok(())
+            } else {
+                Err("Failed to activate terminal window".to_string())
+            }
         } else {
-            Err("No process info available".to_string())
+            Err("No process info available. Try refreshing.".to_string())
         }
     } else {
         Err("Instance not found".to_string())
     }
+}
+
+/// Internal function to refresh process info (can be called without lock issues)
+fn refresh_instance_process_internal(session_id: &str) -> Result<(), String> {
+    let process_info = platform::find_any_claude_process();
+
+    if let Some(info) = process_info {
+        let mut state = SHARED_STATE.write();
+        // Convert &str to &String for the API
+        let session_id_string = session_id.to_string();
+        if let Some(instance) = state.instances.get_instance_mut(&session_id_string) {
+            instance.process_info = Some(info);
+            tracing::info!("Refreshed process info for session {}", session_id);
+            Ok(())
+        } else {
+            Err("Instance not found".to_string())
+        }
+    } else {
+        Err("Could not find Claude process".to_string())
+    }
+}
+
+#[tauri::command]
+fn refresh_instance_process(session_id: String) -> Result<(), String> {
+    refresh_instance_process_internal(&session_id)
 }
 
 #[tauri::command]
@@ -221,6 +264,7 @@ pub fn run() {
                 get_recent_activities,
                 respond_popup,
                 jump_to_instance,
+                refresh_instance_process,
                 check_claude_hooks,
                 update_claude_hooks,
                 get_settings,

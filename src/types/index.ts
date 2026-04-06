@@ -3,7 +3,7 @@
 export type InstanceStatus = 'idle' | 'working' | 'waiting' | 'error' | 'compacting' | 'ended';
 
 export type TerminalType =
-  | 'macos_terminal' | 'macos_iterm2' | 'macos_alacritty' | 'macos_vscode'
+  | 'macos_terminal' | 'macos_iterm2' | 'macos_alacritty' | 'macos_vscode' | 'macos_ghostty'
   | 'windows_terminal' | 'windows_cmd' | 'windows_powershell' | 'windows_git_bash'
   | 'linux_gnome' | 'linux_konsole' | 'linux_alacritty'
   | 'unknown';

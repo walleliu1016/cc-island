@@ -17,7 +17,7 @@ pub enum InstanceStatus {
 }
 
 /// Terminal type detection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TerminalType {
     // macOS
@@ -25,6 +25,7 @@ pub enum TerminalType {
     MacosIterm2,
     MacosAlacritty,
     MacosVscode,
+    MacosGhostty,
     // Windows
     WindowsTerminal,
     WindowsCmd,
