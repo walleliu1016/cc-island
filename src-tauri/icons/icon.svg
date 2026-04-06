@@ -39,60 +39,60 @@
     <filter id="dislandShadow" x="-10%" y="-30%" width="120%" height="160%">
       <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.6"/>
     </filter>
+
+    <!-- 圆角裁剪 -->
+    <clipPath id="roundedClip">
+      <rect width="1024" height="1024" rx="225" ry="225"/>
+    </clipPath>
   </defs>
 
-  <!-- 海洋背景 -->
-  <rect width="1024" height="1024" fill="url(#oceanGradient)"/>
+  <!-- 圆角背景 -->
+  <rect width="1024" height="1024" rx="225" ry="225" fill="url(#oceanGradient)"/>
 
-  <!-- 星星点缀 -->
-  <circle cx="120" cy="100" r="2" fill="white" opacity="0.6"/>
-  <circle cx="200" cy="180" r="1.5" fill="white" opacity="0.4"/>
-  <circle cx="850" cy="80" r="2" fill="white" opacity="0.5"/>
-  <circle cx="920" cy="150" r="1.5" fill="white" opacity="0.4"/>
-  <circle cx="750" cy="120" r="1" fill="white" opacity="0.6"/>
+  <!-- 所有内容在圆角裁剪区域内 -->
+  <g clip-path="url(#roundedClip)">
+    <!-- 星星点缀 -->
+    <circle cx="120" cy="100" r="2" fill="white" opacity="0.6"/>
+    <circle cx="200" cy="180" r="1.5" fill="white" opacity="0.4"/>
+    <circle cx="850" cy="80" r="2" fill="white" opacity="0.5"/>
+    <circle cx="920" cy="150" r="1.5" fill="white" opacity="0.4"/>
+    <circle cx="750" cy="120" r="1" fill="white" opacity="0.6"/>
 
-  <!-- 岛屿主体 -->
-  <ellipse cx="512" cy="720" rx="350" ry="120" fill="url(#islandGradient)" filter="url(#islandShadow)"/>
+    <!-- 灵动岛 -->
+    <rect x="112" y="180" width="800" height="280" rx="140" fill="url(#dynamicIslandGradient)" filter="url(#dislandShadow)"/>
+    <rect x="112" y="180" width="800" height="280" rx="140" fill="none" stroke="#4a4a6a" stroke-width="2" opacity="0.5"/>
 
-  <!-- 岛屿高光 -->
-  <ellipse cx="512" cy="700" rx="300" ry="80" fill="#3d6b4f" opacity="0.4"/>
+    <!-- 状态指示灯 -->
+    <circle cx="250" cy="320" r="55" fill="#22c55e" filter="url(#glow)"/>
+    <circle cx="250" cy="320" r="35" fill="#4ade80"/>
 
-  <!-- 棕榈树 -->
-  <g transform="translate(380, 520)">
-    <!-- 树干 -->
-    <path d="M30 180 Q35 100 40 20" stroke="#5d4037" stroke-width="12" fill="none" stroke-linecap="round"/>
-    <!-- 树叶 -->
-    <ellipse cx="40" cy="20" rx="60" ry="20" fill="#2e7d32" transform="rotate(-30 40 20)"/>
-    <ellipse cx="40" cy="10" rx="55" ry="18" fill="#388e3c" transform="rotate(30 40 10)"/>
-    <ellipse cx="40" cy="5" rx="50" ry="16" fill="#43a047" transform="rotate(0 40 5)"/>
+    <!-- CC 文字 -->
+    <text x="580" y="380" font-family="SF Pro Display, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="180" font-weight="800" fill="white" text-anchor="middle" letter-spacing="-8">CC</text>
+
+    <!-- 岛屿主体 - 上移确保在圆角内 -->
+    <ellipse cx="512" cy="680" rx="320" ry="100" fill="url(#islandGradient)" filter="url(#islandShadow)"/>
+    <ellipse cx="512" cy="665" rx="270" ry="70" fill="#3d6b4f" opacity="0.4"/>
+
+    <!-- 棕榈树 - 调整位置 -->
+    <g transform="translate(400, 510)">
+      <path d="M30 160 Q35 90 40 20" stroke="#5d4037" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <ellipse cx="40" cy="20" rx="50" ry="16" fill="#2e7d32" transform="rotate(-30 40 20)"/>
+      <ellipse cx="40" cy="10" rx="45" ry="14" fill="#388e3c" transform="rotate(30 40 10)"/>
+      <ellipse cx="40" cy="5" rx="42" ry="13" fill="#43a047" transform="rotate(0 40 5)"/>
+    </g>
+
+    <g transform="translate(560, 530)">
+      <path d="M30 140 Q32 80 35 15" stroke="#5d4037" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <ellipse cx="35" cy="15" rx="45" ry="14" fill="#2e7d32" transform="rotate(-25 35 15)"/>
+      <ellipse cx="35" cy="8" rx="40" ry="12" fill="#388e3c" transform="rotate(25 35 8)"/>
+      <ellipse cx="35" cy="3" rx="38" ry="11" fill="#43a047" transform="rotate(0 35 3)"/>
+    </g>
+
+    <!-- 海浪 - 在圆角内 -->
+    <path d="M50 780 Q256 750 512 780 T974 780 L1024 850 L0 850 Z" fill="#0a1628" opacity="0.5"/>
+    <path d="M50 820 Q256 790 512 820 T974 820 L1024 900 L0 900 Z" fill="#061220" opacity="0.3"/>
+
+    <!-- Island 文字 - 上移确保在圆角内 -->
+    <text x="512" y="870" font-family="SF Pro Display, -apple-system, sans-serif" font-size="48" font-weight="600" fill="white" text-anchor="middle" opacity="0.9">Island</text>
   </g>
-
-  <g transform="translate(560, 540)">
-    <!-- 树干 -->
-    <path d="M30 160 Q32 90 35 15" stroke="#5d4037" stroke-width="10" fill="none" stroke-linecap="round"/>
-    <!-- 树叶 -->
-    <ellipse cx="35" cy="15" rx="50" ry="16" fill="#2e7d32" transform="rotate(-25 35 15)"/>
-    <ellipse cx="35" cy="8" rx="45" ry="14" fill="#388e3c" transform="rotate(25 35 8)"/>
-    <ellipse cx="35" cy="3" rx="42" ry="13" fill="#43a047" transform="rotate(0 35 3)"/>
-  </g>
-
-  <!-- 灵动岛 - 悬浮在岛屿上方 -->
-  <rect x="112" y="180" width="800" height="280" rx="140" fill="url(#dynamicIslandGradient)" filter="url(#dislandShadow)"/>
-
-  <!-- 灵动岛边框高光 -->
-  <rect x="112" y="180" width="800" height="280" rx="140" fill="none" stroke="#4a4a6a" stroke-width="2" opacity="0.5"/>
-
-  <!-- 左侧绿色状态指示灯 -->
-  <circle cx="250" cy="320" r="55" fill="#22c55e" filter="url(#glow)"/>
-  <circle cx="250" cy="320" r="35" fill="#4ade80"/>
-
-  <!-- CC 文字 -->
-  <text x="580" y="380" font-family="SF Pro Display, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="180" font-weight="800" fill="white" text-anchor="middle" letter-spacing="-8">CC</text>
-
-  <!-- 海浪 -->
-  <path d="M0 850 Q200 820 400 850 T800 850 T1024 850 L1024 1024 L0 1024 Z" fill="#0a1628" opacity="0.5"/>
-  <path d="M0 900 Q256 870 512 900 T1024 900 L1024 1024 L0 1024 Z" fill="#061220" opacity="0.3"/>
-
-  <!-- Island 文字 -->
-  <text x="512" y="980" font-family="SF Pro Display, -apple-system, sans-serif" font-size="52" font-weight="600" fill="white" text-anchor="middle" opacity="0.9">Island</text>
 </svg>
