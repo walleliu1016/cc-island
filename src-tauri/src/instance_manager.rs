@@ -29,6 +29,7 @@ pub enum TerminalType {
     WindowsTerminal,
     WindowsCmd,
     WindowsPowershell,
+    WindowsGitBash,
     // Linux
     LinuxGnome,
     LinuxKonsole,
