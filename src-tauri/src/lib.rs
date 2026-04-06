@@ -120,15 +120,25 @@ fn respond_popup(
     answer: Option<String>,
     answers: Option<Vec<Vec<String>>>,
 ) -> Result<(), String> {
-    // Log to file if logging enabled
-    let log_content = format!(
-        "[{}] respond_popup called: popup_id={}, decision={:?}, answers={:?}\n",
-        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-        popup_id, decision, answers
-    );
-    write_log("cc-island.log", &log_content);
+    // Check logging enabled before acquiring lock
+    let logging_enabled = is_logging_enabled();
 
     let mut state = SHARED_STATE.write();
+
+    // Log to file if logging enabled
+    if logging_enabled {
+        let log_content = format!(
+            "[{}] respond_popup called: popup_id={}, decision={:?}, answers={:?}\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            popup_id, decision, answers
+        );
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/cc-island.log")
+            .and_then(|mut f| std::io::Write::write_all(&mut f, log_content.as_bytes()));
+    }
+
     let response = popup_queue::PopupResponse {
         popup_id: popup_id.clone(),
         decision,

@@ -154,18 +154,6 @@ impl PopupQueue {
 
     /// Resolve a waiting popup
     pub fn resolve(&mut self, response: PopupResponse) -> bool {
-        // Log to file if logging enabled
-        if crate::is_logging_enabled() {
-            let mut log_content = format!(
-                "[{}] resolve called for popup_id: {}, waiting map has {} entries\n",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                response.popup_id, self.waiting.len()
-            );
-            for (id, _) in &self.waiting {
-                log_content.push_str(&format!("  Waiting popup: {}\n", id));
-            }
-            crate::write_log("cc-island.log", &log_content);
-        }
 
         if let Some(waiting) = self.waiting.remove(&response.popup_id) {
             // Update popup status
