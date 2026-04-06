@@ -52,13 +52,15 @@ async fn handle_hook(
     State(state): State<Arc<RwLock<AppState>>>,
     Json(input): Json<HookInput>,
 ) -> Result<Json<HookOutput>, StatusCode> {
-    // Log complete hook JSON to file if logging enabled
-    let log_entry = format!(
-        "[{}] {}\n",
-        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-        serde_json::to_string(&input).unwrap_or_else(|_| "serialize error".to_string())
-    );
-    crate::write_log("cc-island.log", &log_entry);
+    // Log complete hook JSON to file if logging enabled (async, no lock)
+    if crate::is_logging_enabled() {
+        let log_entry = format!(
+            "[{}] {}\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            serde_json::to_string(&input).unwrap_or_else(|_| "serialize error".to_string())
+        );
+        crate::write_log(&log_entry);
+    }
 
     let hook_event = input.hook_event_name.as_str();
 
@@ -113,13 +115,15 @@ async fn handle_hook(
                     &elicitation_questions,
                 );
 
-                // Log the response to file if logging enabled
-                let log_content = format!(
-                    "[{}] Response: {:?}\n",
-                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                    serde_json::to_string(&output)
-                );
-                crate::write_log("cc-island.log", &log_content);
+                // Log the response to file if logging enabled (async, no lock)
+                if crate::is_logging_enabled() {
+                    let log_content = format!(
+                        "[{}] Response: {:?}\n",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                        serde_json::to_string(&output)
+                    );
+                    crate::write_log(&log_content);
+                }
 
                 Ok(Json(output))
             }

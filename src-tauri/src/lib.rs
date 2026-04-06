@@ -14,6 +14,10 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use once_cell::sync::Lazy;
 use tauri::Manager;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Global atomic flag for logging (no lock needed)
+pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Recent tool activity for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,21 +75,27 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
     Arc::new(RwLock::new(AppState::new()))
 });
 
-/// Check if logging is enabled
+/// Check if logging is enabled (atomic, no lock)
 pub fn is_logging_enabled() -> bool {
-    SHARED_STATE.read().settings.enable_logging
+    LOGGING_ENABLED.load(Ordering::Relaxed)
 }
 
-/// Write to log file if logging is enabled
-pub fn write_log(filename: &str, content: &str) {
-    if !is_logging_enabled() {
+/// Set logging enabled state (atomic, no lock)
+pub fn set_logging_enabled(enabled: bool) {
+    LOGGING_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// Write to log file directly (atomic check + file write, no RwLock involved)
+/// This is safe to call even when holding RwLock because file I/O is independent
+pub fn write_log(content: &str) {
+    if !LOGGING_ENABLED.load(Ordering::Relaxed) {
         return;
     }
-    let path = format!("/tmp/{}", filename);
+    // Direct file write - no locks involved, safe to call from anywhere
     let _ = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&path)
+        .open("/tmp/cc-island.log")
         .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()));
 }
 
@@ -120,24 +130,17 @@ fn respond_popup(
     answer: Option<String>,
     answers: Option<Vec<Vec<String>>>,
 ) -> Result<(), String> {
-    // Check logging enabled before acquiring lock
-    let logging_enabled = is_logging_enabled();
-
-    let mut state = SHARED_STATE.write();
-
-    // Log to file if logging enabled
-    if logging_enabled {
+    // Log using async channel (no lock needed)
+    if is_logging_enabled() {
         let log_content = format!(
             "[{}] respond_popup called: popup_id={}, decision={:?}, answers={:?}\n",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
             popup_id, decision, answers
         );
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("/tmp/cc-island.log")
-            .and_then(|mut f| std::io::Write::write_all(&mut f, log_content.as_bytes()));
+        write_log(&log_content);
     }
+
+    let mut state = SHARED_STATE.write();
 
     let response = popup_queue::PopupResponse {
         popup_id: popup_id.clone(),
@@ -186,6 +189,9 @@ fn get_settings() -> config::AppSettings {
 
 #[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
+    // Update atomic logging flag first (no lock)
+    set_logging_enabled(settings.enable_logging);
+
     let mut state = SHARED_STATE.write();
     state.settings = settings;
     Ok(())
