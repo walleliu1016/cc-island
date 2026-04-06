@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PopupItem, AskQuestion } from '../types';
 
+// Maximum length for command/details before truncation
+const MAX_DETAILS_LENGTH = 200;
+
+// Truncate string with ellipsis
+const truncateText = (text: string, maxLength: number): string => {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+};
+
 interface PopupListProps {
   popups: PopupItem[];
   onRespond: (popupId: string, decision?: string, answer?: string, answers?: string[][]) => void;
@@ -42,19 +51,25 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
         <div className="flex items-center gap-2">
           <span className="text-base">🔐</span>
           <span className="text-white/80 text-sm font-medium">{toolName}</span>
-          <span className="text-white/50 text-xs flex-1 truncate ml-auto">{popup.project_name}</span>
+          <span
+            className="text-white/50 text-xs ml-auto text-right"
+            style={{ minWidth: '60px', maxWidth: '100px' }}
+            title={popup.project_name}
+          >
+            {truncateText(popup.project_name, 12)}
+          </span>
         </div>
 
         {/* Description */}
         <div className="text-white/70 text-sm ml-7">
-          {action}
+          {truncateText(action, 100)}
         </div>
 
-        {/* Details (command/filepath/url) - code block style */}
+        {/* Details (command/filepath/url) - code block style with max height */}
         {details && (
-          <div className="ml-7 bg-black/30 rounded px-2.5 py-1.5 text-xs font-mono text-white/60 border border-white/10 overflow-x-auto">
+          <div className="ml-7 bg-black/30 rounded px-2.5 py-1.5 text-xs font-mono text-white/60 border border-white/10 overflow-hidden">
             <span className="text-white/40 mr-1.5">$</span>
-            {details}
+            <span className="break-all">{truncateText(details, MAX_DETAILS_LENGTH)}</span>
           </div>
         )}
 
@@ -158,6 +173,17 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
     ? currentQuestion.options.length === 0 || (selections[currentPage]?.length ?? 0) > 0
     : true;
 
+  // Truncated project name component
+  const ProjectNameTag = () => (
+    <span
+      className="text-white/50 text-xs ml-auto text-right"
+      style={{ minWidth: '60px', maxWidth: '100px' }}
+      title={popup.project_name}
+    >
+      {truncateText(popup.project_name, 12)}
+    </span>
+  );
+
   // No questions case
   if (questions.length === 0) {
     return (
@@ -169,7 +195,7 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <div className="flex items-center gap-2">
           <span className="text-base">💬</span>
           <span className="text-white/80 text-sm font-medium">问题</span>
-          <span className="text-white/50 text-xs flex-1 truncate">{popup.project_name}</span>
+          <ProjectNameTag />
         </div>
         <div className="ml-7">
           <input
@@ -202,7 +228,7 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <span className="text-white/80 text-sm font-medium">
           {totalQuestions > 1 ? `问题 ${currentPage + 1}/${totalQuestions}` : '问题'}
         </span>
-        <span className="text-white/50 text-xs flex-1 truncate">{popup.project_name}</span>
+        <ProjectNameTag />
       </div>
 
       {/* Question content with animation */}

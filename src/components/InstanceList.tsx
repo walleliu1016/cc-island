@@ -1,6 +1,15 @@
 import { motion } from 'framer-motion';
 import { ClaudeInstance, PopupItem } from '../types';
 
+// Truncate text with ellipsis
+const truncateText = (text: string, maxLength: number): string => {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+};
+
+// Fixed width for project name display
+const PROJECT_NAME_MAX_LENGTH = 10;
+
 interface InstanceListProps {
   instances: ClaudeInstance[];
   popups?: PopupItem[];
@@ -138,6 +147,7 @@ function InstanceItem({
 
   const status = getStatusDisplay();
   const projectName = instance.custom_name || instance.project_name;
+  const displayName = truncateText(projectName, PROJECT_NAME_MAX_LENGTH);
 
   return (
     <motion.div
@@ -148,10 +158,10 @@ function InstanceItem({
       {/* 状态指示灯 */}
       <div className={`w-2.5 h-2.5 rounded-full ${status.dotClass} ${status.animate ? 'animate-pulse' : ''}`} />
 
-      {/* 项目名 */}
-      <div className="flex-shrink-0">
+      {/* 项目名 - 固定宽度 */}
+      <div className="flex-shrink-0" style={{ minWidth: '80px', maxWidth: '100px' }} title={projectName}>
         <span className="text-white/40 text-xs">APP:</span>
-        <span className={`text-sm font-semibold ml-0.5 ${status.colorClass}`}>{projectName}</span>
+        <span className={`text-sm font-semibold ml-0.5 ${status.colorClass}`}>{displayName}</span>
       </div>
 
       {/* 状态信息 */}
