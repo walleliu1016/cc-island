@@ -3,70 +3,240 @@ use std::process::Command;
 use sysinfo::{System, ProcessesToUpdate};
 
 /// Jump to terminal window on macOS using AppleScript
+/// Tries to activate the specific window containing the Claude session
 pub fn jump_to_terminal_macos(process_info: &ProcessInfo) -> bool {
     let terminal_pid = process_info.terminal_pid;
+    let project_name = extract_project_name_from_cwd(&process_info.working_directory);
 
-    let script = match process_info.terminal_type {
+    match process_info.terminal_type {
         TerminalType::MacosTerminal => {
-            "tell application \"Terminal\" to activate\n\
-             tell application \"System Events\" to tell process \"Terminal\"\n\
-             set frontmost to true\n\
-             end tell"
+            // Try to find and activate the specific window by title
+            jump_to_terminal_window(&project_name)
         }
         TerminalType::MacosIterm2 => {
-            "tell application \"iTerm2\" to activate\n\
-             tell application \"System Events\" to tell process \"iTerm2\"\n\
-             set frontmost to true\n\
-             end tell"
+            jump_to_iterm2_window(&project_name)
         }
         TerminalType::MacosAlacritty => {
-            "tell application \"Alacritty\" to activate\n\
-             tell application \"System Events\" to tell process \"Alacritty\"\n\
-             set frontmost to true\n\
-             end tell"
+            jump_to_alacritty_window(&project_name)
         }
         TerminalType::MacosGhostty => {
-            "tell application \"Ghostty\" to activate\n\
-             tell application \"System Events\" to tell process \"Ghostty\"\n\
-             set frontmost to true\n\
-             end tell"
+            jump_to_ghostty_window(&project_name)
         }
         TerminalType::MacosVscode => {
-            "tell application \"Visual Studio Code\" to activate\n\
-             tell application \"System Events\" to tell process \"Electron\"\n\
-             set frontmost to true\n\
-             end tell"
+            jump_to_vscode_window(&project_name)
         }
         _ => {
             // Generic: try to activate by PID
-            &format!(
-                "tell application \"System Events\"\n\
-                 set frontmost of first process whose unix id is {} to true\n\
-                 end tell",
-                terminal_pid
-            )
+            activate_by_pid(terminal_pid)
         }
-    };
+    }
+}
+
+/// Extract project name from working directory path
+fn extract_project_name_from_cwd(cwd: &str) -> String {
+    std::path::Path::new(cwd)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+/// Activate Terminal.app window by matching project name in title
+fn jump_to_terminal_window(project_name: &str) -> bool {
+    // Terminal window title format: "project — ✳ Claude Code — claude — 120x30"
+    // Match windows containing both project name and "Claude Code"
+    let script = format!(
+        r#"
+tell application "Terminal"
+    activate
+    set targetWindow to missing value
+    set searchTerm to "{}"
+
+    repeat with w in windows
+        set windowTitle to name of w
+        if windowTitle contains searchTerm and windowTitle contains "Claude Code" then
+            set targetWindow to w
+            exit repeat
+        end if
+    end repeat
+
+    if targetWindow is not missing value then
+        set index of targetWindow to 1
+    end if
+end tell
+"#,
+        project_name
+    );
 
     let output = Command::new("osascript")
         .arg("-e")
-        .arg(script)
+        .arg(&script)
         .output();
 
     match output {
         Ok(result) => {
             if result.status.success() {
-                tracing::info!("Successfully jumped to terminal PID {}", terminal_pid);
+                tracing::info!("Successfully jumped to Terminal window for project {}", project_name);
                 true
             } else {
-                tracing::warn!("Failed to jump to terminal: {}", String::from_utf8_lossy(&result.stderr));
-                false
+                tracing::warn!("Failed to find Terminal window: {}", String::from_utf8_lossy(&result.stderr));
+                // Fallback: just activate Terminal
+                activate_app("Terminal")
             }
         }
         Err(e) => {
             tracing::error!("Failed to execute osascript: {}", e);
-            false
+            activate_app("Terminal")
         }
+    }
+}
+
+/// Activate iTerm2 window by matching project name
+fn jump_to_iterm2_window(project_name: &str) -> bool {
+    let script = format!(
+        r#"
+tell application "iTerm2"
+    activate
+    set targetSession to missing value
+
+    repeat with t in terminals
+        repeat with s in sessions of t
+            set sessionName to name of s
+            if sessionName contains "{}" then
+                select s
+                set targetSession to s
+                exit repeat
+            end if
+        end repeat
+    end repeat
+end tell
+"#,
+        project_name
+    );
+
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
+
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                tracing::info!("Successfully jumped to iTerm2 window for project {}", project_name);
+                true
+            } else {
+                activate_app("iTerm2")
+            }
+        }
+        Err(_) => activate_app("iTerm2")
+    }
+}
+
+/// Activate Alacritty window (limited AppleScript support)
+fn jump_to_alacritty_window(_project_name: &str) -> bool {
+    // Alacritty has limited AppleScript support, just activate the app
+    activate_app("Alacritty")
+}
+
+/// Activate Ghostty window
+fn jump_to_ghostty_window(project_name: &str) -> bool {
+    // Ghostty window title: "⠐ Claude Code"
+    // We can try to match, but Ghostty's AppleScript support is limited
+    let script = format!(
+        r#"
+tell application "Ghostty"
+    activate
+end tell
+tell application "System Events"
+    tell process "Ghostty"
+        set frontmost to true
+    end tell
+end tell
+"#,
+    );
+
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
+
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                tracing::info!("Successfully activated Ghostty");
+                true
+            } else {
+                activate_app("Ghostty")
+            }
+        }
+        Err(_) => activate_app("Ghostty")
+    }
+}
+
+/// Activate VS Code window
+fn jump_to_vscode_window(project_name: &str) -> bool {
+    // VS Code window title usually contains folder name
+    let script = format!(
+        r#"
+tell application "Visual Studio Code"
+    activate
+end tell
+"#,
+    );
+
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
+
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                tracing::info!("Successfully activated VS Code");
+                true
+            } else {
+                activate_app("Visual Studio Code")
+            }
+        }
+        Err(_) => activate_app("Visual Studio Code")
+    }
+}
+
+/// Generic app activation by name
+fn activate_app(app_name: &str) -> bool {
+    let script = format!(
+        r#"tell application "{}" to activate"#,
+        app_name
+    );
+
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
+
+    match output {
+        Ok(result) => result.status.success(),
+        Err(_) => false
+    }
+}
+
+/// Activate by PID (fallback)
+fn activate_by_pid(pid: u32) -> bool {
+    let script = format!(
+        r#"tell application "System Events"
+    set frontmost of first process whose unix id is {} to true
+end tell"#,
+        pid
+    );
+
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
+
+    match output {
+        Ok(result) => result.status.success(),
+        Err(_) => false
     }
 }
 
