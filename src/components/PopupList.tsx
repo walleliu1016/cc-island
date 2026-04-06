@@ -11,10 +11,10 @@ const truncateText = (text: string, maxLength: number): string => {
   return text.slice(0, maxLength) + '...';
 };
 
-// Truncated project name tag component - fixed width for alignment
+// Truncated project name tag component - fixed width for alignment, left-aligned
 const ProjectNameTag = ({ name }: { name: string }) => (
   <span
-    className="text-white/50 text-xs text-right flex-shrink-0"
+    className="text-white/50 text-xs flex-shrink-0"
     style={{ width: '95px' }}
     title={name}
   >

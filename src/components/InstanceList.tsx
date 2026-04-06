@@ -158,9 +158,9 @@ function InstanceItem({
       {/* 状态指示灯 */}
       <div className={`w-2.5 h-2.5 rounded-full ${status.dotClass} ${status.animate ? 'animate-pulse' : ''}`} />
 
-      {/* 项目名 - 固定宽度，右对齐 */}
+      {/* 项目名 - 固定宽度，左对齐 */}
       <div
-        className="flex-shrink-0 text-right"
+        className="flex-shrink-0"
         style={{ width: '95px' }}
         title={projectName}
       >
