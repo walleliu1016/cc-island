@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dynamic Island styles */
+:root {
+  --island-height: 44px;
+  --island-radius: 22px;
+  --island-bg: rgba(0, 0, 0, 0.85);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: transparent !important;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  border: none;
+  outline: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+/* Island capsule */
+.island-capsule {
+  background: var(--island-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--island-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: none;
+  outline: none;
+  position: relative;
+}
+
+/* Status indicator dot */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.idle {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.status-dot.working {
+  background: #34c759;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.waiting {
+  background: #ff9500;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-dot.error {
+  background: #ff3b30;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}
+
+/* Custom scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

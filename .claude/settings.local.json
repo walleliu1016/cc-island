@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm tauri:*)",
+      "Bash(open:*)",
+      "Bash(rm -rf src-tauri/target/debug/bundle/macos/CC-Island.app)",
+      "Bash(cargo clean:*)"
+    ]
+  }
+}

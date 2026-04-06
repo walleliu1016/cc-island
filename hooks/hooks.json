@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "~/.claude/cc-island-session-start.sh",
+        "timeout": 5
+      }]
+    }],
+
+    "SessionEnd": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "Stop": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PreToolUse": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PostToolUse": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PostToolUseFailure": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PermissionRequest": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 300
+      }]
+    }],
+
+    "Notification": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PreCompact": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "PostCompact": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "SubagentStart": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }],
+
+    "SubagentStop": [{
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:17527/hook",
+        "timeout": 5
+      }]
+    }]
+  }
+}
