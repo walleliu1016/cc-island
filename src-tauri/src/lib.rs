@@ -71,6 +71,24 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
     Arc::new(RwLock::new(AppState::new()))
 });
 
+/// Check if logging is enabled
+pub fn is_logging_enabled() -> bool {
+    SHARED_STATE.read().settings.enable_logging
+}
+
+/// Write to log file if logging is enabled
+pub fn write_log(filename: &str, content: &str) {
+    if !is_logging_enabled() {
+        return;
+    }
+    let path = format!("/tmp/{}", filename);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()));
+}
+
 // Tauri commands
 #[tauri::command]
 fn start_drag(window: tauri::Window) -> Result<(), String> {
@@ -102,18 +120,13 @@ fn respond_popup(
     answer: Option<String>,
     answers: Option<Vec<Vec<String>>>,
 ) -> Result<(), String> {
-    // Log to file
-    let log_file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/cc-island-response.log");
-    if let Ok(mut f) = log_file {
-        let _ = std::io::Write::write_all(&mut f, format!(
-            "[{}] respond_popup called: popup_id={}, decision={:?}, answers={:?}\n",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-            popup_id, decision, answers
-        ).as_bytes());
-    }
+    // Log to file if logging enabled
+    let log_content = format!(
+        "[{}] respond_popup called: popup_id={}, decision={:?}, answers={:?}\n",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+        popup_id, decision, answers
+    );
+    write_log("cc-island-response.log", &log_content);
 
     let mut state = SHARED_STATE.write();
     let response = popup_queue::PopupResponse {
@@ -178,6 +191,13 @@ pub fn run() {
     rt.block_on(async {
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                // When second instance tries to start, focus the existing window
+                let _ = app.get_webview_window("main").map(|w| {
+                    w.set_focus().ok();
+                    w.show().ok();
+                });
+            }))
             .invoke_handler(tauri::generate_handler![
                 start_drag,
                 get_instances,

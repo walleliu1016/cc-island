@@ -52,17 +52,13 @@ async fn handle_hook(
     State(state): State<Arc<RwLock<AppState>>>,
     Json(input): Json<HookInput>,
 ) -> Result<Json<HookOutput>, StatusCode> {
-    // Log complete hook JSON to file
+    // Log complete hook JSON to file if logging enabled
     let log_entry = format!(
         "[{}] {}\n",
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
         serde_json::to_string(&input).unwrap_or_else(|_| "serialize error".to_string())
     );
-    let _ = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/cc-island.log")
-        .and_then(|mut f| std::io::Write::write_all(&mut f, log_entry.as_bytes()));
+    crate::write_log("cc-island.log", &log_entry);
 
     let hook_event = input.hook_event_name.as_str();
 
@@ -117,22 +113,19 @@ async fn handle_hook(
                     &elicitation_questions,
                 );
 
-                // Log the response to file
-                let log_file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open("/tmp/cc-island-response.log");
-                if let Ok(mut f) = log_file {
-                    let _ = std::io::Write::write_all(&mut f, format!(
-                        "[{}] Response: {:?}\n",
-                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                        serde_json::to_string(&output)
-                    ).as_bytes());
-                }
+                // Log the response to file if logging enabled
+                let log_content = format!(
+                    "[{}] Response: {:?}\n",
+                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    serde_json::to_string(&output)
+                );
+                crate::write_log("cc-island-response.log", &log_content);
 
                 // Write response to cc-response.json for review (overwrite each time)
-                if let Ok(json_str) = serde_json::to_string_pretty(&output) {
-                    let _ = std::fs::write("/tmp/cc-response.json", &json_str);
+                if crate::is_logging_enabled() {
+                    if let Ok(json_str) = serde_json::to_string_pretty(&output) {
+                        let _ = std::fs::write("/tmp/cc-response.json", &json_str);
+                    }
                 }
 
                 Ok(Json(output))
@@ -862,9 +855,11 @@ fn build_timeout_output(hook_event_name: &str) -> Result<Json<HookOutput>, Statu
         }),
     };
 
-    // Write to cc-response.json for review
-    if let Ok(json_str) = serde_json::to_string_pretty(&output) {
-        let _ = std::fs::write("/tmp/cc-response.json", &json_str);
+    // Write to cc-response.json for review if logging enabled
+    if crate::is_logging_enabled() {
+        if let Ok(json_str) = serde_json::to_string_pretty(&output) {
+            let _ = std::fs::write("/tmp/cc-response.json", &json_str);
+        }
     }
 
     Ok(Json(output))

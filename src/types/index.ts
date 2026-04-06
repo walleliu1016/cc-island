@@ -100,6 +100,7 @@ export interface AppSettings {
   auto_deny_on_timeout: boolean;
   show_notifications: boolean;
   poll_interval: number;
+  enable_logging: boolean;
 }
 
 // Tool activity for display

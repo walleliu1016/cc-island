@@ -6,7 +6,15 @@
       "Bash(pnpm tauri:*)",
       "Bash(open:*)",
       "Bash(rm -rf src-tauri/target/debug/bundle/macos/CC-Island.app)",
-      "Bash(cargo clean:*)"
+      "Bash(cargo clean:*)",
+      "Bash(pnpm add:*)",
+      "Bash(node -e \"console.log\\(''''sharp installed''''\\)\")",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(node -e \":*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

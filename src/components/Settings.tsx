@@ -277,6 +277,17 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 <span className="text-white/80 text-sm">显示状态通知</span>
               </label>
 
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.enable_logging}
+                  onChange={e => setSettings({ ...settings, enable_logging: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-white/80 text-sm">启用日志记录</span>
+                <span className="text-white/40 text-xs">(/tmp/cc-island*.log)</span>
+              </label>
+
               <button
                 onClick={saveSettings}
                 disabled={saving}

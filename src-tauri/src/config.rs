@@ -29,6 +29,7 @@ pub struct AppSettings {
     pub auto_deny_on_timeout: bool,
     pub show_notifications: bool,
     pub poll_interval: u64,           // milliseconds
+    pub enable_logging: bool,         // enable file logging
 }
 
 impl Default for AppSettings {
@@ -39,6 +40,7 @@ impl Default for AppSettings {
             auto_deny_on_timeout: true,
             show_notifications: true,
             poll_interval: 500,
+            enable_logging: false,
         }
     }
 }

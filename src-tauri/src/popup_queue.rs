@@ -154,20 +154,17 @@ impl PopupQueue {
 
     /// Resolve a waiting popup
     pub fn resolve(&mut self, response: PopupResponse) -> bool {
-        // Log to file
-        let log_file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("/tmp/cc-island-response.log");
-        if let Ok(mut f) = log_file {
-            let _ = std::io::Write::write_all(&mut f, format!(
+        // Log to file if logging enabled
+        if crate::is_logging_enabled() {
+            let mut log_content = format!(
                 "[{}] resolve called for popup_id: {}, waiting map has {} entries\n",
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 response.popup_id, self.waiting.len()
-            ).as_bytes());
+            );
             for (id, _) in &self.waiting {
-                let _ = std::io::Write::write_all(&mut f, format!("  Waiting popup: {}\n", id).as_bytes());
+                log_content.push_str(&format!("  Waiting popup: {}\n", id));
             }
+            crate::write_log("cc-island-response.log", &log_content);
         }
 
         if let Some(waiting) = self.waiting.remove(&response.popup_id) {
