@@ -164,7 +164,7 @@ impl PopupQueue {
             for (id, _) in &self.waiting {
                 log_content.push_str(&format!("  Waiting popup: {}\n", id));
             }
-            crate::write_log("cc-island-response.log", &log_content);
+            crate::write_log("cc-island.log", &log_content);
         }
 
         if let Some(waiting) = self.waiting.remove(&response.popup_id) {

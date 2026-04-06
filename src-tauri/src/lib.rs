@@ -126,7 +126,7 @@ fn respond_popup(
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
         popup_id, decision, answers
     );
-    write_log("cc-island-response.log", &log_content);
+    write_log("cc-island.log", &log_content);
 
     let mut state = SHARED_STATE.write();
     let response = popup_queue::PopupResponse {

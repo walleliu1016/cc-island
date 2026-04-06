@@ -119,14 +119,7 @@ async fn handle_hook(
                     chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                     serde_json::to_string(&output)
                 );
-                crate::write_log("cc-island-response.log", &log_content);
-
-                // Write response to cc-response.json for review (overwrite each time)
-                if crate::is_logging_enabled() {
-                    if let Ok(json_str) = serde_json::to_string_pretty(&output) {
-                        let _ = std::fs::write("/tmp/cc-response.json", &json_str);
-                    }
-                }
+                crate::write_log("cc-island.log", &log_content);
 
                 Ok(Json(output))
             }
@@ -854,13 +847,6 @@ fn build_timeout_output(hook_event_name: &str) -> Result<Json<HookOutput>, Statu
             content: None,
         }),
     };
-
-    // Write to cc-response.json for review if logging enabled
-    if crate::is_logging_enabled() {
-        if let Ok(json_str) = serde_json::to_string_pretty(&output) {
-            let _ = std::fs::write("/tmp/cc-response.json", &json_str);
-        }
-    }
 
     Ok(Json(output))
 }
