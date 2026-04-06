@@ -158,8 +158,12 @@ function InstanceItem({
       {/* 状态指示灯 */}
       <div className={`w-2.5 h-2.5 rounded-full ${status.dotClass} ${status.animate ? 'animate-pulse' : ''}`} />
 
-      {/* 项目名 - 固定宽度 */}
-      <div className="flex-shrink-0" style={{ minWidth: '80px', maxWidth: '100px' }} title={projectName}>
+      {/* 项目名 - 固定宽度，右对齐 */}
+      <div
+        className="flex-shrink-0 text-right"
+        style={{ width: '95px' }}
+        title={projectName}
+      >
         <span className="text-white/40 text-xs">APP:</span>
         <span className={`text-sm font-semibold ml-0.5 ${status.colorClass}`}>{displayName}</span>
       </div>

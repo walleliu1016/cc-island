@@ -11,6 +11,17 @@ const truncateText = (text: string, maxLength: number): string => {
   return text.slice(0, maxLength) + '...';
 };
 
+// Truncated project name tag component - fixed width for alignment
+const ProjectNameTag = ({ name }: { name: string }) => (
+  <span
+    className="text-white/50 text-xs text-right flex-shrink-0"
+    style={{ width: '95px' }}
+    title={name}
+  >
+    {truncateText(name, 12)}
+  </span>
+);
+
 interface PopupListProps {
   popups: PopupItem[];
   onRespond: (popupId: string, decision?: string, answer?: string, answers?: string[][]) => void;
@@ -51,13 +62,7 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
         <div className="flex items-center gap-2">
           <span className="text-base">🔐</span>
           <span className="text-white/80 text-sm font-medium">{toolName}</span>
-          <span
-            className="text-white/50 text-xs ml-auto text-right"
-            style={{ minWidth: '60px', maxWidth: '100px' }}
-            title={popup.project_name}
-          >
-            {truncateText(popup.project_name, 12)}
-          </span>
+          <ProjectNameTag name={popup.project_name} />
         </div>
 
         {/* Description */}
@@ -173,17 +178,6 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
     ? currentQuestion.options.length === 0 || (selections[currentPage]?.length ?? 0) > 0
     : true;
 
-  // Truncated project name component
-  const ProjectNameTag = () => (
-    <span
-      className="text-white/50 text-xs ml-auto text-right"
-      style={{ minWidth: '60px', maxWidth: '100px' }}
-      title={popup.project_name}
-    >
-      {truncateText(popup.project_name, 12)}
-    </span>
-  );
-
   // No questions case
   if (questions.length === 0) {
     return (
@@ -195,7 +189,7 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <div className="flex items-center gap-2">
           <span className="text-base">💬</span>
           <span className="text-white/80 text-sm font-medium">问题</span>
-          <ProjectNameTag />
+          <ProjectNameTag name={popup.project_name} />
         </div>
         <div className="ml-7">
           <input
@@ -228,7 +222,7 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <span className="text-white/80 text-sm font-medium">
           {totalQuestions > 1 ? `问题 ${currentPage + 1}/${totalQuestions}` : '问题'}
         </span>
-        <ProjectNameTag />
+        <ProjectNameTag name={popup.project_name} />
       </div>
 
       {/* Question content with animation */}
