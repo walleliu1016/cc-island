@@ -1,7 +1,7 @@
 # CC-Island
 
 <p align="center">
-  <img src="docs/assets/icon.png" alt="CC-Island Logo" width="128" height="128">
+  <img src="src-tauri/icons/128x128.png" alt="CC-Island Logo" width="128" height="128">
 </p>
 
 <p align="center">
