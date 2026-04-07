@@ -188,7 +188,7 @@ function InstanceItem({
           onClick={() => onJump(instance.session_id)}
           className="px-2.5 py-1 text-xs text-white/50 bg-white/[0.08] hover:bg-white/[0.15] hover:text-white/80 rounded transition-colors flex-shrink-0"
         >
-          Jump
+          跳转
         </button>
       )}
     </motion.div>
