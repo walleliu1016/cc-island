@@ -2,34 +2,43 @@ use crate::instance_manager::{ProcessInfo, TerminalType};
 use std::process::Command;
 
 /// Jump to terminal window on Linux using xdotool or wmctrl
+/// Only activate the specific window containing the Claude session
 pub fn jump_to_terminal_linux(process_info: &ProcessInfo) -> bool {
     let terminal_pid = process_info.terminal_pid;
+    let project_name = extract_project_name_from_cwd(&process_info.working_directory);
 
-    // Try xdotool first (more reliable for PID-based activation)
-    if activate_by_pid_xdotool(terminal_pid) {
+    // Try xdotool first - it can activate specific window by PID
+    if activate_window_by_pid_xdotool(terminal_pid) {
         return true;
     }
 
-    // Fallback to wmctrl
+    // Fallback: try to find window by project name in title
+    if activate_window_by_title(&project_name) {
+        return true;
+    }
+
+    // Last fallback: wmctrl by class
     match process_info.terminal_type {
         TerminalType::LinuxGnome => activate_by_class_wmctrl("gnome-terminal"),
         TerminalType::LinuxKonsole => activate_by_class_wmctrl("konsole"),
         TerminalType::LinuxAlacritty => activate_by_class_wmctrl("Alacritty"),
-        _ => {
-            // Generic fallback: try common terminal class names
-            for class in &["gnome-terminal", "konsole", "Alacritty", "terminal"] {
-                if activate_by_class_wmctrl(class) {
-                    return true;
-                }
-            }
-            false
-        }
+        _ => false,
     }
 }
 
-/// Activate window by PID using xdotool
-fn activate_by_pid_xdotool(pid: u32) -> bool {
+/// Extract project name from working directory path
+fn extract_project_name_from_cwd(cwd: &str) -> String {
+    std::path::Path::new(cwd)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+/// Activate window by PID using xdotool (most precise method)
+fn activate_window_by_pid_xdotool(pid: u32) -> bool {
     // xdotool search --pid <pid> windowactivate
+    // This activates only the specific window belonging to the PID
     let output = Command::new("xdotool")
         .args(["search", "--pid", &pid.to_string(), "windowactivate"])
         .output();
@@ -40,13 +49,43 @@ fn activate_by_pid_xdotool(pid: u32) -> bool {
                 tracing::info!("Successfully activated window by PID {} via xdotool", pid);
                 true
             } else {
-                tracing::debug!("xdotool PID search failed or no window found, trying class-based");
+                tracing::debug!("xdotool PID search failed or no window found");
                 false
             }
         }
         Err(e) => {
-            // xdotool might not be installed
             tracing::debug!("xdotool not available: {}", e);
+            false
+        }
+    }
+}
+
+/// Activate window by searching for project name in window title
+fn activate_window_by_title(project_name: &str) -> bool {
+    // Use wmctrl to find and activate window by title
+    // wmctrl -a <title> activates the first window matching the title
+    let output = Command::new("wmctrl")
+        .args(["-a", project_name])
+        .output();
+
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                tracing::info!("Successfully activated window by title '{}' via wmctrl", project_name);
+                true
+            } else {
+                // Try with "Claude" in title
+                let output2 = Command::new("wmctrl")
+                    .args(["-a", "Claude"])
+                    .output();
+                match output2 {
+                    Ok(r) => r.status.success(),
+                    Err(_) => false
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("wmctrl not available: {}", e);
             false
         }
     }
@@ -55,7 +94,6 @@ fn activate_by_pid_xdotool(pid: u32) -> bool {
 /// Activate window by class name using wmctrl
 fn activate_by_class_wmctrl(class: &str) -> bool {
     // wmctrl -a <class> activates the first window matching the class
-    // Use -F for full match on window class
     let output = Command::new("wmctrl")
         .args(["-a", class])
         .output();
@@ -71,29 +109,10 @@ fn activate_by_class_wmctrl(class: &str) -> bool {
             }
         }
         Err(e) => {
-            // wmctrl might not be installed
             tracing::debug!("wmctrl not available: {}", e);
             false
         }
     }
-}
-
-/// Check if xdotool is available
-fn xdotool_available() -> bool {
-    Command::new("xdotool")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-/// Check if wmctrl is available
-fn wmctrl_available() -> bool {
-    Command::new("wmctrl")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 /// Detect terminal type from process tree on Linux

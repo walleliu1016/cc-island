@@ -2,29 +2,64 @@ use crate::instance_manager::{ProcessInfo, TerminalType};
 use std::process::Command;
 
 /// Jump to terminal window on Windows
+/// Only activate the specific window containing the Claude session
 pub fn jump_to_terminal_windows(process_info: &ProcessInfo) -> bool {
     let terminal_pid = process_info.terminal_pid;
+    let project_name = extract_project_name_from_cwd(&process_info.working_directory);
 
     match process_info.terminal_type {
-        TerminalType::WindowsTerminal => activate_by_process_name("WindowsTerminal", terminal_pid),
-        TerminalType::WindowsPowershell => activate_by_process_name("powershell", terminal_pid),
-        TerminalType::WindowsCmd => activate_by_process_name("cmd", terminal_pid),
-        TerminalType::WindowsGitBash => activate_by_process_name("mintty", terminal_pid),
+        TerminalType::WindowsTerminal => activate_window_by_title(&project_name, terminal_pid),
+        TerminalType::WindowsPowershell => activate_window_by_title(&project_name, terminal_pid),
+        TerminalType::WindowsCmd => activate_window_by_title(&project_name, terminal_pid),
+        TerminalType::WindowsGitBash => activate_window_by_title(&project_name, terminal_pid),
         _ => activate_by_pid(terminal_pid),
     }
 }
 
-/// Activate window by process name using PowerShell
-fn activate_by_process_name(process_name: &str, fallback_pid: u32) -> bool {
-    // Use PowerShell to activate window by process name
+/// Extract project name from working directory path
+fn extract_project_name_from_cwd(cwd: &str) -> String {
+    std::path::Path::new(cwd)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+/// Activate window by searching for project name in window title
+/// This ensures only the specific window is activated, not all windows of the app
+fn activate_window_by_title(project_name: &str, fallback_pid: u32) -> bool {
+    // Use PowerShell to find and activate the specific window by title
+    // Window title typically contains the project path or name
     let ps_script = format!(
-        "$proc = Get-Process -Name '{}' -ErrorAction SilentlyContinue; \
-         if ($proc) { \
-             $wshell = New-Object -ComObject WScript.Shell; \
-             $wshell.AppActivate($proc.MainWindowTitle); \
-             $wshell.SendKeys('~'); \
-         }",
-        process_name
+        r#"
+$projectName = "{}"
+$found = $false
+
+# Get all processes that might be terminal windows
+$terminals = Get-Process -Name 'WindowsTerminal', 'powershell', 'cmd', 'mintty' -ErrorAction SilentlyContinue
+
+foreach ($proc in $terminals) {{
+    $title = $proc.MainWindowTitle
+    if ($title -and ($title -like "*$projectName*" -or $title -like "*Claude*")) {{
+        $wshell = New-Object -ComObject WScript.Shell
+        $wshell.AppActivate($title) | Out-Null
+        $found = $true
+        break
+    }}
+}}
+
+# Fallback: try to activate by the specific PID
+if (-not $found) {{
+    $proc = Get-Process -Id {} -ErrorAction SilentlyContinue
+    if ($proc) {{
+        $wshell = New-Object -ComObject WScript.Shell
+        if ($proc.MainWindowTitle) {{
+            $wshell.AppActivate($proc.MainWindowTitle) | Out-Null
+        }}
+    }}
+}}
+"#,
+        project_name, fallback_pid
     );
 
     let output = Command::new("powershell")
@@ -34,49 +69,41 @@ fn activate_by_process_name(process_name: &str, fallback_pid: u32) -> bool {
     match output {
         Ok(result) => {
             if result.status.success() {
-                tracing::info!("Successfully activated {} window", process_name);
+                tracing::info!("Successfully activated window for project {}", project_name);
                 true
             } else {
-                tracing::warn!("PowerShell failed, trying PID fallback: {}",
-                    String::from_utf8_lossy(&result.stderr));
+                tracing::warn!("PowerShell failed: {}", String::from_utf8_lossy(&result.stderr));
                 activate_by_pid(fallback_pid)
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to run PowerShell: {}, trying PID fallback", e);
+            tracing::warn!("Failed to run PowerShell: {}", e);
             activate_by_pid(fallback_pid)
         }
     }
 }
 
-/// Activate window by PID using Win32 API
+/// Activate window by PID using PowerShell
 fn activate_by_pid(pid: u32) -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId, SetForegroundWindow, IsWindowVisible};
-    use windows::Win32::Foundation::HWND;
-
-    // Find window belonging to this PID
-    let target_pid = pid;
-    let mut found_hwnd: Option<HWND> = None;
-
-    // Enumerate windows to find one belonging to target PID
-    // Note: We use a simple approach - call EnumWindows with a callback
-    // In Rust, we need to use a closure through raw pointer
-
-    // For simplicity, use PowerShell as fallback for PID activation
+    // Use PowerShell to find and activate window by PID
     let ps_script = format!(
-        "$proc = Get-Process -Id {} -ErrorAction SilentlyContinue; \
-         if ($proc) { \
-             $wshell = New-Object -ComObject WScript.Shell; \
-             if ($proc.MainWindowTitle) { \
-                 $wshell.AppActivate($proc.MainWindowTitle); \
-             } else { \
-                 # Try parent process \
-                 $parent = Get-Process -Id $proc.Parent.ProcessId -ErrorAction SilentlyContinue; \
-                 if ($parent) { \
-                     $wshell.AppActivate($parent.MainWindowTitle); \
-                 } \
-             } \
-         }",
+        r#"
+$proc = Get-Process -Id {} -ErrorAction SilentlyContinue
+if ($proc) {{
+    $wshell = New-Object -ComObject WScript.Shell
+    if ($proc.MainWindowTitle) {{
+        $wshell.AppActivate($proc.MainWindowTitle) | Out-Null
+    }} else {{
+        # Try parent process
+        try {{
+            $parent = Get-Process -Id $proc.Parent.Id -ErrorAction SilentlyContinue
+            if ($parent -and $parent.MainWindowTitle) {{
+                $wshell.AppActivate($parent.MainWindowTitle) | Out-Null
+            }}
+        }} catch {{}}
+    }}
+}}
+"#,
         pid
     );
 
