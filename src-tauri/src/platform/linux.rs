@@ -39,14 +39,31 @@ fn extract_project_name_from_cwd(cwd: &str) -> String {
 fn activate_window_by_pid_xdotool(pid: u32) -> bool {
     // xdotool search --pid <pid> windowactivate
     // This activates only the specific window belonging to the PID
+    // xdotool windowactivate automatically restores minimized windows
+    // Also try to raise and focus the window
     let output = Command::new("xdotool")
-        .args(["search", "--pid", &pid.to_string(), "windowactivate"])
+        .args(["search", "--pid", &pid.to_string(), "windowactivate", "--sync"])
         .output();
 
     match output {
         Ok(result) => {
             if result.status.success() && !result.stdout.is_empty() {
                 tracing::info!("Successfully activated window by PID {} via xdotool", pid);
+                // Get the window ID and ensure it's not minimized
+                let window_ids = String::from_utf8_lossy(&result.stdout);
+                for win_id in window_ids.lines() {
+                    // Try to restore from minimized state
+                    let _ = Command::new("xdotool")
+                        .args(["windowstate", win_id, "remove", "MINIMIZED"])
+                        .output();
+                    // Raise and focus
+                    let _ = Command::new("xdotool")
+                        .args(["windowraise", win_id])
+                        .output();
+                    let _ = Command::new("xdotool")
+                        .args(["windowfocus", win_id])
+                        .output();
+                }
                 true
             } else {
                 tracing::debug!("xdotool PID search failed or no window found");
@@ -64,6 +81,12 @@ fn activate_window_by_pid_xdotool(pid: u32) -> bool {
 fn activate_window_by_title(project_name: &str) -> bool {
     // Use wmctrl to find and activate window by title
     // wmctrl -a <title> activates the first window matching the title
+    // First try to restore any minimized windows matching the title
+    let restore_output = Command::new("wmctrl")
+        .args(["-r", project_name, "-b", "remove,MINIMIZED"])
+        .output();
+
+    // Now activate the window
     let output = Command::new("wmctrl")
         .args(["-a", project_name])
         .output();
@@ -75,6 +98,9 @@ fn activate_window_by_title(project_name: &str) -> bool {
                 true
             } else {
                 // Try with "Claude" in title
+                let _ = Command::new("wmctrl")
+                    .args(["-r", "Claude", "-b", "remove,MINIMIZED"])
+                    .output();
                 let output2 = Command::new("wmctrl")
                     .args(["-a", "Claude"])
                     .output();
@@ -93,6 +119,11 @@ fn activate_window_by_title(project_name: &str) -> bool {
 
 /// Activate window by class name using wmctrl
 fn activate_by_class_wmctrl(class: &str) -> bool {
+    // First restore any minimized windows of this class
+    let _ = Command::new("wmctrl")
+        .args(["-r", class, "-b", "remove,MINIMIZED"])
+        .output();
+
     // wmctrl -a <class> activates the first window matching the class
     let output = Command::new("wmctrl")
         .args(["-a", class])

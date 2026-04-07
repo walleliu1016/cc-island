@@ -30,6 +30,7 @@ fn extract_project_name_from_cwd(cwd: &str) -> String {
 fn activate_window_by_title(project_name: &str, fallback_pid: u32) -> bool {
     // Use PowerShell to find and activate the specific window by title
     // Window title typically contains the project path or name
+    // Also handles minimized windows by restoring them first
     let ps_script = format!(
         r#"
 $projectName = "{}"
@@ -41,8 +42,12 @@ $terminals = Get-Process -Name 'WindowsTerminal', 'powershell', 'cmd', 'mintty' 
 foreach ($proc in $terminals) {{
     $title = $proc.MainWindowTitle
     if ($title -and ($title -like "*$projectName*" -or $title -like "*Claude*")) {{
+        # Restore window from minimized state if needed
         $wshell = New-Object -ComObject WScript.Shell
         $wshell.AppActivate($title) | Out-Null
+        Start-Sleep -Milliseconds 100
+        # Send restore keystroke if still minimized
+        $wshell.SendKeys("% r")  # Alt+Space then R (Restore)
         $found = $true
         break
     }}
@@ -55,6 +60,8 @@ if (-not $found) {{
         $wshell = New-Object -ComObject WScript.Shell
         if ($proc.MainWindowTitle) {{
             $wshell.AppActivate($proc.MainWindowTitle) | Out-Null
+            Start-Sleep -Milliseconds 100
+            $wshell.SendKeys("% r")
         }}
     }}
 }}
