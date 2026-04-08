@@ -1,0 +1,189 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            name: 'macOS (Apple Silicon)'
+            ext: '.dmg'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            name: 'macOS (Intel)'
+            ext: '.dmg'
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            name: 'Windows'
+            ext: '.msi'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            name: 'Linux'
+            ext: '.deb'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'CC-Island ${{ github.ref_name }}'
+          releaseBody: 'See assets below.'
+          releaseDraft: true
+          prerelease: false
+          target: ${{ matrix.target }}
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Find artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        id: find-macos
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
+            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+          else
+            # Build for Intel macOS
+            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
+            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Find artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        id: find-windows
+        run: |
+          MSI=$(Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
+          EXE=$(Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
+          echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
+          echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Find artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        id: find-linux
+        run: |
+          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f | head -1)
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          echo "DEB=$DEB" >> $GITHUB_OUTPUT
+          echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Upload artifact (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          path: ${{ steps.find-macos.outputs.DMG }}
+          retention-days: 7
+
+      - name: Upload artifact (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          path: |
+            ${{ steps.find-windows.outputs.MSI }}
+            ${{ steps.find-windows.outputs.EXE }}
+          retention-days: 7
+
+      - name: Upload artifact (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          path: |
+            ${{ steps.find-linux.outputs.DEB }}
+            ${{ steps.find-linux.outputs.APPIMAGE }}
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CC-Island ${{ github.ref_name }}
+          body: |
+            ## Downloads
+
+            ### macOS
+            - `CC-Island_*_aarch64-apple-darwin/*.dmg` - Apple Silicon (M1/M2/M3)
+            - `CC-Island_*_x86_64-apple-darwin/*.dmg` - Intel Mac
+
+            ### Windows
+            - `CC-Island_*_x86_64-pc-windows-msvc/*.msi` - Windows Installer
+            - `CC-Island_*_x86_64-pc-windows-msvc/*.exe` - Portable Executable
+
+            ### Linux
+            - `CC-Island_*_x86_64-unknown-linux-gnu/*.deb` - Debian/Ubuntu
+            - `CC-Island_*_x86_64-unknown-linux-gnu/*.AppImage` - Universal Linux
+
+            ## What's Changed
+            See [commits](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
