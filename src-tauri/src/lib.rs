@@ -281,7 +281,17 @@ pub fn run() {
                 update_settings
             ])
             .setup(|app| {
-                let _window = app.get_webview_window("main").unwrap();
+                let window = app.get_webview_window("main").unwrap();
+
+                // Position window at top center
+                if let Ok(monitor) = window.primary_monitor() {
+                    if let Some(monitor) = monitor {
+                        let screen_size = monitor.size();
+                        let window_width = 360u32;
+                        let x = (screen_size.width - window_width) / 2;
+                        let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: 5 }));
+                    }
+                }
 
                 // Create tray menu with Quit item
                 let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)

@@ -5,6 +5,7 @@ import { useAppStore } from './stores/appStore';
 import { InstanceList } from './components/InstanceList';
 import { PopupCard } from './components/PopupList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
+import { BuddyAnimation } from './components/BuddyAnimation';
 import { ClaudeInstance, PopupItem, HooksCheckResult, ToolActivity } from './types';
 
 // Window sizes
@@ -232,6 +233,19 @@ function App() {
     }
   };
 
+  // 计算当前状态用于动画
+  const getCurrentStatus = (): 'working' | 'waiting' | 'idle' | 'pending' => {
+    if (notification?.type === 'error') return 'pending';
+    if (notification?.type === 'popup') return 'pending';
+    if (notification?.type === 'working') return 'working';
+    if (pendingPopups.length > 0) return 'pending';
+    if (workingCount > 0) return 'working';
+    if (waitingCount > 0) return 'waiting';
+    return 'idle';
+  };
+
+  const currentStatus = getCurrentStatus();
+
   return (
     <div className="w-screen h-screen flex flex-col items-center pt-1 pointer-events-none">
       <motion.div
@@ -246,23 +260,12 @@ function App() {
       >
         {/* Header */}
         <motion.div
-          className="px-4 py-2 flex items-center gap-3 cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="px-4 py-2 flex items-center gap-2 cursor-grab active:cursor-grabbing flex-shrink-0"
           style={{ height: 44 }}
           onMouseDown={handleMouseDown}
         >
-          {/* Status dot */}
-          <motion.div
-            animate={{ scale: notification ? [1, 1.3, 1] : 1 }}
-            transition={{ repeat: notification ? 2 : 0, duration: 0.3 }}
-            className={`status-dot ${
-              notification?.type === 'error' ? 'error' :
-              notification?.type === 'popup' ? 'waiting' :
-              notification?.type === 'working' ? 'working' :
-              pendingPopups.length > 0 ? 'waiting' :
-              workingCount > 0 ? 'working' :
-              waitingCount > 0 ? 'waiting' : 'idle'
-            }`}
-          />
+          {/* Buddy Animation */}
+          <BuddyAnimation status={currentStatus} size={28} />
 
           {/* Content */}
           <div className="flex-1 text-white font-medium overflow-hidden text-center">
