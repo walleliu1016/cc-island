@@ -94,9 +94,9 @@ function InstanceItem({
         };
       case 'waiting':
         return {
-          icon: '⏳',
-          label: '等待响应',
-          subLabel: '等待 LLM 返回',
+          icon: '🧠',
+          label: '思考中',
+          subLabel: 'AI 正在处理',
           colorClass: 'text-yellow-400',
           bgClass: 'bg-yellow-500/10 border-yellow-500/30',
           dotClass: 'bg-yellow-400',

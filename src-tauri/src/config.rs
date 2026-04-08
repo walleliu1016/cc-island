@@ -54,6 +54,7 @@ pub const REQUIRED_HOOKS: &[(&str, u64, bool)] = &[
     ("PostToolUse", 5, false),
     ("PermissionRequest", 300, false),
     ("Notification", 120, false),
+    ("UserPromptSubmit", 5, false),  // Required for "thinking" status display
 ];
 
 /// Optional hooks
@@ -62,7 +63,6 @@ pub const OPTIONAL_HOOKS: &[(&str, u64, bool)] = &[
     ("PostToolUseFailure", 5, false),
     ("PreCompact", 5, false),
     ("PostCompact", 5, false),
-    ("UserPromptSubmit", 5, false),
     ("SubagentStart", 5, false),
     ("SubagentStop", 5, false),
 ];

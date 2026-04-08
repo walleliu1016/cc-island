@@ -210,7 +210,8 @@ async fn handle_hook(
                 }
                 "PostToolUse" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
-                        instance.set_status(InstanceStatus::Idle);
+                        // Tool done, but AI may continue thinking → Waiting
+                        instance.set_status(InstanceStatus::Waiting);
                         instance.current_tool = None;
                         instance.tool_input = None;
                     }
@@ -232,7 +233,14 @@ async fn handle_hook(
                         instance.set_status(InstanceStatus::Idle);
                     }
                 }
-                "UserPromptSubmit" | "SubagentStart" | "SubagentStop" => {
+                "UserPromptSubmit" => {
+                    // User submitted a prompt → AI is thinking
+                    if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                        instance.set_status(InstanceStatus::Waiting);
+                        instance.update_activity();
+                    }
+                }
+                "SubagentStart" | "SubagentStop" => {
                     // Just update activity
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.update_activity();

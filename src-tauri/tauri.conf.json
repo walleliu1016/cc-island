@@ -20,7 +20,7 @@
         "minWidth": 360,
         "minHeight": 44,
         "maxWidth": 450,
-        "maxHeight": 600,
+        "maxHeight": 800,
         "resizable": false,
         "fullscreen": false,
         "focus": false,

@@ -12,6 +12,8 @@ const COLLAPSED_WIDTH = 360;
 const COLLAPSED_HEIGHT = 50;
 const EXPANDED_WIDTH = 420;
 const EXPANDED_HEIGHT = 500;
+const MODAL_WIDTH = 420;
+const MODAL_HEIGHT = 550;
 
 function App() {
   const { instances, popups, recentActivities, isExpanded, setIsExpanded, setInstances, setPopups, setRecentActivities } = useAppStore();
@@ -136,6 +138,16 @@ function App() {
   // Resize window when expanded state changes
   useEffect(() => {
     const resizeWindow = async () => {
+      // Modal takes precedence
+      if (showSettings || showHooksSetup) {
+        try {
+          await invoke('resize_window', { width: MODAL_WIDTH, height: MODAL_HEIGHT });
+        } catch (e) {
+          console.error('Failed to resize window:', e);
+        }
+        return;
+      }
+
       const isExpandedState = isExpanded || autoExpandPopup !== null;
       const targetWidth = isExpandedState ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
       const targetHeight = isExpandedState ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
@@ -146,12 +158,13 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, autoExpandPopup]);
+  }, [isExpanded, autoExpandPopup, showSettings, showHooksSetup]);
 
   // Stats
   const activeInstances = instances.filter(i => i.status !== 'ended');
   const idleCount = instances.filter(i => i.status === 'idle').length;
   const workingCount = instances.filter(i => i.status === 'working').length;
+  const waitingCount = instances.filter(i => i.status === 'waiting').length;
   const pendingPopups = popups.filter(p => p.status === 'pending');
   const totalCount = activeInstances.length;
 
@@ -246,7 +259,8 @@ function App() {
               notification?.type === 'popup' ? 'waiting' :
               notification?.type === 'working' ? 'working' :
               pendingPopups.length > 0 ? 'waiting' :
-              workingCount > 0 ? 'working' : 'idle'
+              workingCount > 0 ? 'working' :
+              waitingCount > 0 ? 'waiting' : 'idle'
             }`}
           />
 
@@ -274,11 +288,14 @@ function App() {
                   className="text-base"
                 >
                   {totalCount > 0 ? `${totalCount} Claude` : 'CC-Island'}
-                  {idleCount > 0 && (
-                    <span className="text-white/50 ml-2 text-sm">· {idleCount} idle</span>
-                  )}
                   {workingCount > 0 && (
                     <span className="text-green-400 ml-2 text-sm">· {workingCount} working</span>
+                  )}
+                  {waitingCount > 0 && (
+                    <span className="text-yellow-400 ml-2 text-sm">· {waitingCount} thinking</span>
+                  )}
+                  {idleCount > 0 && (
+                    <span className="text-white/50 ml-2 text-sm">· {idleCount} idle</span>
                   )}
                   {pendingPopups.length > 0 && (
                     <span className="text-orange-400 ml-2 text-sm">· {pendingPopups.length} pending</span>
@@ -369,24 +386,28 @@ function App() {
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettings && (
-          <SettingsModal
-            isOpen={showSettings}
-            onClose={() => setShowSettings(false)}
-            onSettingsChange={handleSettingsChange}
-          />
+          <div className="pointer-events-auto">
+            <SettingsModal
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              onSettingsChange={handleSettingsChange}
+            />
+          </div>
         )}
       </AnimatePresence>
 
       {/* Hooks Setup Modal */}
       <AnimatePresence>
         {showHooksSetup && hooksCheckResult && (
-          <HooksSetupModal
-            result={hooksCheckResult}
-            onComplete={() => {
-              setShowHooksSetup(false);
-              handleSettingsChange();
-            }}
-          />
+          <div className="pointer-events-auto">
+            <HooksSetupModal
+              result={hooksCheckResult}
+              onComplete={() => {
+                setShowHooksSetup(false);
+                handleSettingsChange();
+              }}
+            />
+          </div>
         )}
       </AnimatePresence>
     </div>

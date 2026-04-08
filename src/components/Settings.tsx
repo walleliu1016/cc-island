@@ -105,7 +105,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-gray-900 rounded-xl w-[400px] max-h-[500px] overflow-hidden shadow-2xl"
+        className="bg-gray-900 rounded-xl w-full max-w-[400px] max-h-[500px] overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
