@@ -9,6 +9,7 @@ use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
 use http_server::HttpServer;
 use serde::{Deserialize, Serialize};
+use tauri::menu::{Menu, MenuItem};
 
 use std::sync::Arc;
 use parking_lot::RwLock;
@@ -281,6 +282,21 @@ pub fn run() {
             ])
             .setup(|app| {
                 let _window = app.get_webview_window("main").unwrap();
+
+                // Create tray menu with Quit item
+                let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
+                    .expect("Failed to create quit menu item");
+                let menu = Menu::with_items(app, &[&quit_item])
+                    .expect("Failed to create tray menu");
+
+                // Set tray menu
+                let tray = app.tray_by_id("main").expect("Failed to get tray");
+                tray.set_menu(Some(menu)).expect("Failed to set tray menu");
+                tray.on_menu_event(|app, event| {
+                    if event.id.as_ref() == "quit" {
+                        app.exit(0);
+                    }
+                });
 
                 // Start HTTP server in background
                 let server = HttpServer::new(17527);
