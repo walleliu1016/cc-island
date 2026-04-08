@@ -7,6 +7,12 @@ import { PopupCard } from './components/PopupList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ClaudeInstance, PopupItem, HooksCheckResult, ToolActivity } from './types';
 
+// Window sizes
+const COLLAPSED_WIDTH = 360;
+const COLLAPSED_HEIGHT = 50;
+const EXPANDED_WIDTH = 420;
+const EXPANDED_HEIGHT = 500;
+
 function App() {
   const { instances, popups, recentActivities, isExpanded, setIsExpanded, setInstances, setPopups, setRecentActivities } = useAppStore();
   const [isDragging, setIsDragging] = useState(false);
@@ -16,7 +22,6 @@ function App() {
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
   const [showHooksSetup, setShowHooksSetup] = useState(false);
   const expandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const prevDataRef = useRef({ instances: [] as ClaudeInstance[], popups: [] as PopupItem[] });
 
   // Check hooks configuration on startup
@@ -25,7 +30,6 @@ function App() {
       try {
         const result = await invoke<HooksCheckResult>('check_claude_hooks');
         setHooksCheckResult(result);
-        // Show setup modal if missing required hooks
         if (result.missing_required.length > 0) {
           setShowHooksSetup(true);
         }
@@ -71,7 +75,6 @@ function App() {
         );
 
         if (newPending.length > 0 && !autoExpandPopup) {
-          // 自动展开第一个新弹窗
           setAutoExpandPopup(newPending[0]);
           const typeText = newPending[0].type === 'permission' ? '权限请求' : '问题';
           const toolInfo = newPending[0].permission_data?.tool_name || '';
@@ -79,7 +82,7 @@ function App() {
           setTimeout(() => setNotification(null), 3000);
         }
 
-        // 检测实例状态变化（只处理非 working 状态）
+        // 检测实例状态变化
         for (const instance of instancesData) {
           const prevInstance = prev.instances.find(i => i.session_id === instance.session_id);
           if (prevInstance && prevInstance.status !== instance.status) {
@@ -116,7 +119,6 @@ function App() {
     if (autoExpandPopup) {
       const stillPending = popups.find(p => p.id === autoExpandPopup.id && p.status === 'pending');
       if (!stillPending) {
-        // 当前弹窗已处理，查找下一个
         const nextPending = popups.find(p => p.status === 'pending');
         if (nextPending) {
           setAutoExpandPopup(nextPending);
@@ -131,34 +133,51 @@ function App() {
     }
   }, [popups, autoExpandPopup]);
 
-  // Expand on hover
+  // Resize window when expanded state changes
   useEffect(() => {
-    const handleMouseEnter = () => {
-      if (!isDragging && !autoExpandPopup) {
-        expandTimeoutRef.current = setTimeout(() => setIsExpanded(true), 300);
+    const resizeWindow = async () => {
+      const isExpandedState = isExpanded || autoExpandPopup !== null;
+      const targetWidth = isExpandedState ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
+      const targetHeight = isExpandedState ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+      try {
+        await invoke('resize_window', { width: targetWidth, height: targetHeight });
+      } catch (e) {
+        console.error('Failed to resize window:', e);
       }
     };
+    resizeWindow();
+  }, [isExpanded, autoExpandPopup]);
 
-    const handleMouseLeave = () => {
-      if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
-      if (!autoExpandPopup) {
-        setIsExpanded(false);
-      }
-    };
+  // Stats
+  const activeInstances = instances.filter(i => i.status !== 'ended');
+  const idleCount = instances.filter(i => i.status === 'idle').length;
+  const workingCount = instances.filter(i => i.status === 'working').length;
+  const pendingPopups = popups.filter(p => p.status === 'pending');
+  const totalCount = activeInstances.length;
 
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('mouseenter', handleMouseEnter);
-      container.addEventListener('mouseleave', handleMouseLeave);
+  // 显示模式
+  const showAutoExpand = autoExpandPopup !== null;
+  const showHoverExpand = isExpanded && !showAutoExpand;
+
+  // Calculate content width based on state
+  const contentWidth = showAutoExpand || showHoverExpand ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
+
+  // Hover handlers
+  const handleMouseEnter = () => {
+    if (!isDragging && !autoExpandPopup) {
+      expandTimeoutRef.current = setTimeout(() => setIsExpanded(true), 300);
     }
+  };
 
-    return () => {
-      if (container) {
-        container.removeEventListener('mouseenter', handleMouseEnter);
-        container.removeEventListener('mouseleave', handleMouseLeave);
-      }
-    };
-  }, [isDragging, setIsExpanded, autoExpandPopup]);
+  const handleMouseLeave = () => {
+    if (expandTimeoutRef.current) {
+      clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = null;
+    }
+    if (!autoExpandPopup) {
+      setIsExpanded(false);
+    }
+  };
 
   // Drag handling
   const handleMouseDown = async (e: React.MouseEvent) => {
@@ -183,16 +202,14 @@ function App() {
 
   // Respond to popup
   const handleRespond = async (popupId: string, decision?: string, answer?: string, answers?: string[][]) => {
-    console.log('handleRespond called:', { popupId, decision, answer, answers });
     try {
-      const result = await invoke('respond_popup', { popupId, decision, answer, answers });
-      console.log('respond_popup result:', result);
+      await invoke('respond_popup', { popupId, decision, answer, answers });
     } catch (e) {
       console.error('Response failed:', e);
     }
   };
 
-  // Refresh hooks status after settings change
+  // Refresh hooks status
   const handleSettingsChange = async () => {
     try {
       const result = await invoke<HooksCheckResult>('check_claude_hooks');
@@ -202,25 +219,17 @@ function App() {
     }
   };
 
-  // Stats
-  const activeInstances = instances.filter(i => i.status !== 'ended');
-  const idleCount = instances.filter(i => i.status === 'idle').length;
-  const workingCount = instances.filter(i => i.status === 'working').length;
-  const pendingPopups = popups.filter(p => p.status === 'pending');
-  const totalCount = activeInstances.length;
-
-  // 判断显示模式
-  const showAutoExpand = autoExpandPopup !== null;
-  const showHoverExpand = isExpanded && !showAutoExpand;
-
   return (
-    <div ref={containerRef} className="w-screen h-screen flex flex-col items-center pt-1">
+    <div className="w-screen h-screen flex flex-col items-center pt-1 pointer-events-none">
       <motion.div
         layout
         initial={false}
-        animate={{ width: (isExpanded || showAutoExpand) ? 420 : 360 }}
+        animate={{ width: contentWidth }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="island-capsule overflow-hidden flex flex-col"
+        style={{ originX: 0.5 }}
+        className="island-capsule overflow-hidden flex flex-col pointer-events-auto"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Header */}
         <motion.div
@@ -293,7 +302,7 @@ function App() {
           {showAutoExpand && autoExpandPopup && (
             <motion.div
               initial={{ opacity: 0, maxHeight: 0 }}
-              animate={{ opacity: 1, maxHeight: 400 }}
+              animate={{ opacity: 1, maxHeight: 500 }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.2 }}
               className="px-3 pb-3 overflow-visible"
@@ -316,12 +325,12 @@ function App() {
           {showHoverExpand && (
             <motion.div
               initial={{ opacity: 0, maxHeight: 0 }}
-              animate={{ opacity: 1, maxHeight: 550 }}
+              animate={{ opacity: 1, maxHeight: 450 }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.2 }}
               className="px-3 pb-3 overflow-hidden"
             >
-              <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
+              <div className="max-h-[400px] overflow-y-auto scrollbar-thin">
                 {pendingPopups.length > 0 && (
                   <div className="flex flex-col gap-2 mb-2">
                     {pendingPopups.map((popup) => (

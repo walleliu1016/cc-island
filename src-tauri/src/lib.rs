@@ -106,6 +106,14 @@ fn start_drag(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
+    use tauri::Size;
+    window
+        .set_size(Size::Physical(tauri::PhysicalSize { width, height }))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstance> {
     let state = SHARED_STATE.read();
     state.instances.get_all_instances()
@@ -259,6 +267,7 @@ pub fn run() {
             }))
             .invoke_handler(tauri::generate_handler![
                 start_drag,
+                resize_window,
                 get_instances,
                 get_popups,
                 get_recent_activities,
