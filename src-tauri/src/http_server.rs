@@ -10,6 +10,7 @@ use parking_lot::RwLock;
 use tokio::sync::oneshot;
 
 use crate::{AppState, SHARED_STATE};
+use crate::config;
 use crate::instance_manager::{ClaudeInstance, InstanceStatus};
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
@@ -88,18 +89,23 @@ async fn handle_hook(
             // Auto allow - return immediately without creating popup
             return Ok(Json(HookOutput {
                 continue_exec: true,
-                decision: Some("allow".to_string()),
+                decision: None,
                 reason: None,
                 system_message: None,
                 suppress_output: None,
                 hook_specific_output: Some(HookSpecificOutput {
                     hook_event_name: "PermissionRequest".to_string(),
                     additional_context: None,
-                    permission_decision: Some("allow".to_string()),
-                    permission_decision_reason: Some("自动允许".to_string()),
+                    permission_decision: None,
+                    permission_decision_reason: None,
                     updated_input: None,
                     action: None,
-                    decision: None,
+                    decision: Some(DecisionOutput {
+                        behavior: "allow".to_string(),
+                        updated_input: None,
+                        message: None,
+                        interrupt: None,
+                    }),
                     content: None,
                 }),
             }));
@@ -379,28 +385,30 @@ async fn delete_instance(
     Json(serde_json::json!({ "success": true }))
 }
 
-/// Get settings
-async fn get_settings() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "port": 17527,
-        "maxInstances": 10,
-        "maxPopupQueue": 5,
-        "timeout": {
-            "httpTimeout": 300,
-            "warningTime": 30,
-            "criticalTime": 10,
-            "defaultPermissionAction": "deny",
-            "notificationAutoClose": 5000
-        }
-    }))
+/// Get settings from settings.json
+async fn get_settings(
+    state: State<Arc<RwLock<AppState>>>,
+) -> Json<config::AppSettings> {
+    let state_guard = state.read();
+    Json(state_guard.settings.clone())
 }
 
-/// Update settings
+/// Update settings and save to settings.json
 async fn update_settings(
-    Json(_settings): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    // TODO: Persist settings
-    Json(serde_json::json!({ "success": true }))
+    state: State<Arc<RwLock<AppState>>>,
+    Json(settings): Json<config::AppSettings>,
+) -> Result<Json<serde_json::Value>, String> {
+    // Save to file
+    config::save_settings(&settings)?;
+
+    // Update global atomic logging flag
+    crate::set_logging_enabled(settings.enable_logging);
+
+    // Update in-memory state
+    let mut state_guard = state.write();
+    state_guard.settings = settings;
+
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
 /// Update island position

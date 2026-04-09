@@ -47,6 +47,13 @@ pub struct AppSettings {
     pub poll_interval: u64,           // milliseconds
     pub enable_logging: bool,         // enable file logging
     pub hook_forward_url: Option<String>, // HTTP URL to forward all hooks
+    // Instance and queue limits
+    pub max_instances: u64,           // max concurrent Claude instances
+    pub max_popup_queue: u64,         // max pending popups in queue
+    // Timeout warning thresholds
+    pub warning_time: u64,            // seconds before timeout warning (yellow)
+    pub critical_time: u64,           // seconds before timeout critical (red)
+    pub notification_auto_close: u64, // milliseconds before notification auto-close
 }
 
 impl Default for AppSettings {
@@ -60,6 +67,11 @@ impl Default for AppSettings {
             poll_interval: 500,
             enable_logging: false,
             hook_forward_url: None,
+            max_instances: 10,
+            max_popup_queue: 5,
+            warning_time: 30,
+            critical_time: 10,
+            notification_auto_close: 5000,
         }
     }
 }
@@ -129,13 +141,18 @@ pub fn save_settings(settings: &AppSettings) -> Result<(), String> {
     Ok(())
 }
 
-/// Load settings from file, returns default if not exists
+/// Load settings from file, returns default if not exists (and saves defaults to file)
 pub fn load_settings() -> AppSettings {
     let settings_path = get_settings_file_path();
 
     if !settings_path.exists() {
-        tracing::info!("No settings file found, using defaults");
-        return AppSettings::default();
+        tracing::info!("No settings file found, creating defaults");
+        let defaults = AppSettings::default();
+        // Save defaults to file
+        if let Err(e) = save_settings(&defaults) {
+            tracing::warn!("Failed to save default settings: {}", e);
+        }
+        return defaults;
     }
 
     match fs::read_to_string(&settings_path) {

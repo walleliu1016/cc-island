@@ -103,6 +103,13 @@ export interface AppSettings {
   poll_interval: number;
   enable_logging: boolean;
   hook_forward_url: string | null;
+  // Instance and queue limits
+  max_instances: number;
+  max_popup_queue: number;
+  // Timeout warning thresholds
+  warning_time: number;
+  critical_time: number;
+  notification_auto_close: number;
 }
 
 // Tool activity for display

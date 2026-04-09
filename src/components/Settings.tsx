@@ -289,6 +289,32 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
 
               {/* 输入框区域 */}
               <div className="pt-2 border-t border-white/10">
+                {/* 限制配置 */}
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    最大实例数量
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.max_instances}
+                    onChange={e => setSettings({ ...settings, max_instances: parseInt(e.target.value) || 10 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    最大弹窗队列
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.max_popup_queue}
+                    onChange={e => setSettings({ ...settings, max_popup_queue: parseInt(e.target.value) || 5 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                {/* 超时配置 */}
                 <div className="mb-3">
                   <label className="text-white/60 text-xs block mb-1">
                     权限请求超时（秒）
@@ -313,6 +339,34 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   />
                 </div>
 
+                {/* 警告时间配置 */}
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    警告时间（秒）
+                  </label>
+                  <span className="text-white/30 text-xs ml-2">超时前此时间显示黄色警告</span>
+                  <input
+                    type="number"
+                    value={settings.warning_time}
+                    onChange={e => setSettings({ ...settings, warning_time: parseInt(e.target.value) || 30 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    紧急时间（秒）
+                  </label>
+                  <span className="text-white/30 text-xs ml-2">超时前此时间显示红色紧急</span>
+                  <input
+                    type="number"
+                    value={settings.critical_time}
+                    onChange={e => setSettings({ ...settings, critical_time: parseInt(e.target.value) || 10 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                {/* 其他配置 */}
                 <div className="mb-3">
                   <label className="text-white/60 text-xs block mb-1">
                     数据刷新间隔（毫秒）
@@ -321,6 +375,18 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     type="number"
                     value={settings.poll_interval}
                     onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    通知自动关闭（毫秒）
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.notification_auto_close}
+                    onChange={e => setSettings({ ...settings, notification_auto_close: parseInt(e.target.value) || 5000 })}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
                   />
                 </div>
