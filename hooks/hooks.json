@@ -4,7 +4,7 @@
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "~/.claude/cc-island-session-start.sh",
+        "command": "~/.cc-island/session-start.sh",
         "timeout": 5
       }]
     }],

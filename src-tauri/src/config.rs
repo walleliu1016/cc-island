@@ -149,8 +149,9 @@ pub fn get_session_start_command() -> String {
     }
     #[cfg(windows)]
     {
-        // On Windows, use PowerShell to run the script
-        "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.cc-island/session-start.ps1".to_string()
+        // On Windows, use PowerShell with full path using environment variable
+        // %USERPROFILE% is expanded by the shell when the command runs
+        "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '$env:USERPROFILE\\.cc-island\\session-start.ps1'\"".to_string()
     }
 }
 
