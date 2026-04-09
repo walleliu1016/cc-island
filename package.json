@@ -1,6 +1,6 @@
 {
   "name": "cc-island",
-  "version": "0.1.0",
+  "version": "0.0.4",
   "description": "Dynamic Island for Claude Code - monitor and manage multiple Claude terminal instances",
   "type": "module",
   "scripts": {

@@ -92,11 +92,19 @@ pub fn write_log(content: &str) {
     if !LOGGING_ENABLED.load(Ordering::Relaxed) {
         return;
     }
+    // Get log file path
+    let log_path = config::get_log_file_path();
+
+    // Ensure directory exists
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
     // Direct file write - no locks involved, safe to call from anywhere
     let _ = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/cc-island.log")
+        .open(&log_path)
         .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()));
 }
 

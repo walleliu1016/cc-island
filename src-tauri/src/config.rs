@@ -6,11 +6,17 @@ use std::path::PathBuf;
 /// CC-Island specific directory under .claude
 pub const CC_ISLAND_DIR: &str = "cc-island";
 
-/// SessionStart script filename
-pub const SESSION_START_SCRIPT: &str = "session-start.sh";
+/// SessionStart script filename (Unix)
+pub const SESSION_START_SCRIPT_UNIX: &str = "session-start.sh";
+
+/// SessionStart script filename (Windows)
+pub const SESSION_START_SCRIPT_WIN: &str = "session-start.ps1";
 
 /// Initialization marker file
 pub const INIT_MARKER: &str = ".initialized";
+
+/// Log file name
+pub const LOG_FILE: &str = "cc-island.log";
 
 /// Hook configuration status
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,9 +94,64 @@ pub fn get_cc_island_dir() -> PathBuf {
     home.join(".claude").join(CC_ISLAND_DIR)
 }
 
-/// Get SessionStart script path
+/// Get log file path
+pub fn get_log_file_path() -> PathBuf {
+    get_cc_island_dir().join(LOG_FILE)
+}
+
+/// Get SessionStart script path (platform-specific)
 pub fn get_session_start_script_path() -> PathBuf {
-    get_cc_island_dir().join(SESSION_START_SCRIPT)
+    #[cfg(unix)]
+    {
+        get_cc_island_dir().join(SESSION_START_SCRIPT_UNIX)
+    }
+    #[cfg(windows)]
+    {
+        get_cc_island_dir().join(SESSION_START_SCRIPT_WIN)
+    }
+}
+
+/// Get SessionStart script content (platform-specific)
+pub fn get_session_start_script_content() -> &'static str {
+    #[cfg(unix)]
+    {
+        r#"#!/bin/bash
+# CC-Island SessionStart hook
+# Forwards session start event to CC-Island HTTP server
+INPUT=$(cat)
+curl -s -X POST http://localhost:17527/hook \
+  -H "Content-Type: application/json" \
+  -d "$INPUT" \
+  > /dev/null 2>&1
+"#
+    }
+    #[cfg(windows)]
+    {
+        r#"# CC-Island SessionStart hook
+# Forwards session start event to CC-Island HTTP server
+param()
+$inputJson = [Console]::In.ReadToEnd()
+$body = $inputJson | ConvertFrom-Json | ConvertTo-Json -Depth 100 -Compress
+try {
+    Invoke-RestMethod -Uri "http://localhost:17527/hook" -Method POST -ContentType "application/json" -Body $body -ErrorAction SilentlyContinue
+} catch {
+    # Ignore errors
+}
+"#
+    }
+}
+
+/// Get the command path for settings.json (platform-specific)
+pub fn get_session_start_command() -> String {
+    #[cfg(unix)]
+    {
+        "~/.claude/cc-island/session-start.sh".to_string()
+    }
+    #[cfg(windows)]
+    {
+        // On Windows, use PowerShell to run the script
+        "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/cc-island/session-start.ps1".to_string()
+    }
 }
 
 /// Check if CC-Island has been initialized
@@ -123,15 +184,7 @@ pub fn auto_setup_hooks() -> bool {
     }
 
     // Create SessionStart script
-    let script_content = r#"#!/bin/bash
-# CC-Island SessionStart hook
-# Forwards session start event to CC-Island HTTP server
-INPUT=$(cat)
-curl -s -X POST http://localhost:17527/hook \
-  -H "Content-Type: application/json" \
-  -d "$INPUT" \
-  > /dev/null 2>&1
-"#;
+    let script_content = get_session_start_script_content();
     if let Err(e) = fs::write(&script_path, script_content) {
         tracing::error!("Failed to write session start script: {}", e);
         return false;
@@ -265,15 +318,7 @@ pub fn update_claude_hooks_config(hooks_to_enable: Vec<String>) -> Result<(), St
     // Create the SessionStart script if needed
     let script_path = get_session_start_script_path();
     if !script_path.exists() {
-        let script_content = r#"#!/bin/bash
-# CC-Island SessionStart hook
-# Forwards session start event to CC-Island HTTP server
-INPUT=$(cat)
-curl -s -X POST http://localhost:17527/hook \
-  -H "Content-Type: application/json" \
-  -d "$INPUT" \
-  > /dev/null 2>&1
-"#;
+        let script_content = get_session_start_script_content();
         fs::write(&script_path, script_content)
             .map_err(|e| format!("Failed to write session start script: {}", e))?;
         // Make executable
@@ -306,11 +351,12 @@ curl -s -X POST http://localhost:17527/hook \
     for hook_name in hooks_to_enable {
         if let Some((timeout, is_command)) = all_hooks.get(hook_name.as_str()) {
             if *is_command {
-                // Use command type for SessionStart
+                // Use command type for SessionStart (platform-specific)
+                let command = get_session_start_command();
                 hooks_obj.insert(hook_name, serde_json::json!([{
                     "hooks": [{
                         "type": "command",
-                        "command": "~/.claude/cc-island/session-start.sh",
+                        "command": command,
                         "timeout": *timeout
                     }]
                 }]));
