@@ -285,7 +285,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   className="w-4 h-4 rounded"
                 />
                 <span className="text-white/80 text-sm">启用日志记录</span>
-                <span className="text-white/40 text-xs">(/tmp/cc-island.log)</span>
+                <span className="text-white/40 text-xs">(~/.cc-island/cc-island.log)</span>
               </label>
 
               <button
