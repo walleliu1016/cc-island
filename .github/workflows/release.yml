@@ -78,7 +78,12 @@ jobs:
 
       - name: Get version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
         shell: bash
 
       - name: Find artifacts (macOS)
@@ -99,8 +104,8 @@ jobs:
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          MSI=$(Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
-          EXE=$(Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
+          $MSI = (Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
+          $EXE = (Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
           echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
           echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
         shell: pwsh
