@@ -281,6 +281,9 @@ pub fn run() {
                 update_settings
             ])
             .setup(|app| {
+                // Auto-setup hooks on first startup
+                config::auto_setup_hooks();
+
                 let window = app.get_webview_window("main").unwrap();
 
                 // Position window at top center

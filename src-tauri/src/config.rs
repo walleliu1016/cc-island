@@ -3,6 +3,15 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+/// CC-Island specific directory under .claude
+pub const CC_ISLAND_DIR: &str = "cc-island";
+
+/// SessionStart script filename
+pub const SESSION_START_SCRIPT: &str = "session-start.sh";
+
+/// Initialization marker file
+pub const INIT_MARKER: &str = ".initialized";
+
 /// Hook configuration status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookStatus {
@@ -71,6 +80,95 @@ pub const OPTIONAL_HOOKS: &[(&str, u64, bool)] = &[
 fn get_claude_settings_path() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     home.join(".claude").join("settings.json")
+}
+
+/// Get CC-Island directory path under .claude
+pub fn get_cc_island_dir() -> PathBuf {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home.join(".claude").join(CC_ISLAND_DIR)
+}
+
+/// Get SessionStart script path
+pub fn get_session_start_script_path() -> PathBuf {
+    get_cc_island_dir().join(SESSION_START_SCRIPT)
+}
+
+/// Check if CC-Island has been initialized
+pub fn is_initialized() -> bool {
+    get_cc_island_dir().join(INIT_MARKER).exists()
+}
+
+/// Auto-setup hooks on first startup
+/// Returns true if initialization was performed, false if already initialized
+pub fn auto_setup_hooks() -> bool {
+    // Check if already initialized
+    if is_initialized() {
+        tracing::info!("CC-Island hooks already initialized");
+        return false;
+    }
+
+    tracing::info!("First startup - initializing CC-Island hooks...");
+
+    let cc_island_dir = get_cc_island_dir();
+    let script_path = get_session_start_script_path();
+    let init_marker = cc_island_dir.join(INIT_MARKER);
+
+    // Create cc-island directory
+    if !cc_island_dir.exists() {
+        if let Err(e) = fs::create_dir_all(&cc_island_dir) {
+            tracing::error!("Failed to create cc-island directory: {}", e);
+            return false;
+        }
+        tracing::info!("Created directory: {}", cc_island_dir.display());
+    }
+
+    // Create SessionStart script
+    let script_content = r#"#!/bin/bash
+# CC-Island SessionStart hook
+# Forwards session start event to CC-Island HTTP server
+INPUT=$(cat)
+curl -s -X POST http://localhost:17527/hook \
+  -H "Content-Type: application/json" \
+  -d "$INPUT" \
+  > /dev/null 2>&1
+"#;
+    if let Err(e) = fs::write(&script_path, script_content) {
+        tracing::error!("Failed to write session start script: {}", e);
+        return false;
+    }
+    tracing::info!("Created script: {}", script_path.display());
+
+    // Make script executable (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)) {
+            tracing::error!("Failed to set script permissions: {}", e);
+            return false;
+        }
+    }
+
+    // Update Claude settings.json with all required hooks
+    let all_hooks: Vec<String> = REQUIRED_HOOKS.iter()
+        .chain(OPTIONAL_HOOKS.iter())
+        .map(|(name, _, _)| name.to_string())
+        .collect();
+
+    if let Err(e) = update_claude_hooks_config(all_hooks) {
+        tracing::error!("Failed to update Claude hooks config: {}", e);
+        return false;
+    }
+    tracing::info!("Updated Claude hooks configuration");
+
+    // Create initialization marker
+    if let Err(e) = fs::write(&init_marker, format!("initialized at {}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))) {
+        tracing::error!("Failed to create init marker: {}", e);
+        return false;
+    }
+    tracing::info!("Created init marker: {}", init_marker.display());
+
+    tracing::info!("CC-Island hooks initialization completed successfully");
+    true
 }
 
 /// Check Claude hooks configuration
@@ -149,28 +247,42 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
 /// Update Claude hooks configuration
 pub fn update_claude_hooks_config(hooks_to_enable: Vec<String>) -> Result<(), String> {
     let settings_path = get_claude_settings_path();
-    let settings_dir = settings_path.parent().unwrap();
+    let claude_dir = settings_path.parent().unwrap();
+    let cc_island_dir = get_cc_island_dir();
 
-    // Create directory if not exists
-    if !settings_dir.exists() {
-        fs::create_dir_all(settings_dir)
+    // Create .claude directory if not exists
+    if !claude_dir.exists() {
+        fs::create_dir_all(claude_dir)
             .map_err(|e| format!("Failed to create .claude directory: {}", e))?;
     }
 
-    // Also create the SessionStart script if needed
-    let script_path = settings_dir.join("cc-island-session-start.sh");
-    let script_content = r#"#!/bin/bash
+    // Create cc-island directory if not exists
+    if !cc_island_dir.exists() {
+        fs::create_dir_all(&cc_island_dir)
+            .map_err(|e| format!("Failed to create cc-island directory: {}", e))?;
+    }
+
+    // Create the SessionStart script if needed
+    let script_path = get_session_start_script_path();
+    if !script_path.exists() {
+        let script_content = r#"#!/bin/bash
+# CC-Island SessionStart hook
+# Forwards session start event to CC-Island HTTP server
 INPUT=$(cat)
-curl -s -X POST http://localhost:17527/hook -H "Content-Type: application/json" -d "$INPUT" > /dev/null 2>&1
+curl -s -X POST http://localhost:17527/hook \
+  -H "Content-Type: application/json" \
+  -d "$INPUT" \
+  > /dev/null 2>&1
 "#;
-    fs::write(&script_path, script_content)
-        .map_err(|e| format!("Failed to write session start script: {}", e))?;
-    // Make executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
-            .map_err(|e| format!("Failed to set script permissions: {}", e))?;
+        fs::write(&script_path, script_content)
+            .map_err(|e| format!("Failed to write session start script: {}", e))?;
+        // Make executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
+                .map_err(|e| format!("Failed to set script permissions: {}", e))?;
+        }
     }
 
     // Read existing config
@@ -198,7 +310,7 @@ curl -s -X POST http://localhost:17527/hook -H "Content-Type: application/json" 
                 hooks_obj.insert(hook_name, serde_json::json!([{
                     "hooks": [{
                         "type": "command",
-                        "command": "~/.claude/cc-island-session-start.sh",
+                        "command": "~/.claude/cc-island/session-start.sh",
                         "timeout": *timeout
                     }]
                 }]));
