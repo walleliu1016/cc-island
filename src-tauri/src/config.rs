@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-/// CC-Island specific directory under .claude
-pub const CC_ISLAND_DIR: &str = "cc-island";
+/// CC-Island directory name (sibling to .claude)
+pub const CC_ISLAND_DIR_NAME: &str = ".cc-island";
 
 /// SessionStart script filename (Unix)
 pub const SESSION_START_SCRIPT_UNIX: &str = "session-start.sh";
@@ -88,10 +88,10 @@ fn get_claude_settings_path() -> PathBuf {
     home.join(".claude").join("settings.json")
 }
 
-/// Get CC-Island directory path under .claude
+/// Get CC-Island directory path (sibling to .claude)
 pub fn get_cc_island_dir() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    home.join(".claude").join(CC_ISLAND_DIR)
+    home.join(CC_ISLAND_DIR_NAME)
 }
 
 /// Get log file path
@@ -145,12 +145,12 @@ try {
 pub fn get_session_start_command() -> String {
     #[cfg(unix)]
     {
-        "~/.claude/cc-island/session-start.sh".to_string()
+        "~/.cc-island/session-start.sh".to_string()
     }
     #[cfg(windows)]
     {
         // On Windows, use PowerShell to run the script
-        "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/cc-island/session-start.ps1".to_string()
+        "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.cc-island/session-start.ps1".to_string()
     }
 }
 

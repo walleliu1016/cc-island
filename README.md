@@ -79,8 +79,8 @@
 ### 1. 启动 CC-Island
 
 首次启动应用时，它会自动：
-- 创建 `~/.claude/cc-island/` 目录
-- 生成 `session-start.sh` 脚本
+- 创建 `~/.cc-island/` 目录
+- 生成 `session-start.sh` 或 `session-start.ps1` 脚本
 - 配置 Claude Code hooks（更新 `~/.claude/settings.json`）
 
 > **一键配置**: 不需要手动复制脚本或编辑配置文件！
@@ -198,7 +198,7 @@ $ rm -rf /tmp/test-folder
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "~/.claude/cc-island/session-start.sh",
+        "command": "~/.cc-island/session-start.sh",
         "timeout": 5
       }]
     }],
@@ -317,7 +317,7 @@ cc-island/
 ├── hooks/
 │   ├── hooks.json              # Claude Code Hook 配置（参考）
 │   └── cc-island-session-start.sh  # SessionStart 脚本（参考）
-│   # 注：实际配置由应用自动生成到 ~/.claude/cc-island/
+│   # 注：实际配置由应用自动生成到 ~/.cc-island/
 │
 └── docs/
     ├── HOOKS.md                # Hooks 配置文档
@@ -390,7 +390,7 @@ curl http://localhost:17527/popups | jq
 
 删除初始化标记文件后重启应用：
 ```bash
-rm ~/.claude/cc-island/.initialized
+rm ~/.cc-island/.initialized
 # 然后重启 CC-Island
 ```
 
