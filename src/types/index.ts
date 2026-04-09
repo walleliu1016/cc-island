@@ -98,9 +98,11 @@ export interface AppSettings {
   permission_timeout: number;
   ask_timeout: number;
   auto_deny_on_timeout: boolean;
+  auto_allow_permissions: boolean;
   show_notifications: boolean;
   poll_interval: number;
   enable_logging: boolean;
+  hook_forward_url: string | null;
 }
 
 // Tool activity for display

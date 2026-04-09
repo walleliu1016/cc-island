@@ -42,7 +42,7 @@ impl AppState {
         Self {
             instances: InstanceManager::new(),
             popups: PopupQueue::new(),
-            settings: config::AppSettings::default(),
+            settings: config::load_settings(),
             recent_activities: Vec::new(),
         }
     }
@@ -252,6 +252,9 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Update atomic logging flag first (no lock)
     set_logging_enabled(settings.enable_logging);
 
+    // Save to file
+    config::save_settings(&settings)?;
+
     let mut state = SHARED_STATE.write();
     state.settings = settings;
     Ok(())
@@ -289,6 +292,12 @@ pub fn run() {
                 update_settings
             ])
             .setup(|app| {
+                // Initialize logging flag from saved settings
+                {
+                    let state = SHARED_STATE.read();
+                    set_logging_enabled(state.settings.enable_logging);
+                }
+
                 // Auto-setup hooks on first startup
                 config::auto_setup_hooks();
 
@@ -298,7 +307,7 @@ pub fn run() {
                 if let Ok(monitor) = window.primary_monitor() {
                     if let Some(monitor) = monitor {
                         let screen_size = monitor.size();
-                        let window_width = 360u32;
+                        let window_width = 420u32;
                         let x = (screen_size.width - window_width) / 2;
                         let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: 5 }));
                     }

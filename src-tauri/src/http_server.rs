@@ -62,7 +62,49 @@ async fn handle_hook(
         crate::write_log(&log_entry);
     }
 
+    // Async forward hook to configured URL
+    let forward_url = {
+        let state_guard = state.read();
+        state_guard.settings.hook_forward_url.clone()
+    };
+    if let Some(url) = forward_url {
+        if !url.is_empty() {
+            let input_clone = input.clone();
+            tokio::spawn(async move {
+                forward_hook(&url, input_clone).await;
+            });
+        }
+    }
+
     let hook_event = input.hook_event_name.as_str();
+
+    // Check if auto-allow is enabled for PermissionRequest
+    if hook_event == "PermissionRequest" {
+        let auto_allow = {
+            let state_guard = state.read();
+            state_guard.settings.auto_allow_permissions
+        };
+        if auto_allow {
+            // Auto allow - return immediately without creating popup
+            return Ok(Json(HookOutput {
+                continue_exec: true,
+                decision: Some("allow".to_string()),
+                reason: None,
+                system_message: None,
+                suppress_output: None,
+                hook_specific_output: Some(HookSpecificOutput {
+                    hook_event_name: "PermissionRequest".to_string(),
+                    additional_context: None,
+                    permission_decision: Some("allow".to_string()),
+                    permission_decision_reason: Some("自动允许".to_string()),
+                    updated_input: None,
+                    action: None,
+                    decision: None,
+                    content: None,
+                }),
+            }));
+        }
+    }
 
     // Check if this is a blocking event
     // - PermissionRequest: needs user decision
@@ -861,4 +903,37 @@ fn build_timeout_output(hook_event_name: &str) -> Result<Json<HookOutput>, Statu
     };
 
     Ok(Json(output))
+}
+
+/// Forward hook data to configured URL (async, fire-and-forget)
+async fn forward_hook(url: &str, input: HookInput) {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let body = match serde_json::to_string(&input) {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!("Failed to serialize hook for forwarding: {}", e);
+            return;
+        }
+    };
+
+    match client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            if !resp.status().is_success() {
+                tracing::debug!("Hook forward returned status: {}", resp.status());
+            }
+        }
+        Err(e) => {
+            tracing::debug!("Hook forward failed: {}", e);
+        }
+    }
 }

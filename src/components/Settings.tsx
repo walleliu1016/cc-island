@@ -244,41 +244,17 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
 
           {activeTab === 'general' && settings && (
             <div className="space-y-4">
-              <div>
-                <label className="text-white/60 text-xs block mb-1">
-                  权限请求超时（秒）
-                </label>
+              {/* 勾选框区域 */}
+              <label className="flex items-center gap-3 cursor-pointer">
                 <input
-                  type="number"
-                  value={settings.permission_timeout}
-                  onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  type="checkbox"
+                  checked={settings.auto_allow_permissions}
+                  onChange={e => setSettings({ ...settings, auto_allow_permissions: e.target.checked })}
+                  className="w-4 h-4 rounded"
                 />
-              </div>
-
-              <div>
-                <label className="text-white/60 text-xs block mb-1">
-                  Ask 问题超时（秒）
-                </label>
-                <input
-                  type="number"
-                  value={settings.ask_timeout}
-                  onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
-                />
-              </div>
-
-              <div>
-                <label className="text-white/60 text-xs block mb-1">
-                  数据刷新间隔（毫秒）
-                </label>
-                <input
-                  type="number"
-                  value={settings.poll_interval}
-                  onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
-                />
-              </div>
+                <span className="text-white/80 text-sm">自动允许所有权限</span>
+                <span className="text-white/40 text-xs">(跳过权限确认)</span>
+              </label>
 
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -310,6 +286,59 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 <span className="text-white/80 text-sm">启用日志记录</span>
                 <span className="text-white/40 text-xs">(~/.cc-island/cc-island.log)</span>
               </label>
+
+              {/* 输入框区域 */}
+              <div className="pt-2 border-t border-white/10">
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    权限请求超时（秒）
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.permission_timeout}
+                    onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    Ask 问题超时（秒）
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.ask_timeout}
+                    onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-white/60 text-xs block mb-1">
+                    数据刷新间隔（毫秒）
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.poll_interval}
+                    onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-white/60 text-xs block mb-1">
+                    Hook 转发地址
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="http://localhost:8080/hook"
+                    value={settings.hook_forward_url || ''}
+                    onChange={e => setSettings({ ...settings, hook_forward_url: e.target.value || null })}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-white/30 placeholder-white/30"
+                  />
+                  <span className="text-white/30 text-xs mt-1 block">配置后将异步转发所有 Hook 数据到此地址</span>
+                </div>
+              </div>
 
               <button
                 onClick={saveSettings}

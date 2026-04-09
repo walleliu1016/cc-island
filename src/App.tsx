@@ -9,12 +9,12 @@ import { BuddyAnimation } from './components/BuddyAnimation';
 import { ClaudeInstance, PopupItem, HooksCheckResult, ToolActivity } from './types';
 
 // Window sizes
-const COLLAPSED_WIDTH = 360;
+const COLLAPSED_WIDTH = 420;
 const COLLAPSED_HEIGHT = 50;
-const EXPANDED_WIDTH = 420;
-const EXPANDED_HEIGHT = 500;
-const MODAL_WIDTH = 420;
-const MODAL_HEIGHT = 550;
+const EXPANDED_WIDTH = 500;
+const EXPANDED_HEIGHT = 550;
+const MODAL_WIDTH = 480;
+const MODAL_HEIGHT = 600;
 
 function App() {
   const { instances, popups, recentActivities, isExpanded, setIsExpanded, setInstances, setPopups, setRecentActivities } = useAppStore();

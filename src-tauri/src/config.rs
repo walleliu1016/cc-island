@@ -42,9 +42,11 @@ pub struct AppSettings {
     pub permission_timeout: u64,      // seconds
     pub ask_timeout: u64,             // seconds
     pub auto_deny_on_timeout: bool,
+    pub auto_allow_permissions: bool, // auto allow all permission requests
     pub show_notifications: bool,
     pub poll_interval: u64,           // milliseconds
     pub enable_logging: bool,         // enable file logging
+    pub hook_forward_url: Option<String>, // HTTP URL to forward all hooks
 }
 
 impl Default for AppSettings {
@@ -53,9 +55,11 @@ impl Default for AppSettings {
             permission_timeout: 300,
             ask_timeout: 120,
             auto_deny_on_timeout: true,
+            auto_allow_permissions: false,
             show_notifications: true,
             poll_interval: 500,
             enable_logging: false,
+            hook_forward_url: None,
         }
     }
 }
@@ -97,6 +101,61 @@ pub fn get_cc_island_dir() -> PathBuf {
 /// Get log file path
 pub fn get_log_file_path() -> PathBuf {
     get_cc_island_dir().join(LOG_FILE)
+}
+
+/// Get settings file path
+pub fn get_settings_file_path() -> PathBuf {
+    get_cc_island_dir().join("settings.json")
+}
+
+/// Save settings to file
+pub fn save_settings(settings: &AppSettings) -> Result<(), String> {
+    let cc_island_dir = get_cc_island_dir();
+
+    // Create directory if not exists
+    if !cc_island_dir.exists() {
+        fs::create_dir_all(&cc_island_dir)
+            .map_err(|e| format!("Failed to create cc-island directory: {}", e))?;
+    }
+
+    let settings_path = get_settings_file_path();
+    let content = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+
+    fs::write(&settings_path, content)
+        .map_err(|e| format!("Failed to write settings: {}", e))?;
+
+    tracing::info!("Settings saved to {}", settings_path.display());
+    Ok(())
+}
+
+/// Load settings from file, returns default if not exists
+pub fn load_settings() -> AppSettings {
+    let settings_path = get_settings_file_path();
+
+    if !settings_path.exists() {
+        tracing::info!("No settings file found, using defaults");
+        return AppSettings::default();
+    }
+
+    match fs::read_to_string(&settings_path) {
+        Ok(content) => {
+            match serde_json::from_str::<AppSettings>(&content) {
+                Ok(settings) => {
+                    tracing::info!("Loaded settings from {}", settings_path.display());
+                    settings
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to parse settings, using defaults: {}", e);
+                    AppSettings::default()
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read settings file, using defaults: {}", e);
+            AppSettings::default()
+        }
+    }
 }
 
 /// Get SessionStart script path (platform-specific)
