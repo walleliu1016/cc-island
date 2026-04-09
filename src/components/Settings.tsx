@@ -3,6 +3,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { HooksCheckResult, AppSettings } from '../types';
 
+// Hooks 中文描述映射
+const HOOK_DESCRIPTIONS: Record<string, string> = {
+  SessionStart: '会话开始',
+  SessionEnd: '会话结束',
+  PreToolUse: '工具执行前',
+  PostToolUse: '工具执行后',
+  PermissionRequest: '权限请求',
+  Notification: '通知/询问',
+  UserPromptSubmit: '用户输入提交',
+  Stop: '生成停止',
+  PostToolUseFailure: '工具失败后',
+  PreCompact: '压缩前',
+  PostCompact: '压缩后',
+  SubagentStart: '子代理启动',
+  SubagentStop: '子代理停止',
+};
+
+// 获取 hook 显示名称
+const getHookDisplayName = (name: string): string => {
+  const desc = HOOK_DESCRIPTIONS[name];
+  return desc ? `${name}（${desc}）` : name;
+};
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -180,7 +203,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                             key={hook.name}
                             className="flex items-center justify-between py-1 px-2 text-sm"
                           >
-                            <span className="text-white/60">{hook.name}</span>
+                            <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
                             <span className="text-white/40 text-xs">{hook.timeout}s</span>
                           </div>
                         ))}
@@ -204,7 +227,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     onChange={() => toggleHook(hook.name)}
                     className="w-4 h-4 rounded"
                   />
-                  <span className="text-white/80 text-sm flex-1">{hook.name}</span>
+                  <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
                   <span className="text-white/40 text-xs">{hook.timeout}s</span>
                 </label>
               ))}
@@ -433,7 +456,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
                         key={hook.name}
                         className="flex items-center justify-between py-1.5 px-2 text-sm"
                       >
-                        <span className="text-white/60">{hook.name}</span>
+                        <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
                         <span className="text-white/40 text-xs">{hook.timeout}s</span>
                       </div>
                     ))}
@@ -459,7 +482,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
                   onChange={() => toggleHook(hook.name)}
                   className="w-4 h-4 rounded"
                 />
-                <span className="text-white/80 text-sm flex-1">{hook.name}</span>
+                <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
                 <span className="text-white/40 text-xs">{hook.timeout}s</span>
               </label>
             ))}
