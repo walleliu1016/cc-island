@@ -127,15 +127,20 @@ curl -s -X POST http://localhost:17527/hook \
     }
     #[cfg(windows)]
     {
-        r#"# CC-Island SessionStart hook
-# Forwards session start event to CC-Island HTTP server
-param()
-$inputJson = [Console]::In.ReadToEnd()
-$body = $inputJson | ConvertFrom-Json | ConvertTo-Json -Depth 100 -Compress
+        r#"<#
+.SYNOPSIS
+    CC-Island SessionStart hook
+.DESCRIPTION
+    Forwards session start event to CC-Island HTTP server
+#>
+$jsonInput = [Console]::In.ReadToEnd()
+$headers = @{
+    "Content-Type" = "application/json"
+}
 try {
-    Invoke-RestMethod -Uri "http://localhost:17527/hook" -Method POST -ContentType "application/json" -Body $body -ErrorAction SilentlyContinue
+    Invoke-RestMethod -Uri "http://localhost:17527/hook" -Method POST -Headers $headers -Body $jsonInput -ErrorAction SilentlyContinue | Out-Null
 } catch {
-    # Ignore errors
+    # Ignore errors silently
 }
 "#
     }
@@ -149,9 +154,10 @@ pub fn get_session_start_command() -> String {
     }
     #[cfg(windows)]
     {
-        // On Windows, use PowerShell with full path using environment variable
-        // %USERPROFILE% is expanded by the shell when the command runs
-        "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& '$env:USERPROFILE\\.cc-island\\session-start.ps1'\"".to_string()
+        // On Windows, use PowerShell with full path
+        // Double quotes allow $env:USERPROFILE to expand
+        // Note: The path uses forward slashes which PowerShell accepts
+        "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:USERPROFILE/.cc-island/session-start.ps1\"".to_string()
     }
 }
 
