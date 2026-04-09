@@ -76,36 +76,18 @@
 
 ## 快速开始
 
-### 1. 安装 SessionStart 脚本
+### 1. 启动 CC-Island
 
-SessionStart 事件使用 command 类型（非 HTTP），需要先安装脚本：
+首次启动应用时，它会自动：
+- 创建 `~/.claude/cc-island/` 目录
+- 生成 `session-start.sh` 脚本
+- 配置 Claude Code hooks（更新 `~/.claude/settings.json`）
 
-```bash
-# 复制脚本到 Claude 配置目录
-mkdir -p ~/.claude
-cp hooks/cc-island-session-start.sh ~/.claude/
-chmod +x ~/.claude/cc-island-session-start.sh
-```
+> **一键配置**: 不需要手动复制脚本或编辑配置文件！
 
-### 2. 配置 Claude Code Hooks
+### 2. 启动 Claude Code
 
-将 hooks 配置添加到 Claude Code 设置文件：
-
-```bash
-# 方法一：直接复制（推荐）
-cp hooks/hooks.json ~/.claude/settings.json
-
-# 方法二：合并到现有配置
-# 编辑 ~/.claude/settings.json，将 hooks/hooks.json 中的 hooks 字段合并进去
-```
-
-### 3. 启动 CC-Island
-
-启动应用后，它会自动在端口 17527 启动 HTTP 服务器。
-
-### 4. 启动 Claude Code
-
-现在启动任意 Claude Code 实例，CC-Island 会自动检测并显示。
+启动任意 Claude Code 实例，CC-Island 会自动检测并显示。
 
 ---
 
@@ -216,7 +198,7 @@ $ rm -rf /tmp/test-folder
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "~/.claude/cc-island-session-start.sh",
+        "command": "~/.claude/cc-island/session-start.sh",
         "timeout": 5
       }]
     }],
@@ -333,8 +315,9 @@ cc-island/
 │           └── macos.rs        # macOS Jump 实现
 │
 ├── hooks/
-│   ├── hooks.json              # Claude Code Hook 配置
-│   └── cc-island-session-start.sh  # SessionStart 脚本
+│   ├── hooks.json              # Claude Code Hook 配置（参考）
+│   └── cc-island-session-start.sh  # SessionStart 脚本（参考）
+│   # 注：实际配置由应用自动生成到 ~/.claude/cc-island/
 │
 └── docs/
     ├── HOOKS.md                # Hooks 配置文档
@@ -399,10 +382,17 @@ curl http://localhost:17527/popups | jq
 ### Q: 为什么灵动岛不显示实例？
 
 确保：
-1. CC-Island 正在运行
-2. Claude Code 已正确配置 hooks
-3. SessionStart 脚本已安装并赋予执行权限
-4. 检查端口 17527 是否被占用：`lsof -i :17527`
+1. CC-Island 正在运行（首次启动会自动配置 hooks）
+2. Claude Code 已正确配置 hooks（检查 `~/.claude/settings.json`）
+3. 检查端口 17527 是否被占用：`lsof -i :17527`
+
+### Q: 如何重新配置 hooks？
+
+删除初始化标记文件后重启应用：
+```bash
+rm ~/.claude/cc-island/.initialized
+# 然后重启 CC-Island
+```
 
 ### Q: Jump 功能不起作用？
 
