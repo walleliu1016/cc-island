@@ -1,0 +1,29 @@
+{
+  "categories": [
+    { "title": "🚀 Features", "labels": ["feat", "feature"] },
+    { "title": "🐛 Bug Fixes", "labels": ["fix", "bugfix"] },
+    { "title": "📝 Documentation", "labels": ["docs", "documentation"] },
+    { "title": "♻️ Refactoring", "labels": ["refactor"] },
+    { "title": "🎨 Style", "labels": ["style"] },
+    { "title": "⚡ Performance", "labels": ["perf", "performance"] },
+    { "title": "✅ Tests", "labels": ["test", "tests"] },
+    { "title": "🔧 Chores", "labels": ["chore"] },
+    { "title": "📦 Build", "labels": ["build"] },
+    { "title": "⚙️ CI/CD", "labels": ["ci"] }
+  ],
+  "commit_template": "- {{message}}",
+  "pr_template": "- {{title}} (#{{number}}) @{{author}}",
+  "empty_template": "- No changes",
+  "label_extractor": [
+    { "pattern": "^(feat|feature)(\\(.+\\))?:", "target": "feat" },
+    { "pattern": "^(fix|bugfix)(\\(.+\\))?:", "target": "fix" },
+    { "pattern": "^(docs|documentation)(\\(.+\\))?:", "target": "docs" },
+    { "pattern": "^refactor(\\(.+\\))?:", "target": "refactor" },
+    { "pattern": "^style(\\(.+\\))?:", "target": "style" },
+    { "pattern": "^(perf|performance)(\\(.+\\))?:", "target": "perf" },
+    { "pattern": "^test(\\(.+\\))?:", "target": "test" },
+    { "pattern": "^chore(\\(.+\\))?:", "target": "chore" },
+    { "pattern": "^build(\\(.+\\))?:", "target": "build" },
+    { "pattern": "^ci(\\(.+\\))?:", "target": "ci" }
+  ]
+}
