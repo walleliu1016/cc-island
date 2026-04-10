@@ -209,10 +209,24 @@ curl -s -X POST http://localhost:17527/hook \
 .DESCRIPTION
     Forwards session start event to CC-Island HTTP server
 #>
-$jsonInput = [Console]::In.ReadToEnd()
 $headers = @{
     "Content-Type" = "application/json"
 }
+
+# Read stdin JSON, construct fallback if unavailable
+$jsonInput = $null
+try {
+    if ([Console]::IsInputRedirected) {
+        $jsonInput = [Console]::In.ReadToEnd()
+    }
+} catch {
+    # stdin not available
+}
+
+if (-not $jsonInput) {
+    $jsonInput = '{"hook_event_name":"SessionStart"}'
+}
+
 try {
     Invoke-RestMethod -Uri "http://localhost:17527/hook" -Method POST -Headers $headers -Body $jsonInput -ErrorAction SilentlyContinue | Out-Null
 } catch {
@@ -233,7 +247,7 @@ pub fn get_session_start_command() -> String {
         // On Windows, use PowerShell with full path
         // Double quotes allow $env:USERPROFILE to expand
         // Note: The path uses forward slashes which PowerShell accepts
-        "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:USERPROFILE/.cc-island/session-start.ps1\"".to_string()
+        "powershell -NoProfile -ExecutionPolicy Bypass -Command . $HOME/.cc-island/session-start.ps1".to_string()
     }
 }
 
