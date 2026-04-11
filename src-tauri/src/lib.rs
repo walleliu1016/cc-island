@@ -4,9 +4,11 @@ pub mod popup_queue;
 pub mod hook_handler;
 pub mod platform;
 pub mod config;
+pub mod chat_messages;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
+use chat_messages::ChatHistory;
 use http_server::HttpServer;
 use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
@@ -33,6 +35,7 @@ pub struct ToolActivity {
 pub struct AppState {
     pub instances: InstanceManager,
     pub popups: PopupQueue,
+    pub chat_history: ChatHistory,
     pub settings: config::AppSettings,
     pub recent_activities: Vec<ToolActivity>,
 }
@@ -42,6 +45,7 @@ impl AppState {
         Self {
             instances: InstanceManager::new(),
             popups: PopupQueue::new(),
+            chat_history: ChatHistory::new(),
             settings: config::load_settings(),
             recent_activities: Vec::new(),
         }
@@ -116,7 +120,24 @@ fn start_drag(window: tauri::Window) -> Result<(), String> {
 
 #[tauri::command]
 fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
-    use tauri::Size;
+    use tauri::{Size, Position};
+
+    // Get current monitor size to calculate center position
+    let monitor = window.primary_monitor().map_err(|e| e.to_string())?;
+
+    if let Some(monitor) = monitor {
+        let screen_size = monitor.size();
+        // Calculate centered x position
+        let x = (screen_size.width - width) / 2;
+        // Keep y = 0 (touching screen top)
+        let y = 0u32;
+
+        // Set new position first (to keep window centered)
+        window.set_position(Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }))
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Set new size
     window
         .set_size(Size::Physical(tauri::PhysicalSize { width, height }))
         .map_err(|e| e.to_string())
@@ -138,6 +159,12 @@ fn get_popups() -> Vec<popup_queue::PopupItem> {
 fn get_recent_activities() -> Vec<ToolActivity> {
     let state = SHARED_STATE.read();
     state.get_display_activities().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
+    let state = SHARED_STATE.read();
+    state.chat_history.get_messages(&session_id)
 }
 
 #[tauri::command]
@@ -283,6 +310,7 @@ pub fn run() {
                 get_instances,
                 get_popups,
                 get_recent_activities,
+                get_chat_messages,
                 respond_popup,
                 jump_to_instance,
                 refresh_instance_process,
@@ -303,13 +331,13 @@ pub fn run() {
 
                 let window = app.get_webview_window("main").unwrap();
 
-                // Position window at top center
+                // Position window at top center, touching screen top (y=0)
                 if let Ok(monitor) = window.primary_monitor() {
                     if let Some(monitor) = monitor {
                         let screen_size = monitor.size();
-                        let window_width = 420u32;
+                        let window_width = 300u32;  // Collapsed width
                         let x = (screen_size.width - window_width) / 2;
-                        let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: 5 }));
+                        let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: 0 }));
                     }
                 }
 

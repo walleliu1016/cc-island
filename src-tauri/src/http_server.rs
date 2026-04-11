@@ -14,6 +14,7 @@ use crate::config;
 use crate::instance_manager::{ClaudeInstance, InstanceStatus};
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
+use crate::chat_messages::{ChatMessage, MessageType};
 
 /// HTTP Server for receiving Claude Code hooks
 pub struct HttpServer {
@@ -224,6 +225,9 @@ async fn handle_hook(
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Ended);
                     }
+
+                    // Clear chat history for this session
+                    state_guard.chat_history.clear_session(&input.session_id);
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -251,8 +255,30 @@ async fn handle_hook(
                         state_guard.add_activity(crate::ToolActivity {
                             session_id: input.session_id.clone(),
                             project_name,
-                            tool_name,
+                            tool_name: tool_name.clone(),
                             timestamp: now,
+                        });
+
+                        // Store tool call message
+                        let tool_content = format!(
+                            "{}: {}",
+                            tool_name,
+                            input.tool_input.as_ref()
+                                .and_then(|ti| serde_json::to_string(ti).ok())
+                                .unwrap_or_else(|| "{}".to_string())
+                        );
+                        let now_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as u64;
+
+                        state_guard.chat_history.add_message(ChatMessage {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: input.session_id.clone(),
+                            message_type: MessageType::ToolCall,
+                            content: tool_content,
+                            tool_name: Some(tool_name),
+                            timestamp: now_ms,
                         });
                     }
                 }
@@ -263,6 +289,28 @@ async fn handle_hook(
                         instance.current_tool = None;
                         instance.tool_input = None;
                     }
+
+                    // Store tool result message
+                    let tool_name = input.tool_name.clone().unwrap_or_default();
+                    let result_content = input.tool_response.as_ref()
+                        .and_then(|tr| tr.get("output"))
+                        .and_then(|o| o.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "Tool executed".to_string());
+
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64;
+
+                    state_guard.chat_history.add_message(ChatMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: input.session_id.clone(),
+                        message_type: MessageType::ToolResult,
+                        content: result_content,
+                        tool_name: Some(tool_name),
+                        timestamp: now_ms,
+                    });
                 }
                 "PostToolUseFailure" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -286,6 +334,27 @@ async fn handle_hook(
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Waiting);
                         instance.update_activity();
+                    }
+
+                    // Extract user message from hook data
+                    if let Some(prompt) = input.tool_input.as_ref()
+                        .and_then(|ti| ti.get("prompt"))
+                        .and_then(|p| p.as_str())
+                    {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as u64;
+
+                        let message = ChatMessage {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: input.session_id.clone(),
+                            message_type: MessageType::User,
+                            content: prompt.to_string(),
+                            tool_name: None,
+                            timestamp: now,
+                        };
+                        state_guard.chat_history.add_message(message);
                     }
                 }
                 "SubagentStart" | "SubagentStop" => {

@@ -119,3 +119,16 @@ export interface ToolActivity {
   tool_name: string;
   timestamp: number;
 }
+
+// Chat message types
+export type ChatMessageType = 'user' | 'assistant' | 'toolCall' | 'toolResult' | 'thinking' | 'interrupted';
+
+// Chat message
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  messageType: ChatMessageType;
+  content: string;
+  toolName?: string;
+  timestamp: number;
+}

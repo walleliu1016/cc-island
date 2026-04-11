@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { ClaudeInstance, PopupItem } from '../types';
+import { StatusIcon } from './StatusIcons';
 
 // Truncate text with ellipsis
 const truncateText = (text: string, maxLength: number): string => {
@@ -8,189 +9,164 @@ const truncateText = (text: string, maxLength: number): string => {
 };
 
 // Fixed width for project name display
-const PROJECT_NAME_MAX_LENGTH = 10;
+const PROJECT_NAME_MAX_LENGTH = 12;
 
 interface InstanceListProps {
   instances: ClaudeInstance[];
   popups?: PopupItem[];
   onJump: (sessionId: string) => void;
+  onViewChat?: (sessionId: string) => void;
 }
 
-export function InstanceList({ instances, popups = [], onJump }: InstanceListProps) {
-  if (instances.length === 0) return null;
+export function InstanceList({ instances, popups = [], onJump, onViewChat }: InstanceListProps) {
+  // Sort instances by priority: Approval > Processing > Waiting > Idle
+  const sortedInstances = [...instances].sort((a, b) => {
+    const priorityA = getPhasePriority(a.status, popups.find(p => p.session_id === a.session_id && p.status === 'pending'));
+    const priorityB = getPhasePriority(b.status, popups.find(p => p.session_id === b.session_id && p.status === 'pending'));
+    return priorityA - priorityB;
+  });
+
+  if (sortedInstances.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {instances.map((instance) => (
-        <InstanceItem
+    <div className="flex flex-col gap-1">
+      {sortedInstances.map((instance) => (
+        <InstanceRow
           key={instance.session_id}
           instance={instance}
           pendingPopup={popups.find(p => p.session_id === instance.session_id && p.status === 'pending')}
           onJump={onJump}
+          onViewChat={onViewChat}
         />
       ))}
     </div>
   );
 }
 
-function InstanceItem({
-  instance,
-  pendingPopup,
-  onJump
-}: {
+// Phase priority: lower = higher priority
+function getPhasePriority(status: string, pendingPopup?: PopupItem): number {
+  if (pendingPopup) return 0; // Approval has highest priority
+  if (status === 'working' || status === 'waiting' || status === 'compacting') return 1;
+  if (status === 'idle') return 2;
+  return 3; // ended, error
+}
+
+interface InstanceRowProps {
   instance: ClaudeInstance;
   pendingPopup?: PopupItem;
   onJump: (sessionId: string) => void;
-}) {
-  // 状态配置：颜色、背景、图标、文本
-  const getStatusDisplay = () => {
-    // 有待处理的弹窗 = 等待权限/问题
-    if (pendingPopup) {
-      if (pendingPopup.type === 'permission') {
-        return {
-          icon: '🔐',
-          label: '等待权限审核',
-          subLabel: pendingPopup.permission_data?.tool_name || '',
-          colorClass: 'text-orange-400',
-          bgClass: 'bg-orange-500/10 border-orange-500/30',
-          dotClass: 'bg-orange-400',
-          animate: true,
-        };
-      } else if (pendingPopup.type === 'ask') {
-        return {
-          icon: '💬',
-          label: '等待用户回答',
-          subLabel: pendingPopup.ask_data?.questions?.[0]?.header || '',
-          colorClass: 'text-blue-400',
-          bgClass: 'bg-blue-500/10 border-blue-500/30',
-          dotClass: 'bg-blue-400',
-          animate: true,
-        };
-      }
-    }
+  onViewChat?: (sessionId: string) => void;
+}
 
-    // 根据实例状态
-    switch (instance.status) {
-      case 'working':
-        return {
-          icon: '⚡',
-          label: '正在执行',
-          subLabel: instance.current_tool || '',
-          detail: instance.tool_input?.action || instance.tool_input?.details,
-          colorClass: 'text-green-400',
-          bgClass: 'bg-green-500/10 border-green-500/30',
-          dotClass: 'bg-green-400',
-          animate: true,
-        };
-      case 'idle':
-        return {
-          icon: '💭',
-          label: '等待输入',
-          subLabel: '等待 prompt',
-          colorClass: 'text-white/50',
-          bgClass: 'bg-white/[0.04] border-white/10',
-          dotClass: 'bg-white/40',
-          animate: false,
-        };
-      case 'waiting':
-        return {
-          icon: '🧠',
-          label: '思考中',
-          subLabel: 'AI 正在处理',
-          colorClass: 'text-yellow-400',
-          bgClass: 'bg-yellow-500/10 border-yellow-500/30',
-          dotClass: 'bg-yellow-400',
-          animate: true,
-        };
-      case 'error':
-        return {
-          icon: '❌',
-          label: '执行失败',
-          subLabel: '检查错误日志',
-          colorClass: 'text-red-400',
-          bgClass: 'bg-red-500/10 border-red-500/30',
-          dotClass: 'bg-red-400',
-          animate: false,
-        };
-      case 'compacting':
-        return {
-          icon: '📦',
-          label: '压缩对话',
-          subLabel: '清理上下文',
-          colorClass: 'text-purple-400',
-          bgClass: 'bg-purple-500/10 border-purple-500/30',
-          dotClass: 'bg-purple-400',
-          animate: true,
-        };
-      case 'ended':
-        return {
-          icon: '🏁',
-          label: '会话结束',
-          subLabel: '',
-          colorClass: 'text-gray-400',
-          bgClass: 'bg-gray-500/10 border-gray-500/30',
-          dotClass: 'bg-gray-400',
-          animate: false,
-        };
-      default:
-        return {
-          icon: '•',
-          label: instance.status,
-          subLabel: '',
-          colorClass: 'text-white/50',
-          bgClass: 'bg-white/[0.04] border-white/10',
-          dotClass: 'bg-white/40',
-          animate: false,
-        };
-    }
+function InstanceRow({ instance, pendingPopup, onJump, onViewChat }: InstanceRowProps) {
+  const projectName = truncateText(instance.custom_name || instance.project_name, PROJECT_NAME_MAX_LENGTH);
+  const isWaitingForApproval = pendingPopup !== undefined;
+
+  // Get status phase for icon
+  const getPhase = (): 'processing' | 'waitingForApproval' | 'waitingForInput' | 'idle' => {
+    if (isWaitingForApproval) return 'waitingForApproval';
+    if (instance.status === 'working' || instance.status === 'waiting' || instance.status === 'compacting') return 'processing';
+    if (instance.status === 'idle') return 'waitingForInput';
+    return 'idle';
   };
 
-  const status = getStatusDisplay();
-  const projectName = instance.custom_name || instance.project_name;
-  const displayName = truncateText(projectName, PROJECT_NAME_MAX_LENGTH);
+  const phase = getPhase();
+
+  // Get secondary text
+  const getSecondaryText = () => {
+    if (isWaitingForApproval) {
+      const toolName = pendingPopup?.permission_data?.tool_name || '';
+      const action = pendingPopup?.permission_data?.action || '';
+      return `${toolName} ${truncateText(action, 30)}`;
+    }
+    if (instance.status === 'working') {
+      return instance.current_tool || '';
+    }
+    if (instance.status === 'waiting') {
+      return 'Thinking...';
+    }
+    return '';
+  };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -3 }}
+      initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors ${status.bgClass} hover:bg-white/[0.08]`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-default"
     >
-      {/* 状态指示灯 */}
-      <div className={`w-2.5 h-2.5 rounded-full ${status.dotClass} ${status.animate ? 'animate-pulse' : ''}`} />
-
-      {/* 项目名 - 固定宽度，左对齐 */}
-      <div
-        className="flex-shrink-0"
-        style={{ width: '95px' }}
-        title={projectName}
-      >
-        <span className="text-white/40 text-xs">APP:</span>
-        <span className={`text-sm font-semibold ml-0.5 ${status.colorClass}`}>{displayName}</span>
+      {/* Status indicator */}
+      <div className="w-4 flex items-center justify-center">
+        <StatusIcon phase={phase} size={12} />
       </div>
 
-      {/* 状态信息 */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">{status.icon}</span>
-          <span className={`text-sm font-medium ${status.colorClass}`}>{status.label}</span>
-        </div>
-        {(status.subLabel || status.detail) && (
-          <div className="text-white/40 text-xs truncate ml-5">
-            {status.subLabel}
-            {status.detail && <span className="text-white/30 ml-1">({status.detail})</span>}
-          </div>
+      {/* Project name */}
+      <span
+        className="text-white text-sm font-medium flex-shrink-0"
+        style={{ width: '80px' }}
+        title={instance.custom_name || instance.project_name}
+      >
+        {projectName}
+      </span>
+
+      {/* Secondary text */}
+      <span className="text-white/50 text-xs flex-1 truncate">
+        {getSecondaryText()}
+      </span>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {isWaitingForApproval ? (
+          <ApprovalButtons />
+        ) : (
+          <>
+            {/* Chat button */}
+            {instance.status !== 'ended' && onViewChat && (
+              <button
+                onClick={() => onViewChat(instance.session_id)}
+                className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                title="View chat"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M2 2h8v7H4l-2 2V2z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
+            )}
+            {/* Jump button */}
+            {instance.status !== 'ended' && (
+              <button
+                onClick={() => onJump(instance.session_id)}
+                className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                title="Jump to terminal"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                  <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  <circle cx="6" cy="6" r="2" fill="currentColor" />
+                </svg>
+              </button>
+            )}
+          </>
         )}
       </div>
-
-      {/* Jump 按钮 */}
-      {instance.status !== 'ended' && (
-        <button
-          onClick={() => onJump(instance.session_id)}
-          className="px-2.5 py-1 text-xs text-white/50 bg-white/[0.08] hover:bg-white/[0.15] hover:text-white/80 rounded transition-colors flex-shrink-0"
-        >
-          跳转
-        </button>
-      )}
     </motion.div>
+  );
+}
+
+// Inline approval buttons (display only - actual approval happens in PopupCard)
+function ApprovalButtons() {
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* Deny button */}
+      <span
+        className="px-2.5 py-1 text-xs text-white/90 bg-red-500/80 rounded-full"
+      >
+        Deny
+      </span>
+      {/* Allow button */}
+      <span
+        className="px-2.5 py-1 text-xs text-white bg-purple-500 rounded-full"
+      >
+        Allow
+      </span>
+    </div>
   );
 }
