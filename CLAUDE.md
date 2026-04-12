@@ -42,9 +42,15 @@ Claude Code terminals → HTTP POST /hook (port 17527) → Rust backend → Fron
 | State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) shared between HTTP server and Tauri commands |
 | Popup Queue | `src-tauri/src/popup_queue.rs` | Manages pending popups with oneshot channels for blocking responses |
 | Instance Manager | `src-tauri/src/instance_manager.rs` | Tracks Claude session lifecycle (SessionStart → SessionEnd) |
+| Chat History | `src-tauri/src/chat_messages.rs` | Stores per-session message history (user, assistant, tool calls) |
 | Platform Jump | `src-tauri/src/platform/macos.rs` | AppleScript to activate terminal window |
 | Frontend State | `src/stores/appStore.ts` | Zustand store for instances, popups, activities |
-| UI | `src/App.tsx` | Auto-expand on pending popups, hover expand for full list |
+| UI | `src/App.tsx` | Click to expand, three-column header layout |
+| Instance List | `src/components/InstanceList.tsx` | Displays instances with inline Allow/Deny buttons |
+| Chat View | `src/components/ChatView.tsx` | Shows message history with code blocks |
+| Settings | `src/components/Settings.tsx` | Tabbed interface for Hooks and General settings |
+| Status Icons | `src/components/StatusIcons.tsx` | Pixel-style icons (crab, spinner, indicators) |
+| Notch Shape | `src/components/NotchShape.tsx` | SVG path generator for Dynamic Island shape |
 
 ## Claude Code Hooks
 
@@ -96,10 +102,35 @@ AskUserQuestion comes as PermissionRequest with `tool_name: "AskUserQuestion"`. 
 
 Response: `{answers: [["React"]]}` (array per question).
 
-## Frontend Polling
+## UI Interaction Patterns
 
-Frontend polls every 100ms via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`). Tool activities have 2-second display window to catch fast executions.
+**Click to Expand:**
+- Click the island header to toggle expanded state
+- Click outside window or press ESC to collapse
+- Settings/ChatView back buttons return to instance list (keep expanded)
+
+**Three-Column Header Layout:**
+- Left (w-10): ClaudeCrabIcon + status indicator
+- Center (flex-1): Status text or project name
+- Right (w-10): Menu button (when expanded) or status icon
+
+**Window Dimensions (Unified):**
+- Collapsed: 300x38px
+- Expanded: 480x400px
+- Content containers must use consistent padding (px-2 pb-3) and height (h-[360px]) to avoid width/height mismatches
+
+**Navigation Flow:**
+1. Collapsed island shows status summary
+2. Click → Expanded instance list
+3. Click instance row → ChatView (shows message history)
+4. ChatView Back button → Return to instance list
+5. Settings button → Settings modal (Hooks/General tabs)
+6. Settings Back button → Return to instance list
 
 ## Window Properties
 
 Tauri window config in `src-tauri/tauri.conf.json`: always on top, transparent, frameless, 44px capsule height.
+
+## Frontend Polling
+
+Frontend polls every 100ms via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`). Tool activities have 2-second display window to catch fast executions.
