@@ -54,6 +54,8 @@ pub struct AppSettings {
     pub warning_time: u64,            // seconds before timeout warning (yellow)
     pub critical_time: u64,           // seconds before timeout critical (red)
     pub notification_auto_close: u64, // milliseconds before notification auto-close
+    // Enabled hooks (synced with Claude hooks config)
+    pub enabled_hooks: Vec<String>,   // list of enabled hook names
 }
 
 impl Default for AppSettings {
@@ -72,6 +74,7 @@ impl Default for AppSettings {
             warning_time: 30,
             critical_time: 10,
             notification_auto_close: 5000,
+            enabled_hooks: REQUIRED_HOOKS.iter().map(|(name, _, _)| name.to_string()).collect(),
         }
     }
 }
@@ -330,33 +333,13 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
     let mut missing_required: Vec<String> = Vec::new();
     let mut missing_optional: Vec<String> = Vec::new();
 
-    // Read existing config
-    let existing_hooks: HashMap<String, serde_json::Value> = if config_exists {
-        match fs::read_to_string(&settings_path) {
-            Ok(content) => {
-                match serde_json::from_str::<serde_json::Value>(&content) {
-                    Ok(json) => {
-                        json.get("hooks")
-                            .and_then(|h| h.as_object())
-                            .map(|obj| {
-                                obj.iter()
-                                    .map(|(k, v)| (k.clone(), v.clone()))
-                                    .collect()
-                            })
-                            .unwrap_or_default()
-                    }
-                    Err(_) => HashMap::new(),
-                }
-            }
-            Err(_) => HashMap::new(),
-        }
-    } else {
-        HashMap::new()
-    };
+    // Load cc-island settings to get enabled hooks
+    let cc_island_settings = load_settings();
+    let enabled_hooks: std::collections::HashSet<String> = cc_island_settings.enabled_hooks.into_iter().collect();
 
     // Check required hooks
     for (name, timeout, _is_command) in REQUIRED_HOOKS {
-        let configured = existing_hooks.contains_key(*name);
+        let configured = enabled_hooks.contains(*name);
         let status = HookStatus {
             name: name.to_string(),
             configured,
@@ -372,7 +355,7 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
 
     // Check optional hooks
     for (name, timeout, _is_command) in OPTIONAL_HOOKS {
-        let configured = existing_hooks.contains_key(*name);
+        let configured = enabled_hooks.contains(*name);
         let status = HookStatus {
             name: name.to_string(),
             configured,
@@ -445,12 +428,12 @@ pub fn update_claude_hooks_config(hooks_to_enable: Vec<String>) -> Result<(), St
         .map(|(name, timeout, is_command)| (*name, (*timeout, *is_command)))
         .collect();
 
-    for hook_name in hooks_to_enable {
+    for hook_name in &hooks_to_enable {
         if let Some((timeout, is_command)) = all_hooks.get(hook_name.as_str()) {
             if *is_command {
                 // Use command type for SessionStart (platform-specific)
                 let command = get_session_start_command();
-                hooks_obj.insert(hook_name, serde_json::json!([{
+                hooks_obj.insert(hook_name.clone(), serde_json::json!([{
                     "hooks": [{
                         "type": "command",
                         "command": command,
@@ -459,7 +442,7 @@ pub fn update_claude_hooks_config(hooks_to_enable: Vec<String>) -> Result<(), St
                 }]));
             } else {
                 // Use http type for other hooks
-                hooks_obj.insert(hook_name, serde_json::json!([{
+                hooks_obj.insert(hook_name.clone(), serde_json::json!([{
                     "hooks": [{
                         "type": "http",
                         "url": "http://localhost:17527/hook",
@@ -475,12 +458,17 @@ pub fn update_claude_hooks_config(hooks_to_enable: Vec<String>) -> Result<(), St
     // Add schema
     config["$schema"] = serde_json::json!("https://json.schemastore.org/claude-code-settings.json");
 
-    // Write config
+    // Write config to Claude settings
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
     fs::write(&settings_path, content)
         .map_err(|e| format!("Failed to write settings: {}", e))?;
+
+    // Also save enabled hooks to cc-island settings
+    let mut cc_island_settings = load_settings();
+    cc_island_settings.enabled_hooks = hooks_to_enable;
+    save_settings(&cc_island_settings)?;
 
     Ok(())
 }
