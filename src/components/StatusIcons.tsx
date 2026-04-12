@@ -245,6 +245,19 @@ export function CloseIcon({ size = 14, color = 'rgba(255,255,255,0.4)' }: { size
 }
 
 /**
+ * Menu Icon - Three horizontal lines (hamburger menu)
+ */
+export function MenuIcon({ size = 14, color = 'rgba(255,255,255,0.4)' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="currentColor" style={{ color }}>
+      <rect x="2" y="4" width="10" height="1.5" rx="0.75" />
+      <rect x="2" y="7" width="10" height="1.5" rx="0.75" />
+      <rect x="2" y="10" width="10" height="1.5" rx="0.75" />
+    </svg>
+  );
+}
+
+/**
  * Status Icon - Unified component showing appropriate icon based on phase
  */
 export function StatusIcon({

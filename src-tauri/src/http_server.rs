@@ -33,6 +33,7 @@ impl HttpServer {
             .route("/jump", post(handle_jump))
             .route("/instances", get(get_instances))
             .route("/popups", get(get_popups))
+            .route("/chat/:session_id", get(get_chat_messages_http))
             .route("/instance/:id", get(get_instance).delete(delete_instance))
             .route("/settings", get(get_settings).put(update_settings))
             .route("/position", put(update_position))
@@ -235,6 +236,21 @@ async fn handle_hook(
                         instance.current_tool = None;
                         instance.tool_input = None;
                     }
+
+                    // Record assistant response completion
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64;
+
+                    state_guard.chat_history.add_message(ChatMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: input.session_id.clone(),
+                        message_type: MessageType::Assistant,
+                        content: "Response complete".to_string(),
+                        tool_name: None,
+                        timestamp: now_ms,
+                    });
                 }
                 "PreToolUse" => {
                     // First, update instance and extract data
@@ -480,7 +496,14 @@ async fn update_settings(
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
-/// Update island position
+/// Get chat messages for a session
+async fn get_chat_messages_http(
+    State(state): State<Arc<RwLock<AppState>>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Json<Vec<ChatMessage>> {
+    let state_guard = state.read();
+    Json(state_guard.chat_history.get_messages(&session_id))
+}
 async fn update_position(
     Json(_pos): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
