@@ -18,18 +18,31 @@ export const TerminalColors = {
 /**
  * Processing Spinner - Animated symbol spinner matching Claude Island
  * Uses rotating symbols: · ✢ ✳ ∗ ✻ ✽
+ * When not animated, shows static gray symbol
  */
-export function ProcessingSpinner({ size = 12 }: { size?: number }) {
+export function ProcessingSpinner({
+  size = 12,
+  animated = true
+}: {
+  size?: number;
+  animated?: boolean;
+}) {
   const [phase, setPhase] = useState(0);
   const symbols = ['·', '✢', '✳', '∗', '✻', '✽'];
-  const color = TerminalColors.prompt;
+
+  // Animated: orange color, static: dim gray
+  const color = animated ? TerminalColors.prompt : TerminalColors.dim;
 
   useEffect(() => {
+    if (!animated) return;
     const timer = setInterval(() => {
       setPhase((p) => (p + 1) % symbols.length);
     }, 150);
     return () => clearInterval(timer);
-  }, []);
+  }, [animated]);
+
+  // Static mode: always show first symbol (dot)
+  const displaySymbol = animated ? symbols[phase] : symbols[0];
 
   return (
     <span
@@ -42,7 +55,7 @@ export function ProcessingSpinner({ size = 12 }: { size?: number }) {
         display: 'inline-block',
       }}
     >
-      {symbols[phase]}
+      {displaySymbol}
     </span>
   );
 }

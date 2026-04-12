@@ -356,14 +356,14 @@ function App() {
               // Collapsed state - Status icon based on headerPhase
               <>
                 {headerPhase === 'idle' ? (
-                  // Idle - nothing
-                  <div />
+                  // Idle - static dim spinner (not animated)
+                  <ProcessingSpinner size={14} animated={false} />
                 ) : headerPhase === 'waitingForApproval' ? (
                   // Permission request - spinner
-                  <ProcessingSpinner size={14} />
+                  <ProcessingSpinner size={14} animated={true} />
                 ) : (
                   // Processing/Thinking/Working/Compacting - spinner
-                  <ProcessingSpinner size={14} />
+                  <ProcessingSpinner size={14} animated={true} />
                 )}
               </>
             )}
