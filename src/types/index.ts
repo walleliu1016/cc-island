@@ -28,6 +28,8 @@ export interface ToolInput {
   tool_name: string;
   action?: string;
   details?: string;
+  command?: string;
+  file_path?: string;
 }
 
 export interface ClaudeInstance {

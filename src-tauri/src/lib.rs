@@ -144,9 +144,9 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
 }
 
 #[tauri::command]
-fn get_instances() -> Vec<instance_manager::ClaudeInstance> {
+fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
-    state.instances.get_all_instances()
+    state.instances.get_all_instances_display()
 }
 
 #[tauri::command]
@@ -197,6 +197,18 @@ fn respond_popup(
     };
 
     if state.popups.resolve(response) {
+        // Clear WaitingForApproval status for the instance
+        if let Some(popup) = &popup_info {
+            if let Some(instance) = state.instances.get_instance_mut(&popup.session_id) {
+                // Only clear if it's still in WaitingForApproval state
+                if matches!(instance.status, instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                    instance.set_status(instance_manager::InstanceStatus::Idle);
+                    instance.current_tool = None;
+                    instance.tool_input = None;
+                }
+            }
+        }
+
         // Record user answers in chat history if this is an ask popup
         if let Some(popup) = popup_info {
             if popup.popup_type == popup_queue::PopupType::Ask {

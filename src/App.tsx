@@ -324,17 +324,14 @@ function App() {
               <span className="text-white/70 text-xs font-medium truncate">
                 {selectedInstance?.project_name || 'Chat'}
               </span>
-            ) : showExpanded ? (
-              // Expanded state - show CC-Island
-              <span className="text-white/50 text-xs font-medium">CC-Island</span>
             ) : headerText ? (
-              // Closed with activity: show text (tool name or "Thinking")
+              // Has activity: show text (tool name, "Thinking", "需要授权", etc.)
               <span className="text-white/70 text-xs font-medium truncate">
                 {headerText}
               </span>
             ) : (
-              // Closed without activity: show CC-Island label
-              <span className="text-white/50 text-xs font-medium">CC-Island</span>
+              // No activity: empty (no CC-Island label)
+              <div />
             )}
           </div>
 

@@ -11,7 +11,7 @@ use tokio::sync::oneshot;
 
 use crate::{AppState, SHARED_STATE};
 use crate::config;
-use crate::instance_manager::{ClaudeInstance, InstanceStatus};
+use crate::instance_manager::{ClaudeInstance, ClaudeInstanceDisplay, InstanceStatus};
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
 use crate::chat_messages::{ChatMessage, MessageType};
@@ -146,6 +146,44 @@ async fn handle_hook(
             let tool_name = input.tool_name.clone();
             let tool_input = input.tool_input.clone();
 
+            // Update instance status to WaitingForApproval
+            if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                if let Some(ref name) = tool_name {
+                    instance.set_status(InstanceStatus::WaitingForApproval(name.clone()));
+                    instance.current_tool = Some(name.clone());
+
+                    // Save tool input for display
+                    if let Some(ref ti) = tool_input {
+                        let command = ti.get("command")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let file_path = ti.get("file_path")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let action = ti.get("description")
+                            .or_else(|| ti.get("command"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let details = ti.get("command")
+                            .or_else(|| ti.get("file_path"))
+                            .or_else(|| ti.get("url"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        instance.tool_input = Some(crate::instance_manager::ToolInput {
+                            tool_name: name.clone(),
+                            action,
+                            details,
+                            command,
+                            file_path,
+                        });
+                    }
+                }
+            }
+
             state_guard.popups.add(popup);
             state_guard.popups.register_waiter(popup_id.clone(), tx, timeout_secs);
 
@@ -256,7 +294,38 @@ async fn handle_hook(
                     // First, update instance and extract data
                     let activity_data = if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         let tool_name = input.tool_name.clone().unwrap_or_default();
-                        instance.set_status(InstanceStatus::Working(tool_name.clone()));
+
+                        // Extract tool input details for display
+                        let tool_input = input.tool_input.as_ref().map(|ti| {
+                            let command = ti.get("command")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            let file_path = ti.get("file_path")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            let action = ti.get("description")
+                                .or_else(|| ti.get("command"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            let details = ti.get("command")
+                                .or_else(|| ti.get("file_path"))
+                                .or_else(|| ti.get("url"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            crate::instance_manager::ToolInput {
+                                tool_name: tool_name.clone(),
+                                action,
+                                details,
+                                command,
+                                file_path,
+                            }
+                        });
+
+                        instance.set_working(tool_name.clone(), tool_input);
                         Some((instance.project_name.clone(), tool_name))
                     } else {
                         None
@@ -435,9 +504,9 @@ async fn handle_jump(
 /// Get all instances
 async fn get_instances(
     State(state): State<Arc<RwLock<AppState>>>,
-) -> Json<Vec<ClaudeInstance>> {
+) -> Json<Vec<ClaudeInstanceDisplay>> {
     let state_guard = state.read();
-    Json(state_guard.instances.get_all_instances())
+    Json(state_guard.instances.get_all_instances_display())
 }
 
 /// Get all popups

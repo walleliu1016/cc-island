@@ -58,11 +58,36 @@ pub struct ToolInput {
     pub tool_name: String,
     pub action: Option<String>,
     pub details: Option<String>,
+    pub command: Option<String>,
+    pub file_path: Option<String>,
 }
 
 /// A Claude Code instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeInstance {
+    pub session_id: SessionId,
+    pub project_name: String,
+    pub custom_name: Option<String>,
+    pub process_info: Option<ProcessInfo>,
+    pub status: InstanceStatus,
+    pub current_tool: Option<String>,
+    pub tool_input: Option<ToolInput>,
+    pub started_at: u64,
+    pub last_activity_at: u64,
+    // Fields for display persistence (minimum 3s display time)
+    #[serde(skip)]
+    pub display_status_until: Option<u64>, // Unix timestamp in ms
+    #[serde(skip)]
+    pub display_status: Option<InstanceStatus>, // The status to display
+    #[serde(skip)]
+    pub display_tool: Option<String>, // Tool name to display
+    #[serde(skip)]
+    pub display_tool_input: Option<ToolInput>, // Tool input to display
+}
+
+/// Instance data for API response (includes effective display state)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeInstanceDisplay {
     pub session_id: SessionId,
     pub project_name: String,
     pub custom_name: Option<String>,
@@ -91,6 +116,10 @@ impl ClaudeInstance {
             tool_input: None,
             started_at: now,
             last_activity_at: now,
+            display_status_until: None,
+            display_status: None,
+            display_tool: None,
+            display_tool_input: None,
         }
     }
 
@@ -102,15 +131,82 @@ impl ClaudeInstance {
     }
 
     pub fn set_status(&mut self, status: InstanceStatus) {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        // If transitioning from Working/Thinking/WaitingForApproval to Idle/Waiting,
+        // keep the display status for at least 3 seconds
+        match (&self.status, &status) {
+            (InstanceStatus::Working(_), InstanceStatus::Idle) |
+            (InstanceStatus::Working(_), InstanceStatus::Waiting) |
+            (InstanceStatus::Thinking, InstanceStatus::Idle) |
+            (InstanceStatus::Thinking, InstanceStatus::Waiting) |
+            (InstanceStatus::WaitingForApproval(_), InstanceStatus::Idle) |
+            (InstanceStatus::WaitingForApproval(_), InstanceStatus::Waiting) => {
+                // Set display persistence for 3 seconds
+                self.display_status_until = Some(now_ms + 3000);
+                self.display_status = Some(self.status.clone());
+                self.display_tool = self.current_tool.clone();
+                self.display_tool_input = self.tool_input.clone();
+            }
+            _ => {}
+        }
+
         self.status = status;
         self.update_activity();
     }
 
     pub fn set_working(&mut self, tool_name: String, tool_input: Option<ToolInput>) {
+        // Clear any pending display persistence when starting new work
+        self.display_status_until = None;
+        self.display_status = None;
+        self.display_tool = None;
+        self.display_tool_input = None;
+
         self.status = InstanceStatus::Working(tool_name.clone());
         self.current_tool = Some(tool_name);
         self.tool_input = tool_input;
         self.update_activity();
+    }
+
+    /// Get the effective status for display purposes
+    pub fn get_display_status(&self) -> (&InstanceStatus, Option<&String>, Option<&ToolInput>) {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        // Check if we should show persisted display status
+        if let Some(until) = self.display_status_until {
+            if now_ms < until {
+                // Still within the display persistence window
+                if let Some(ref display_status) = self.display_status {
+                    return (display_status, self.display_tool.as_ref(), self.display_tool_input.as_ref());
+                }
+            }
+        }
+
+        // Return actual current status
+        (&self.status, self.current_tool.as_ref(), self.tool_input.as_ref())
+    }
+
+    /// Convert to display struct with effective display state
+    pub fn to_display(&self) -> ClaudeInstanceDisplay {
+        let (status, current_tool, tool_input) = self.get_display_status();
+
+        ClaudeInstanceDisplay {
+            session_id: self.session_id.clone(),
+            project_name: self.project_name.clone(),
+            custom_name: self.custom_name.clone(),
+            process_info: self.process_info.clone(),
+            status: status.clone(),
+            current_tool: current_tool.cloned(),
+            tool_input: tool_input.cloned(),
+            started_at: self.started_at,
+            last_activity_at: self.last_activity_at,
+        }
     }
 }
 
@@ -157,6 +253,11 @@ impl InstanceManager {
 
     pub fn get_all_instances(&self) -> Vec<ClaudeInstance> {
         self.instances.values().cloned().collect()
+    }
+
+    /// Get all instances with display state applied (for API responses)
+    pub fn get_all_instances_display(&self) -> Vec<ClaudeInstanceDisplay> {
+        self.instances.values().map(|i| i.to_display()).collect()
     }
 
     pub fn count(&self) -> usize {
