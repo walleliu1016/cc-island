@@ -7,10 +7,13 @@ pub type SessionId = String;
 /// Status of a Claude instance
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[serde(tag = "type", content = "data")]
 pub enum InstanceStatus {
     Idle,
-    Working,
-    Waiting,
+    Thinking,           // AI is thinking (UserPromptSubmit received, no tool yet)
+    Working(String),    // Executing a specific tool (tool name)
+    Waiting,            // Tool completed, AI continuing to generate response
+    WaitingForApproval(String), // Waiting for user approval (tool name)
     Error,
     Compacting,
     Ended,
@@ -104,7 +107,7 @@ impl ClaudeInstance {
     }
 
     pub fn set_working(&mut self, tool_name: String, tool_input: Option<ToolInput>) {
-        self.status = InstanceStatus::Working;
+        self.status = InstanceStatus::Working(tool_name.clone());
         self.current_tool = Some(tool_name);
         self.tool_input = tool_input;
         self.update_activity();

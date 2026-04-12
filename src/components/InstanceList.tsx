@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
-import { ClaudeInstance, PopupItem } from '../types';
+import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { StatusIcon, TerminalColors } from './StatusIcons';
 
 interface InstanceListProps {
@@ -40,11 +40,12 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
 }
 
 // Phase priority: lower = higher priority
-function getPhasePriority(status: string, pendingPopup?: PopupItem): number {
+function getPhasePriority(status: InstanceStatus, pendingPopup?: PopupItem): number {
   if (pendingPopup) return 0; // Approval has highest priority
-  if (status === 'working' || status === 'waiting') return 1;
-  if (status === 'idle') return 2;
-  return 3; // ended, error
+  if (status.type === 'working' || status.type === 'thinking' || status.type === 'waiting') return 1;
+  if (status.type === 'compacting') return 1;
+  if (status.type === 'idle') return 2;
+  return 3; // error, ended
 }
 
 interface InstanceRowProps {
@@ -59,18 +60,33 @@ interface InstanceRowProps {
 function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, onViewAsk }: InstanceRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isWaitingForApproval = pendingPopup !== undefined;
-  const toolName = pendingPopup?.permission_data?.tool_name || instance.current_tool || '';
+  const popupToolName = pendingPopup?.permission_data?.tool_name;
   const toolInput = pendingPopup?.permission_data?.action || getToolInputString(instance.tool_input) || '';
 
-  // Get status phase for icon
-  const getPhase = (): 'processing' | 'waitingForApproval' | 'waitingForInput' | 'idle' => {
-    if (isWaitingForApproval) return 'waitingForApproval';
-    if (instance.status === 'working' || instance.status === 'waiting') return 'processing';
-    if (instance.status === 'idle') return 'waitingForInput';
-    return 'idle';
+  // Get status phase and display text for icon
+  const getPhaseAndText = (): { phase: 'processing' | 'waitingForApproval' | 'waitingForInput' | 'idle'; text: string | null } => {
+    if (isWaitingForApproval) {
+      return { phase: 'waitingForApproval', text: popupToolName ? formatToolName(popupToolName) : 'Permission' };
+    }
+    if (instance.status.type === 'working') {
+      return { phase: 'processing', text: instance.current_tool ? formatToolName(instance.current_tool) : 'Working' };
+    }
+    if (instance.status.type === 'thinking') {
+      return { phase: 'processing', text: 'Thinking' };
+    }
+    if (instance.status.type === 'waiting') {
+      return { phase: 'processing', text: 'Thinking' };
+    }
+    if (instance.status.type === 'compacting') {
+      return { phase: 'processing', text: 'Compacting' };
+    }
+    if (instance.status.type === 'idle') {
+      return { phase: 'waitingForInput', text: null };
+    }
+    return { phase: 'idle', text: null };
   };
 
-  const phase = getPhase();
+  const { phase, text } = getPhaseAndText();
 
   // Get display title (project name or custom name)
   const displayTitle = instance.custom_name || instance.project_name || 'Untitled';
@@ -102,14 +118,14 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
           {displayTitle}
         </span>
 
-        {/* Secondary info - tool name + input */}
+        {/* Secondary info - status text + input */}
         <div className="flex items-center gap-1.5 text-xs">
-          {toolName && pendingPopup?.type !== 'ask' && (
+          {text && pendingPopup?.type !== 'ask' && (
             <span
               className="font-medium"
               style={{ color: isWaitingForApproval ? TerminalColors.amber : 'rgba(255,255,255,0.5)' }}
             >
-              {formatToolName(toolName)}
+              {text}
             </span>
           )}
           {pendingPopup?.type === 'ask' && (
@@ -125,7 +141,7 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
               {truncateText(toolInput, 40)}
             </span>
           )}
-          {!toolName && !toolInput && instance.status === 'working' && (
+          {!text && !toolInput && instance.status.type === 'working' && (
             <span className="text-white/40">Processing...</span>
           )}
         </div>
@@ -252,7 +268,7 @@ function ActionButtons({
   return (
     <div className="flex items-center gap-1">
       {/* Chat button */}
-      {instance.status !== 'ended' && onViewChat && (
+      {instance.status.type !== 'ended' && onViewChat && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -268,7 +284,7 @@ function ActionButtons({
       )}
 
       {/* Focus/Jump button */}
-      {instance.status !== 'ended' && (
+      {instance.status.type !== 'ended' && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -284,7 +300,7 @@ function ActionButtons({
       )}
 
       {/* Archive button for idle sessions */}
-      {(instance.status === 'idle' || instance.status === 'ended') && (
+      {(instance.status.type === 'idle' || instance.status.type === 'ended') && (
         <button
           onClick={(e) => {
             e.stopPropagation();

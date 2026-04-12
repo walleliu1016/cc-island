@@ -1,6 +1,14 @@
 // Types matching Rust backend
 
-export type InstanceStatus = 'idle' | 'working' | 'waiting' | 'error' | 'compacting' | 'ended';
+export type InstanceStatus =
+  | { type: 'idle' }
+  | { type: 'thinking' }
+  | { type: 'working'; data: string }  // tool name
+  | { type: 'waiting' }
+  | { type: 'waitingforapproval'; data: string }  // tool name
+  | { type: 'error' }
+  | { type: 'compacting' }
+  | { type: 'ended' };
 
 export type TerminalType =
   | 'macos_terminal' | 'macos_iterm2' | 'macos_alacritty' | 'macos_vscode' | 'macos_ghostty'

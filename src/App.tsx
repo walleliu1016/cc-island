@@ -6,9 +6,9 @@ import { useAppStore } from './stores/appStore';
 import { InstanceList } from './components/InstanceList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ChatView } from './components/ChatView';
-import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, ReadyForInputIcon, IdleIcon, MenuIcon } from './components/StatusIcons';
+import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, MenuIcon } from './components/StatusIcons';
 import { getCornerRadii, generateNotchPath } from './components/NotchShape';
-import { ClaudeInstance, PopupItem, HooksCheckResult, ToolActivity } from './types';
+import { ClaudeInstance, PopupItem, HooksCheckResult } from './types';
 
 // Window sizes
 const COLLAPSED_WIDTH = 300;
@@ -25,20 +25,11 @@ const openAnimation = { type: 'spring', stiffness: 344, damping: 25 };
 const closeAnimation = { type: 'spring', stiffness: 320, damping: 30 };
 
 function App() {
-  const { instances, popups, recentActivities, isExpanded, setIsExpanded, setInstances, setPopups, setRecentActivities } = useAppStore();
+  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
   const [showHooksSetup, setShowHooksSetup] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const prevDataRef = useRef({ instances: [] as ClaudeInstance[], popups: [] as PopupItem[] });
-
-  // Activity display state with 3-second minimum display time
-  const [activityDisplay, setActivityDisplay] = useState<{
-    message: string;
-    timestamp: number;
-    isAnimating: boolean;
-  } | null>(null);
-  const activityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drag state for horizontal dragging
   const [isDragging, setIsDragging] = useState(false);
@@ -134,98 +125,13 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instancesData, popupsData, activitiesData] = await Promise.all([
+        const [instancesData, popupsData] = await Promise.all([
           invoke<ClaudeInstance[]>('get_instances'),
           invoke<PopupItem[]>('get_popups'),
-          invoke<ToolActivity[]>('get_recent_activities'),
         ]);
 
-        const prev = prevDataRef.current;
-
-        // Detect new tool activity - show for 3 seconds minimum
-        if (activitiesData.length > 0 && prev.instances.length > 0) {
-          const latestActivity = activitiesData[activitiesData.length - 1];
-          const prevActivities = recentActivities;
-          const isNewActivity = prevActivities.length === 0 ||
-            prevActivities[prevActivities.length - 1]?.timestamp !== latestActivity.timestamp;
-
-          if (isNewActivity) {
-            // Clear existing timeout
-            if (activityTimeoutRef.current) {
-              clearTimeout(activityTimeoutRef.current);
-            }
-            // Set new activity display - show tool name only
-            setActivityDisplay({
-              message: latestActivity.tool_name,
-              timestamp: Date.now(),
-              isAnimating: true
-            });
-            // Clear after 3 seconds
-            activityTimeoutRef.current = setTimeout(() => {
-              setActivityDisplay(null);
-            }, 3000);
-          }
-        }
-
-        // Detect new popup - show activity in header only (no auto expand)
-        const prevPendingIds = prev.popups.filter(p => p.status === 'pending').map(p => p.id);
-        const newPending = popupsData.filter(p =>
-          p.status === 'pending' && !prevPendingIds.includes(p.id)
-        );
-
-        if (newPending.length > 0) {
-          // Clear existing timeout
-          if (activityTimeoutRef.current) {
-            clearTimeout(activityTimeoutRef.current);
-          }
-          const typeText = newPending[0].type === 'permission' ? 'Permission' : 'Ask';
-          setActivityDisplay({
-            message: typeText,
-            timestamp: Date.now(),
-            isAnimating: true
-          });
-          activityTimeoutRef.current = setTimeout(() => {
-            setActivityDisplay(null);
-          }, 3000);
-        }
-
-        // Detect instance status changes
-        for (const instance of instancesData) {
-          const prevInstance = prev.instances.find(i => i.session_id === instance.session_id);
-          if (prevInstance && prevInstance.status !== instance.status) {
-            if (instance.status === 'error') {
-              if (activityTimeoutRef.current) {
-                clearTimeout(activityTimeoutRef.current);
-              }
-              setActivityDisplay({
-                message: 'Error',
-                timestamp: Date.now(),
-                isAnimating: false
-              });
-              activityTimeoutRef.current = setTimeout(() => {
-                setActivityDisplay(null);
-              }, 3000);
-            }
-          }
-          if (!prevInstance && instance.status !== 'ended') {
-            if (activityTimeoutRef.current) {
-              clearTimeout(activityTimeoutRef.current);
-            }
-            setActivityDisplay({
-              message: 'Started',
-              timestamp: Date.now(),
-              isAnimating: true
-            });
-            activityTimeoutRef.current = setTimeout(() => {
-              setActivityDisplay(null);
-            }, 3000);
-          }
-        }
-
-        prevDataRef.current = { instances: instancesData, popups: popupsData };
         setInstances(instancesData);
         setPopups(popupsData);
-        setRecentActivities(activitiesData);
       } catch (e) {
         console.error('Failed to fetch data:', e);
       }
@@ -235,24 +141,93 @@ function App() {
     const interval = setInterval(fetchData, 100);
     return () => {
       clearInterval(interval);
-      if (activityTimeoutRef.current) {
-        clearTimeout(activityTimeoutRef.current);
-      }
     };
-  }, [setInstances, setPopups, setRecentActivities, recentActivities]);
+  }, [setInstances, setPopups]);
 
-  // Stats
-  const activeInstances = instances.filter(i => i.status !== 'ended');
-  const workingCount = instances.filter(i => i.status === 'working').length;
-  const waitingCount = instances.filter(i => i.status === 'waiting').length;
-  const pendingPopups = popups.filter(p => p.status === 'pending');
+  // Stats - updated for new InstanceStatus format
+  const activeInstances = instances.filter(i => i.status.type !== 'ended');
 
-  // Activity status - determines what to show in collapsed state
-  const isProcessing = workingCount > 0 || waitingCount > 0;
-  const hasPendingPermission = pendingPopups.some(p => p.type === 'permission');
-  const hasWaitingForInput = activeInstances.some(i => i.status === 'idle') && !isProcessing && !hasPendingPermission;
-  // Show activity when there's real activity OR when displaying a 3-second activity message
-  const showClosedActivity = isProcessing || hasPendingPermission || hasWaitingForInput || !!activityDisplay;
+  // Get display state based on instance statuses (matching Claude Island logic)
+  const getDisplayState = () => {
+    // 1. Check for waiting for approval (highest priority)
+    const waitingForApproval = instances.find(i => i.status.type === 'waitingforapproval');
+    if (waitingForApproval) {
+      return {
+        phase: 'waitingForApproval' as const,
+        text: 'Permission',
+        animate: true,
+        showIndicator: true
+      };
+    }
+
+    // 2. Check for working (executing tool)
+    const working = instances.find(i => i.status.type === 'working');
+    if (working && working.current_tool) {
+      return {
+        phase: 'working' as const,
+        text: formatToolName(working.current_tool),
+        animate: true,
+        showIndicator: false
+      };
+    }
+
+    // 3. Check for thinking (AI processing before tool use)
+    const thinking = instances.find(i => i.status.type === 'thinking');
+    if (thinking) {
+      return {
+        phase: 'thinking' as const,
+        text: 'Thinking',
+        animate: true,
+        showIndicator: false
+      };
+    }
+
+    // 4. Check for waiting (AI generating response after tool)
+    const waiting = instances.find(i => i.status.type === 'waiting');
+    if (waiting) {
+      return {
+        phase: 'waiting' as const,
+        text: 'Thinking',
+        animate: true,
+        showIndicator: false
+      };
+    }
+
+    // 5. Check for compacting
+    const compacting = instances.find(i => i.status.type === 'compacting');
+    if (compacting) {
+      return {
+        phase: 'compacting' as const,
+        text: 'Compacting',
+        animate: true,
+        showIndicator: false
+      };
+    }
+
+    // 6. Idle - no text, no animation
+    return {
+      phase: 'idle' as const,
+      text: null,
+      animate: false,
+      showIndicator: false
+    };
+  };
+
+  const displayState = getDisplayState();
+
+  // Helper to format tool names
+  function formatToolName(name: string): string {
+    const toolNames: Record<string, string> = {
+      'BashTool': 'Bash',
+      'ReadTool': 'Read',
+      'WriteTool': 'Write',
+      'EditTool': 'Edit',
+      'WebFetchTool': 'Web',
+      'WebSearchTool': 'Search',
+      'AskUserQuestion': 'Ask',
+    };
+    return toolNames[name] || name.replace(/Tool$/, '');
+  }
 
   // Display mode
   const showExpanded = isExpanded && !selectedSessionId;
@@ -299,7 +274,7 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, showClosedActivity]);
+  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, displayState.phase]);
 
   // Get corner radii based on state (matching Claude Island asymmetric corners)
   const isOpen = showExpanded;
@@ -402,15 +377,15 @@ function App() {
           style={{ height: COLLAPSED_HEIGHT, cursor: isDragging ? 'grabbing' : 'grab' }}
           onMouseDown={handleDragStart}
         >
-          {/* Left column - Crab (always present), fixed width */}
+          {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
             <ClaudeCrabIcon
               size={16}
-              animateLegs={showExpanded ? true : isProcessing || !!activityDisplay}
+              animateLegs={displayState.animate}
             />
             {/* Permission indicator when in collapsed state with pending permission */}
-            {!showExpanded && hasPendingPermission && (
-              <PermissionIndicatorIcon size={16} />
+            {!showExpanded && displayState.showIndicator && (
+              <PermissionIndicatorIcon size={14} />
             )}
           </div>
 
@@ -424,15 +399,14 @@ function App() {
             ) : showExpanded ? (
               // Expanded state - show CC-Island
               <span className="text-white/50 text-xs font-medium">CC-Island</span>
+            ) : displayState.text ? (
+              // Closed with activity: show text (tool name or "Thinking")
+              <span className="text-white/70 text-xs font-medium truncate">
+                {displayState.text}
+              </span>
             ) : (
-              // Collapsed state - show activity or CC-Island
-              activityDisplay ? (
-                <span className="text-white/60 text-xs font-medium truncate w-full text-center">
-                  {activityDisplay.message}
-                </span>
-              ) : (
-                <span className="text-white/50 text-xs font-medium">CC-Island</span>
-              )
+              // Closed without activity: show CC-Island label
+              <span className="text-white/50 text-xs font-medium">CC-Island</span>
             )}
           </div>
 
@@ -454,14 +428,17 @@ function App() {
                 <MenuIcon size={14} />
               </button>
             ) : (
-              // Collapsed state - Status spinner/icon
+              // Collapsed state - Status icon based on displayState
               <>
-                {isProcessing || hasPendingPermission || !!activityDisplay ? (
+                {displayState.phase === 'idle' ? (
+                  // Idle - nothing
+                  <div />
+                ) : displayState.phase === 'waitingForApproval' ? (
+                  // Permission request - spinner
                   <ProcessingSpinner size={14} />
-                ) : hasWaitingForInput ? (
-                  <ReadyForInputIcon size={16} />
                 ) : (
-                  <IdleIcon size={14} />
+                  // Processing/Thinking/Working/Compacting - spinner
+                  <ProcessingSpinner size={14} />
                 )}
               </>
             )}
@@ -482,7 +459,7 @@ function App() {
                 {activeInstances.length > 0 && (
                   <InstanceList
                     instances={activeInstances}
-                    popups={pendingPopups}
+                    popups={popups.filter(p => p.status === 'pending')}
                     onJump={handleJump}
                     onViewChat={handleViewChat}
                     onRespond={handleRespond}

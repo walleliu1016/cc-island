@@ -256,7 +256,7 @@ async fn handle_hook(
                     // First, update instance and extract data
                     let activity_data = if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         let tool_name = input.tool_name.clone().unwrap_or_default();
-                        instance.set_working(tool_name.clone(), None);
+                        instance.set_status(InstanceStatus::Working(tool_name.clone()));
                         Some((instance.project_name.clone(), tool_name))
                     } else {
                         None
@@ -348,7 +348,7 @@ async fn handle_hook(
                 "UserPromptSubmit" => {
                     // User submitted a prompt → AI is thinking
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
-                        instance.set_status(InstanceStatus::Waiting);
+                        instance.set_status(InstanceStatus::Thinking);
                         instance.update_activity();
                     }
 
