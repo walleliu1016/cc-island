@@ -234,14 +234,14 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
                     return (
                       <button
                         key={optIndex}
-                        onClick={() => handleSelect(opt.label, currentQuestion.multi_select)}
+                        onClick={() => handleSelect(opt.label, currentQuestion.multiSelect)}
                         className={`px-2.5 py-1.5 text-sm rounded-lg transition-colors text-left ${
                           isSelected
                             ? 'bg-white/[0.15] text-white border border-white/20'
                             : 'bg-white/[0.05] text-white/60 hover:bg-white/[0.08] border border-transparent'
                         }`}
                       >
-                        {currentQuestion.multi_select && (
+                        {currentQuestion.multiSelect && (
                           <span className="mr-1.5">{isSelected ? '☑' : '☐'}</span>
                         )}
                         <span className="font-medium">{opt.label}</span>

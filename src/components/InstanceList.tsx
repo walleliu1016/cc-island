@@ -9,9 +9,10 @@ interface InstanceListProps {
   onJump: (sessionId: string) => void;
   onViewChat?: (sessionId: string) => void;
   onRespond?: (popupId: string, decision: 'allow' | 'deny') => void;
+  onViewAsk?: (sessionId: string) => void;
 }
 
-export function InstanceList({ instances, popups = [], onJump, onViewChat, onRespond }: InstanceListProps) {
+export function InstanceList({ instances, popups = [], onJump, onViewChat, onRespond, onViewAsk }: InstanceListProps) {
   // Sort instances by priority: Approval > Processing > WaitingForInput > Idle
   const sortedInstances = [...instances].sort((a, b) => {
     const priorityA = getPhasePriority(a.status, popups.find(p => p.session_id === a.session_id && p.status === 'pending'));
@@ -31,6 +32,7 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
           onJump={onJump}
           onViewChat={onViewChat}
           onRespond={onRespond}
+          onViewAsk={onViewAsk}
         />
       ))}
     </div>
@@ -51,9 +53,10 @@ interface InstanceRowProps {
   onJump: (sessionId: string) => void;
   onViewChat?: (sessionId: string) => void;
   onRespond?: (popupId: string, decision: 'allow' | 'deny') => void;
+  onViewAsk?: (sessionId: string) => void;
 }
 
-function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond }: InstanceRowProps) {
+function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, onViewAsk }: InstanceRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isWaitingForApproval = pendingPopup !== undefined;
   const toolName = pendingPopup?.permission_data?.tool_name || instance.current_tool || '';
@@ -101,7 +104,7 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond }: 
 
         {/* Secondary info - tool name + input */}
         <div className="flex items-center gap-1.5 text-xs">
-          {toolName && (
+          {toolName && pendingPopup?.type !== 'ask' && (
             <span
               className="font-medium"
               style={{ color: isWaitingForApproval ? TerminalColors.amber : 'rgba(255,255,255,0.5)' }}
@@ -109,7 +112,15 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond }: 
               {formatToolName(toolName)}
             </span>
           )}
-          {toolInput && (
+          {pendingPopup?.type === 'ask' && (
+            <span
+              className="font-medium"
+              style={{ color: TerminalColors.amber }}
+            >
+              有问题待回答
+            </span>
+          )}
+          {toolInput && pendingPopup?.type !== 'ask' && (
             <span className="text-white/40 truncate">
               {truncateText(toolInput, 40)}
             </span>
@@ -123,11 +134,18 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond }: 
       {/* Action buttons */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {isWaitingForApproval && pendingPopup ? (
-          // Inline approval buttons
-          <InlineApprovalButtons
-            onAllow={() => onRespond?.(pendingPopup.id, 'allow')}
-            onDeny={() => onRespond?.(pendingPopup.id, 'deny')}
-          />
+          pendingPopup.type === 'ask' ? (
+            // Ask question button - go to answer
+            <AskAnswerButton
+              onClick={() => onViewAsk?.(instance.session_id)}
+            />
+          ) : (
+            // Inline approval buttons for permission
+            <InlineApprovalButtons
+              onAllow={() => onRespond?.(pendingPopup.id, 'allow')}
+              onDeny={() => onRespond?.(pendingPopup.id, 'deny')}
+            />
+          )
         ) : (
           // Regular action buttons
           <ActionButtons
@@ -172,6 +190,25 @@ function getToolInputString(toolInput: unknown): string {
 function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
+}
+
+// Ask answer button - for AskUserQuestion popups
+function AskAnswerButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all flex items-center gap-1.5"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+        <path d="M6 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+        <path d="M5.5 4.5a.5.5 0 0 1 1 0v2a.5.5 0 0 1-1 0v-2zM5.5 7a.5.5 0 0 1 1 0v.5a.5.5 0 0 1-1 0V7z"/>
+      </svg>
+      去回答
+    </button>
+  );
 }
 
 // Inline approval buttons with hover effects

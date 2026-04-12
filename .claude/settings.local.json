@@ -17,7 +17,24 @@
       "Bash(git push:*)",
       "Bash(cargo build:*)",
       "Bash(pkill -f \"CC-Island\")",
-      "Bash(pnpm:*)"
+      "Bash(pnpm:*)",
+      "Bash(pkill -f \"cc-island\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -9 -f \"cc-island\")",
+      "Bash(pkill -9 -f \"vite\")",
+      "Bash(curl -s http://localhost:17527/popups)",
+      "Bash(curl -s http://localhost:17527/instances)",
+      "Bash(curl -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"PreToolUse\"\",\"\"session_id\"\":\"\"test-session-1\"\",\"\"tool_name\"\":\"\"Bash\"\",\"\"tool_input\"\":{\"\"command\"\":\"\"ls -la\"\"}}')",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"SessionStart\"\",\"\"session_id\"\":\"\"test-drag-1\"\",\"\"cwd\"\":\"\"/Users/akke/project/cc-island\"\"}')",
+      "Bash(curl -s http://localhost:17527/chat/test-chatview)",
+      "Bash(jq)",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"SessionStart\"\",\"\"session_id\"\":\"\"demo-session\"\",\"\"cwd\"\":\"\"/Users/akke/project/cc-island\"\"}')",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"UserPromptSubmit\"\",\"\"session_id\"\":\"\"demo-session\"\",\"\"tool_input\"\":{\"\"prompt\"\":\"\"Read the package.json file\"\"}}')",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"PreToolUse\"\",\"\"session_id\"\":\"\"demo-session\"\",\"\"tool_name\"\":\"\"Read\"\",\"\"tool_input\"\":{\"\"file_path\"\":\"\"/Users/akke/project/cc-island/package.json\"\"}}')",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"SessionStart\"\",\"\"session_id\"\":\"\"test-perm\"\",\"\"cwd\"\":\"\"/Users/akke/project/cc-island\"\"}')",
+      "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"PreToolUse\"\",\"\"session_id\"\":\"\"test-perm\"\",\"\"tool_name\"\":\"\"Bash\"\",\"\"tool_input\"\":{\"\"command\"\":\"\"ls -la\"\"}}')",
+      "Bash(pkill -f \"tauri dev\")",
+      "Bash(pkill -9 cc-island)"
     ]
   }
 }

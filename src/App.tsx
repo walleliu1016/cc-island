@@ -345,6 +345,11 @@ function App() {
     setSelectedSessionId(sessionId);
   };
 
+  // View ask question for instance (same as view chat)
+  const handleViewAsk = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+  };
+
   // Refresh hooks status
   const handleSettingsChange = async () => {
     try {
@@ -481,6 +486,7 @@ function App() {
                     onJump={handleJump}
                     onViewChat={handleViewChat}
                     onRespond={handleRespond}
+                    onViewAsk={handleViewAsk}
                   />
                 )}
                 {activeInstances.length === 0 && (

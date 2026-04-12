@@ -186,14 +186,53 @@ fn respond_popup(
 
     let mut state = SHARED_STATE.write();
 
+    // Get popup info before resolving (to record answers in chat history)
+    let popup_info = state.popups.get(&popup_id).cloned();
+
     let response = popup_queue::PopupResponse {
         popup_id: popup_id.clone(),
-        decision,
-        answer,
-        answers,
+        decision: decision.clone(),
+        answer: answer.clone(),
+        answers: answers.clone(),
     };
 
     if state.popups.resolve(response) {
+        // Record user answers in chat history if this is an ask popup
+        if let Some(popup) = popup_info {
+            if popup.popup_type == popup_queue::PopupType::Ask {
+                if let (Some(answers_arr), Some(ask_data)) = (&answers, &popup.ask_data) {
+                    // Build answer text
+                    let _answer_parts: Vec<String> = answers_arr
+                        .iter()
+                        .enumerate()
+                        .map(|(i, selected)| {
+                            let q = ask_data.questions.get(i);
+                            let q_header = q.map(|q| q.header.as_str()).unwrap_or("Question");
+                            format!("{}: {}", q_header, selected.join(", "))
+                        })
+                        .collect();
+
+                    let answer_content = format!(
+                        "AskUserQuestion Answers: {{\"answers\": {}}}",
+                        serde_json::to_string(&answers_arr).unwrap_or_default()
+                    );
+
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64;
+
+                    state.chat_history.add_message(chat_messages::ChatMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: popup.session_id.clone(),
+                        message_type: chat_messages::MessageType::User,
+                        content: answer_content,
+                        tool_name: Some("AskUserQuestionAnswer".to_string()),
+                        timestamp: now_ms,
+                    });
+                }
+            }
+        }
         Ok(())
     } else {
         Err("Popup not found or already resolved".to_string())

@@ -52,7 +52,7 @@ export interface AskOption {
 export interface AskQuestion {
   header: string;
   question: string;
-  multi_select: boolean;
+  multiSelect: boolean;
   options: AskOption[];
 }
 
