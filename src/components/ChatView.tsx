@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { ChatMessage, PopupItem } from '../types';
+import { ChatMessage, PopupItem, AskQuestion, AskOption } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
 
 // Terminal-style colors
@@ -16,20 +16,25 @@ const Colors = {
   codeBg: 'rgba(255,255,255,0.05)',
 };
 
-interface ChatViewProps {
-  sessionId: string;
-  projectName: string;
-  onClose?: () => void;
+// Parse AskUserQuestion content
+function parseAskQuestions(content: string): AskQuestion[] | null {
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.questions && Array.isArray(parsed.questions)) {
+      return parsed.questions as AskQuestion[];
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // Format tool content for display
 function formatToolContent(content: string): string {
   try {
-    // Try to parse as JSON for better formatting
     const parsed = JSON.parse(content);
     return JSON.stringify(parsed, null, 2);
   } catch {
-    // Return as-is if not valid JSON
     return content;
   }
 }
@@ -37,10 +42,8 @@ function formatToolContent(content: string): string {
 // Code block component for tool input/output
 function CodeBlock({ content, fileName }: { content: string; fileName?: string }) {
   const lines = content.split('\n');
-
   return (
     <div className="mt-2 rounded-lg overflow-hidden" style={{ backgroundColor: Colors.codeBg }}>
-      {/* File header */}
       {fileName && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/10">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
@@ -49,7 +52,6 @@ function CodeBlock({ content, fileName }: { content: string; fileName?: string }
           <span className="text-xs text-white/60">{fileName}</span>
         </div>
       )}
-      {/* Code content */}
       <div className="px-3 py-2 overflow-x-auto">
         <pre className="text-xs font-mono leading-relaxed">
           {lines.map((line, i) => (
@@ -64,50 +66,84 @@ function CodeBlock({ content, fileName }: { content: string; fileName?: string }
   );
 }
 
-// Message item component
-function MessageItem({ msg }: { msg: ChatMessage }) {
-  if (msg.messageType === 'toolCall') {
-    const formatted = formatToolContent(msg.content);
-    return (
-      <div className="py-1">
-        {/* Tool name with status */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
-            {msg.toolName}
-          </span>
-          <span className="text-xs text-white/40">Waiting for approval...</span>
-        </div>
-        {/* Code block */}
-        <CodeBlock content={formatted} fileName={msg.toolName ? `${msg.toolName.toLowerCase()}_input.json` : undefined} />
-      </div>
-    );
-  }
+// AskQuestion options component
+function AskQuestionOptions({
+  question,
+  questionIndex,
+  selectedAnswers,
+  onChange
+}: {
+  question: AskQuestion;
+  questionIndex: number;
+  selectedAnswers: string[][];
+  onChange: (questionIndex: number, answers: string[]) => void;
+}) {
+  const currentAnswers = selectedAnswers[questionIndex] || [];
 
-  if (msg.messageType === 'toolResult') {
-    return (
-      <div className="py-1">
-        <div className="text-xs text-white/40 mb-1">Result</div>
-        <div className="text-sm text-white/70">{msg.content}</div>
-      </div>
-    );
-  }
+  const handleToggle = (label: string) => {
+    if (question.multi_select) {
+      const newAnswers = currentAnswers.includes(label)
+        ? currentAnswers.filter(a => a !== label)
+        : [...currentAnswers, label];
+      onChange(questionIndex, newAnswers);
+    } else {
+      onChange(questionIndex, [label]);
+    }
+  };
 
-  if (msg.messageType === 'user') {
-    return (
-      <div className="py-1">
-        <div className="text-xs text-white/40 mb-1">You</div>
-        <div className="text-sm text-white/90">{msg.content}</div>
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-1 mt-2">
+      {question.options.map((option: AskOption) => {
+        const isSelected = currentAnswers.includes(option.label);
+        return (
+          <button
+            key={option.label}
+            onClick={() => handleToggle(option.label)}
+            className={`w-full text-left p-2 rounded text-xs transition-colors flex items-start gap-2 ${
+              isSelected
+                ? 'bg-white/20 text-white'
+                : 'bg-white/5 text-white/70 hover:bg-white/10'
+            }`}
+          >
+            <span className="mt-0.5 flex-shrink-0">
+              {question.multi_select ? (
+                <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                  isSelected ? 'border-white bg-white/30' : 'border-white/30'
+                }`}>
+                  {isSelected && '✓'}
+                </span>
+              ) : (
+                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                  isSelected ? 'border-white' : 'border-white/30'
+                }`}>
+                  {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+                </span>
+              )}
+            </span>
+            <span className="flex-1">
+              <span className="font-medium">{option.label}</span>
+              {option.description && (
+                <span className="text-white/50 ml-1">{option.description}</span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  return null;
+interface ChatViewProps {
+  sessionId: string;
+  projectName: string;
+  onClose?: () => void;
 }
 
 export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingPopup, setPendingPopup] = useState<PopupItem | null>(null);
+  const [askAnswers, setAskAnswers] = useState<string[][]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages and popups periodically
@@ -127,6 +163,11 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         );
         setPendingPopup(sessionPopup || null);
 
+        // Initialize ask answers if needed
+        if (sessionPopup?.ask_data?.questions && askAnswers.length === 0) {
+          setAskAnswers(sessionPopup.ask_data.questions.map(() => []));
+        }
+
         // Check if processing
         const now = Date.now() / 1000;
         const hasRecentActivity = messagesData.some(m =>
@@ -142,7 +183,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
     fetchData();
     const interval = setInterval(fetchData, 500);
     return () => clearInterval(interval);
-  }, [sessionId]);
+  }, [sessionId, askAnswers.length]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -151,7 +192,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
     }
   }, [messages]);
 
-  // Handle respond to popup
+  // Handle permission response
   const handleRespond = async (decision: 'allow' | 'deny') => {
     if (!pendingPopup) return;
     try {
@@ -160,12 +201,41 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         decision,
       });
       setPendingPopup(null);
-      // Close ChatView and return to instance list after responding
       onClose?.();
     } catch (e) {
       console.error('Response failed:', e);
     }
   };
+
+  // Handle ask response
+  const handleAskRespond = async () => {
+    if (!pendingPopup || !pendingPopup.ask_data) return;
+    try {
+      await invoke('respond_popup', {
+        popupId: pendingPopup.id,
+        answers: askAnswers,
+      });
+      setPendingPopup(null);
+      setAskAnswers([]);
+      onClose?.();
+    } catch (e) {
+      console.error('Response failed:', e);
+    }
+  };
+
+  const handleAnswerChange = (questionIndex: number, answers: string[]) => {
+    setAskAnswers(prev => {
+      const newAnswers = [...prev];
+      newAnswers[questionIndex] = answers;
+      return newAnswers;
+    });
+  };
+
+  // Check if all required questions have answers
+  const canSubmitAsk = pendingPopup?.ask_data?.questions.every((_q, i) => {
+    const answers = askAnswers[i] || [];
+    return answers.length > 0;
+  }) ?? false;
 
   return (
     <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
@@ -193,16 +263,98 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin"
       >
         <AnimatePresence>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-3"
-            >
-              <MessageItem msg={msg} />
-            </motion.div>
-          ))}
+          {messages.map((msg) => {
+            // Check if this is an AskUserQuestion
+            const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
+
+            if (askQuestions) {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3"
+                >
+                  <div className="py-1">
+                    <div className="text-xs text-white/50 mb-1">Questions</div>
+                    {askQuestions.map((q, idx) => (
+                      <div key={idx} className="mb-3">
+                        {q.header && (
+                          <div className="text-xs text-white/40 mb-1">{q.header}</div>
+                        )}
+                        <div className="text-sm text-white/90">{q.question}</div>
+                        <AskQuestionOptions
+                          question={q}
+                          questionIndex={idx}
+                          selectedAnswers={askAnswers}
+                          onChange={handleAnswerChange}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // Regular tool call
+            if (msg.messageType === 'toolCall') {
+              const formatted = formatToolContent(msg.content);
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3"
+                >
+                  <div className="py-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
+                        {msg.toolName}
+                      </span>
+                      <span className="text-xs text-white/40">Waiting for approval...</span>
+                    </div>
+                    <CodeBlock content={formatted} fileName={msg.toolName ? `${msg.toolName.toLowerCase()}_input.json` : undefined} />
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // User message
+            if (msg.messageType === 'user') {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3"
+                >
+                  <div className="py-1">
+                    <div className="text-xs text-white/40 mb-1">You</div>
+                    <div className="text-sm text-white/90">{msg.content}</div>
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // Tool result
+            if (msg.messageType === 'toolResult') {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3"
+                >
+                  <div className="py-1">
+                    <div className="text-xs text-white/40 mb-1">Result</div>
+                    <div className="text-sm text-white/70">{msg.content}</div>
+                  </div>
+                </motion.div>
+              );
+            }
+
+            return null;
+          })}
         </AnimatePresence>
 
         {/* Processing indicator */}
@@ -232,7 +384,6 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
       {/* Bottom Action Bar - Permission Buttons */}
       {pendingPopup?.type === 'permission' && (
         <div className="px-3 py-3 border-t border-white/10">
-          {/* Tool info */}
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
               {pendingPopup.permission_data?.tool_name}
@@ -243,8 +394,6 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               </span>
             )}
           </div>
-
-          {/* Action buttons */}
           <div className="flex items-center justify-end gap-2">
             <button
               onClick={() => handleRespond('deny')}
@@ -257,6 +406,32 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               className="px-4 py-2 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
             >
               Allow
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Action Bar - Ask Question Submit */}
+      {pendingPopup?.type === 'ask' && pendingPopup.ask_data && (
+        <div className="px-3 py-3 border-t border-white/10">
+          <div className="text-xs text-white/50 mb-2">
+            {pendingPopup.ask_data.questions.length > 1
+              ? `${pendingPopup.ask_data.questions.length} questions`
+              : '1 question'}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => handleRespond('deny')}
+              className="px-4 py-2 text-xs font-medium text-white/70 bg-white/10 hover:bg-red-500/80 hover:text-white rounded-lg transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAskRespond}
+              disabled={!canSubmitAsk}
+              className="px-4 py-2 text-xs font-medium text-black bg-white hover:bg-white/90 disabled:bg-white/50 rounded-lg transition-all"
+            >
+              Submit
             </button>
           </div>
         </div>
