@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
 import { useAppStore } from './stores/appStore';
+import { useDisplayStore } from './stores/displayStore';
 import { InstanceList } from './components/InstanceList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ChatView } from './components/ChatView';
@@ -26,6 +27,7 @@ const closeAnimation = { type: 'spring', stiffness: 320, damping: 30 };
 
 function App() {
   const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups } = useAppStore();
+  const { headerDisplay, updateDisplays } = useDisplayStore();
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
   const [showHooksSetup, setShowHooksSetup] = useState(false);
@@ -132,6 +134,9 @@ function App() {
 
         setInstances(instancesData);
         setPopups(popupsData);
+
+        // Update display states with minimum display time
+        updateDisplays(instancesData);
       } catch (e) {
         console.error('Failed to fetch data:', e);
       }
@@ -147,87 +152,10 @@ function App() {
   // Stats - updated for new InstanceStatus format
   const activeInstances = instances.filter(i => i.status.type !== 'ended');
 
-  // Get display state based on instance statuses (matching Claude Island logic)
-  const getDisplayState = () => {
-    // 1. Check for waiting for approval (highest priority)
-    const waitingForApproval = instances.find(i => i.status.type === 'waitingforapproval');
-    if (waitingForApproval) {
-      return {
-        phase: 'waitingForApproval' as const,
-        text: 'Permission',
-        animate: true,
-        showIndicator: true
-      };
-    }
-
-    // 2. Check for working (executing tool)
-    const working = instances.find(i => i.status.type === 'working');
-    if (working && working.current_tool) {
-      return {
-        phase: 'working' as const,
-        text: formatToolName(working.current_tool),
-        animate: true,
-        showIndicator: false
-      };
-    }
-
-    // 3. Check for thinking (AI processing before tool use)
-    const thinking = instances.find(i => i.status.type === 'thinking');
-    if (thinking) {
-      return {
-        phase: 'thinking' as const,
-        text: 'Thinking',
-        animate: true,
-        showIndicator: false
-      };
-    }
-
-    // 4. Check for waiting (AI generating response after tool)
-    const waiting = instances.find(i => i.status.type === 'waiting');
-    if (waiting) {
-      return {
-        phase: 'waiting' as const,
-        text: 'Thinking',
-        animate: true,
-        showIndicator: false
-      };
-    }
-
-    // 5. Check for compacting
-    const compacting = instances.find(i => i.status.type === 'compacting');
-    if (compacting) {
-      return {
-        phase: 'compacting' as const,
-        text: 'Compacting',
-        animate: true,
-        showIndicator: false
-      };
-    }
-
-    // 6. Idle - no text, no animation
-    return {
-      phase: 'idle' as const,
-      text: null,
-      animate: false,
-      showIndicator: false
-    };
-  };
-
-  const displayState = getDisplayState();
-
-  // Helper to format tool names
-  function formatToolName(name: string): string {
-    const toolNames: Record<string, string> = {
-      'BashTool': 'Bash',
-      'ReadTool': 'Read',
-      'WriteTool': 'Write',
-      'EditTool': 'Edit',
-      'WebFetchTool': 'Web',
-      'WebSearchTool': 'Search',
-      'AskUserQuestion': 'Ask',
-    };
-    return toolNames[name] || name.replace(/Tool$/, '');
-  }
+  // Use display store for header state (with minimum 1s display time)
+  const { phase: headerPhase, text: headerText } = headerDisplay;
+  const isAnimating = headerPhase === 'processing' || headerPhase === 'waitingForApproval';
+  const showIndicator = headerPhase === 'waitingForApproval';
 
   // Display mode
   const showExpanded = isExpanded && !selectedSessionId;
@@ -242,7 +170,7 @@ function App() {
   const targetWidth = showExpanded || showChatView ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
   const targetHeight = showExpanded || showChatView ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
 
-  // Resize window when state changes - moved here after all variables are defined
+  // Resize window when state changes
   useEffect(() => {
     const resizeWindow = async () => {
       if (showSettings || showHooksSetup) {
@@ -274,7 +202,7 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, displayState.phase]);
+  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, headerPhase]);
 
   // Get corner radii based on state (matching Claude Island asymmetric corners)
   const isOpen = showExpanded;
@@ -381,10 +309,10 @@ function App() {
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
             <ClaudeCrabIcon
               size={16}
-              animateLegs={displayState.animate}
+              animateLegs={isAnimating}
             />
             {/* Permission indicator when in collapsed state with pending permission */}
-            {!showExpanded && displayState.showIndicator && (
+            {!showExpanded && showIndicator && (
               <PermissionIndicatorIcon size={14} />
             )}
           </div>
@@ -399,10 +327,10 @@ function App() {
             ) : showExpanded ? (
               // Expanded state - show CC-Island
               <span className="text-white/50 text-xs font-medium">CC-Island</span>
-            ) : displayState.text ? (
+            ) : headerText ? (
               // Closed with activity: show text (tool name or "Thinking")
               <span className="text-white/70 text-xs font-medium truncate">
-                {displayState.text}
+                {headerText}
               </span>
             ) : (
               // Closed without activity: show CC-Island label
@@ -428,12 +356,12 @@ function App() {
                 <MenuIcon size={14} />
               </button>
             ) : (
-              // Collapsed state - Status icon based on displayState
+              // Collapsed state - Status icon based on headerPhase
               <>
-                {displayState.phase === 'idle' ? (
+                {headerPhase === 'idle' ? (
                   // Idle - nothing
                   <div />
-                ) : displayState.phase === 'waitingForApproval' ? (
+                ) : headerPhase === 'waitingForApproval' ? (
                   // Permission request - spinner
                   <ProcessingSpinner size={14} />
                 ) : (

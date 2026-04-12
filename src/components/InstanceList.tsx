@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { StatusIcon, TerminalColors } from './StatusIcons';
+import { useDisplayStore } from '../stores/displayStore';
 
 interface InstanceListProps {
   instances: ClaudeInstance[];
@@ -63,30 +64,15 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
   const popupToolName = pendingPopup?.permission_data?.tool_name;
   const toolInput = pendingPopup?.permission_data?.action || getToolInputString(instance.tool_input) || '';
 
-  // Get status phase and display text for icon
-  const getPhaseAndText = (): { phase: 'processing' | 'waitingForApproval' | 'waitingForInput' | 'idle'; text: string | null } => {
-    if (isWaitingForApproval) {
-      return { phase: 'waitingForApproval', text: popupToolName ? formatToolName(popupToolName) : 'Permission' };
-    }
-    if (instance.status.type === 'working') {
-      return { phase: 'processing', text: instance.current_tool ? formatToolName(instance.current_tool) : 'Working' };
-    }
-    if (instance.status.type === 'thinking') {
-      return { phase: 'processing', text: 'Thinking' };
-    }
-    if (instance.status.type === 'waiting') {
-      return { phase: 'processing', text: 'Thinking' };
-    }
-    if (instance.status.type === 'compacting') {
-      return { phase: 'processing', text: 'Compacting' };
-    }
-    if (instance.status.type === 'idle') {
-      return { phase: 'waitingForInput', text: null };
-    }
-    return { phase: 'idle', text: null };
-  };
+  // Use display store for per-instance display state (with 1s minimum display time)
+  const { getInstanceDisplay } = useDisplayStore();
+  const display = getInstanceDisplay(instance.session_id);
 
-  const { phase, text } = getPhaseAndText();
+  // Override with popup info if waiting for approval
+  const phase = isWaitingForApproval ? 'waitingForApproval' : display.phase;
+  const text = isWaitingForApproval
+    ? (popupToolName ? formatToolName(popupToolName) : 'Permission')
+    : display.text;
 
   // Get display title (project name or custom name)
   const displayTitle = instance.custom_name || instance.project_name || 'Untitled';
