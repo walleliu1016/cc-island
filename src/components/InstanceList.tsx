@@ -74,6 +74,25 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
     ? (popupToolName ? formatToolName(popupToolName) : 'Permission')
     : display.text;
 
+  // Get status text and color based on phase
+  const getStatusInfo = (): { text: string; color: string } | null => {
+    if (isWaitingForApproval) {
+      return { text: 'Waiting for approval', color: TerminalColors.amber };
+    }
+    switch (phase) {
+      case 'processing':
+        return { text: text || 'Processing', color: TerminalColors.cyan };
+      case 'waitingForInput':
+        return { text: 'Idle', color: TerminalColors.dim };
+      case 'idle':
+        return { text: 'Idle', color: TerminalColors.dim };
+      default:
+        return null;
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+
   // Get display title (project name or custom name)
   const displayTitle = instance.custom_name || instance.project_name || 'Untitled';
 
@@ -104,14 +123,20 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
           {displayTitle}
         </span>
 
-        {/* Secondary info - status text + input */}
+        {/* Secondary info - status text */}
         <div className="flex items-center gap-1.5 text-xs">
-          {text && pendingPopup?.type !== 'ask' && (
+          {statusInfo && (
             <span
               className="font-medium"
-              style={{ color: isWaitingForApproval ? TerminalColors.amber : 'rgba(255,255,255,0.5)' }}
+              style={{ color: statusInfo.color }}
             >
-              {text}
+              {statusInfo.text}
+            </span>
+          )}
+          {/* Tool input as secondary detail */}
+          {toolInput && pendingPopup?.type !== 'ask' && (
+            <span className="text-white/40 truncate">
+              {truncateText(toolInput, 30)}
             </span>
           )}
           {pendingPopup?.type === 'ask' && (
@@ -121,14 +146,6 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
             >
               有问题待回答
             </span>
-          )}
-          {toolInput && pendingPopup?.type !== 'ask' && (
-            <span className="text-white/40 truncate">
-              {truncateText(toolInput, 40)}
-            </span>
-          )}
-          {!text && !toolInput && instance.status.type === 'working' && (
-            <span className="text-white/40">Processing...</span>
           )}
         </div>
       </div>
