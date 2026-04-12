@@ -33,7 +33,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsModalProps) {
-  const [activeSection, setActiveSection] = useState<'main' | 'hooks' | 'general'>('main');
+  const [activeTab, setActiveTab] = useState<'hooks' | 'general'>('hooks');
   const [hooksResult, setHooksResult] = useState<HooksCheckResult | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -43,7 +43,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
 
   useEffect(() => {
     if (isOpen) {
-      setActiveSection('main');
+      setActiveTab('hooks');
       loadHooksStatus();
       loadSettings();
     }
@@ -86,11 +86,16 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
     setSelectedHooks(newSelected);
   };
 
-  const saveHooks = async () => {
+  const saveAll = async () => {
     setSaving(true);
     setMessage(null);
     try {
+      // Save hooks
       await invoke('update_claude_hooks', { hooks: Array.from(selectedHooks) });
+      // Save settings
+      if (settings) {
+        await invoke('update_settings', { settings });
+      }
       onSettingsChange?.();
       setMessage({ text: '保存成功', type: 'success' });
       setTimeout(() => setMessage(null), 2000);
@@ -100,388 +105,317 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
     setSaving(false);
   };
 
-  const saveSettings = async () => {
-    if (!settings) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      await invoke('update_settings', { settings });
-      onSettingsChange?.();
-      setMessage({ text: '保存成功', type: 'success' });
-      setTimeout(() => setMessage(null), 2000);
-    } catch (e) {
-      setMessage({ text: `保存失败: ${e}`, type: 'error' });
-    }
-    setSaving(false);
-  };
+  if (!isOpen || !settings || !hooksResult) return null;
 
-  if (!isOpen || !settings) return null;
+  const requiredCount = hooksResult.hooks.filter(h => h.required).length;
+  const configuredCount = hooksResult.hooks.filter(h => h.configured).length;
 
-  const requiredCount = hooksResult?.hooks.filter(h => h.required).length || 0;
-  const configuredCount = hooksResult?.hooks.filter(h => h.configured).length || 0;
-
-  // 主设置页面
-  if (activeSection === 'main') {
-    return (
-      <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
-        {/* Top Navigation Bar */}
-        <div className="flex items-center px-3 py-2 border-b border-white/10">
+  return (
+    <div className="flex flex-col h-[360px] bg-black w-full rounded-b-xl">
+      {/* Top Navigation Bar with Save Button */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+        <div className="flex items-center">
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
             </svg>
           </button>
-          <span className="ml-2 text-sm font-medium text-white/80">Back</span>
+          <span className="ml-2 text-sm font-medium text-white/80">设置</span>
         </div>
-
-        {/* Settings List */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin">
-          {/* Hooks Configuration */}
-          <button
-            onClick={() => setActiveSection('hooks')}
-            className="w-full flex items-center justify-between py-3 border-b border-white/10 hover:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-white/50">
-                <path d="M8 2a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 2z"/>
-                <path d="M3.5 5.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.5-.5z"/>
-                <path d="M10.5 5.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                <path d="M8 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
-              </svg>
-              <span className="text-sm text-white/80">Hooks 配置</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-green-400">{configuredCount}/{requiredCount}</span>
-              <span className="text-white/30">›</span>
-            </div>
-          </button>
-
-          {/* General Settings */}
-          <button
-            onClick={() => setActiveSection('general')}
-            className="w-full flex items-center justify-between py-3 border-b border-white/10 hover:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-white/50">
-                <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM4.5 7.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/>
-              </svg>
-              <span className="text-sm text-white/80">通用设置</span>
-            </div>
-            <span className="text-white/30">›</span>
-          </button>
-        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            saveAll();
+          }}
+          disabled={saving}
+          className="px-3 py-1.5 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-xs font-medium"
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
       </div>
-    );
-  }
 
-  // Hooks 配置页面
-  if (activeSection === 'hooks' && hooksResult) {
-    return (
-      <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
-        {/* Top Navigation Bar */}
-        <div className="flex items-center px-3 py-2 border-b border-white/10">
-          <button
-            onClick={() => setActiveSection('main')}
-            className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
-            </svg>
-          </button>
-          <span className="ml-2 text-sm font-medium text-white/80">Hooks 配置</span>
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex border-b border-white/10">
+        <button
+          onClick={() => setActiveTab('hooks')}
+          className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            activeTab === 'hooks'
+              ? 'text-white border-b-2 border-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          Hooks 配置 ({configuredCount}/{requiredCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            activeTab === 'general'
+              ? 'text-white border-b-2 border-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          通用设置
+        </button>
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin">
-          {hooksResult.missing_required.length > 0 && (
-            <div className="text-orange-400 text-xs mb-3 p-2 bg-orange-500/10 rounded">
-              ⚠️ 缺少必要的 Hooks: {hooksResult.missing_required.join(', ')}
-            </div>
-          )}
-
-          {/* Required hooks - collapsible */}
-          <div className="mb-3">
-            <button
-              onClick={() => setShowRequired(!showRequired)}
-              className="w-full flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors"
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto py-2 px-2 scrollbar-thin">
+        <AnimatePresence mode="wait">
+          {activeTab === 'hooks' ? (
+            <motion.div
+              key="hooks"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.15 }}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-white/60 text-xs">必须的 Hooks</span>
-                <span className="text-white/40 text-xs">({hooksResult.hooks.filter(h => h.required).length})</span>
-              </div>
-              <motion.span
-                animate={{ rotate: showRequired ? 180 : 0 }}
-                className="text-white/40 text-xs"
-              >
-                ▼
-              </motion.span>
-            </button>
-            <AnimatePresence>
-              {showRequired && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-2 space-y-1 pl-2">
-                    {hooksResult.hooks.filter(h => h.required).map(hook => (
-                      <div
-                        key={hook.name}
-                        className="flex items-center justify-between py-1 px-2 text-sm"
-                      >
-                        <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
-                        <span className="text-white/40 text-xs">{hook.timeout}s</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
+              {hooksResult.missing_required.length > 0 && (
+                <div className="text-orange-400 text-xs mb-3 p-2 bg-orange-500/10 rounded">
+                  ⚠️ 缺少必要的 Hooks: {hooksResult.missing_required.join(', ')}
+                </div>
               )}
-            </AnimatePresence>
-          </div>
 
-          <div className="text-white/60 text-xs mb-2">可选 Hooks:</div>
-          {hooksResult.hooks.filter(h => !h.required).map(hook => (
-            <label
-              key={hook.name}
-              className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors mb-1"
+              {/* Required hooks - collapsible */}
+              <div className="mb-3">
+                <button
+                  onClick={() => setShowRequired(!showRequired)}
+                  className="w-full flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/60 text-xs">必须的 Hooks</span>
+                    <span className="text-white/40 text-xs">({requiredCount})</span>
+                  </div>
+                  <motion.span
+                    animate={{ rotate: showRequired ? 180 : 0 }}
+                    className="text-white/40 text-xs"
+                  >
+                    ▼
+                  </motion.span>
+                </button>
+                <AnimatePresence>
+                  {showRequired && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 space-y-1 pl-2">
+                        {hooksResult.hooks.filter(h => h.required).map(hook => (
+                          <div
+                            key={hook.name}
+                            className="flex items-center justify-between py-1 px-2 text-sm"
+                          >
+                            <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
+                            <span className="text-white/40 text-xs">{hook.timeout}s</span>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="text-white/60 text-xs mb-2">可选 Hooks:</div>
+              {hooksResult.hooks.filter(h => !h.required).map(hook => (
+                <label
+                  key={hook.name}
+                  className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors mb-1"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedHooks.has(hook.name)}
+                    onChange={() => toggleHook(hook.name)}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
+                  <span className="text-white/40 text-xs">{hook.timeout}s</span>
+                </label>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="general"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-3"
             >
-              <input
-                type="checkbox"
-                checked={selectedHooks.has(hook.name)}
-                onChange={() => toggleHook(hook.name)}
-                className="w-4 h-4 rounded accent-white"
-              />
-              <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
-              <span className="text-white/40 text-xs">{hook.timeout}s</span>
-            </label>
-          ))}
+              {/* Toggle Options */}
+              <div className="space-y-1">
+                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.auto_allow_permissions}
+                    onChange={e => setSettings({ ...settings, auto_allow_permissions: e.target.checked })}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <div className="flex-1">
+                    <span className="text-white/80 text-sm">自动允许所有权限</span>
+                    <span className="text-white/40 text-xs ml-2">(跳过权限确认)</span>
+                  </div>
+                </label>
 
-          <button
-            onClick={saveHooks}
-            disabled={saving}
-            className="w-full py-2 mt-4 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-sm font-medium"
-          >
-            {saving ? '保存中...' : '保存 Hooks 配置'}
-          </button>
+                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.auto_deny_on_timeout}
+                    onChange={e => setSettings({ ...settings, auto_deny_on_timeout: e.target.checked })}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <span className="text-white/80 text-sm flex-1">超时时自动拒绝</span>
+                </label>
 
-          {/* Message */}
-          <AnimatePresence>
-            {message && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className={`mt-3 p-2 rounded text-sm text-center ${
-                  message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                }`}
-              >
-                {message.text}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    );
-  }
+                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.show_notifications}
+                    onChange={e => setSettings({ ...settings, show_notifications: e.target.checked })}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <span className="text-white/80 text-sm flex-1">显示状态通知</span>
+                </label>
 
-  // General Settings 页面
-  if (activeSection === 'general') {
-    return (
-      <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
-        {/* Top Navigation Bar */}
-        <div className="flex items-center px-3 py-2 border-b border-white/10">
-          <button
-            onClick={() => setActiveSection('main')}
-            className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
-            </svg>
-          </button>
-          <span className="ml-2 text-sm font-medium text-white/80">通用设置</span>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin">
-          {/* Toggle Options */}
-          <div className="space-y-1 mb-4">
-            <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.auto_allow_permissions}
-                onChange={e => setSettings({ ...settings, auto_allow_permissions: e.target.checked })}
-                className="w-4 h-4 rounded accent-white"
-              />
-              <div className="flex-1">
-                <span className="text-white/80 text-sm">自动允许所有权限</span>
-                <span className="text-white/40 text-xs ml-2">(跳过权限确认)</span>
+                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.enable_logging}
+                    onChange={e => setSettings({ ...settings, enable_logging: e.target.checked })}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <div className="flex-1">
+                    <span className="text-white/80 text-sm">启用日志记录</span>
+                    <span className="text-white/40 text-xs block">~/.cc-island/cc-island.log</span>
+                  </div>
+                </label>
               </div>
-            </label>
 
-            <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.auto_deny_on_timeout}
-                onChange={e => setSettings({ ...settings, auto_deny_on_timeout: e.target.checked })}
-                className="w-4 h-4 rounded accent-white"
-              />
-              <span className="text-white/80 text-sm flex-1">超时时自动拒绝</span>
-            </label>
+              {/* Numeric Inputs */}
+              <div className="space-y-3 border-t border-white/10 pt-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">最大实例数</label>
+                    <input
+                      type="number"
+                      value={settings.max_instances}
+                      onChange={e => setSettings({ ...settings, max_instances: parseInt(e.target.value) || 10 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">弹窗队列</label>
+                    <input
+                      type="number"
+                      value={settings.max_popup_queue}
+                      onChange={e => setSettings({ ...settings, max_popup_queue: parseInt(e.target.value) || 5 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                </div>
 
-            <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.show_notifications}
-                onChange={e => setSettings({ ...settings, show_notifications: e.target.checked })}
-                className="w-4 h-4 rounded accent-white"
-              />
-              <span className="text-white/80 text-sm flex-1">显示状态通知</span>
-            </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">权限超时(秒)</label>
+                    <input
+                      type="number"
+                      value={settings.permission_timeout}
+                      onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">Ask超时(秒)</label>
+                    <input
+                      type="number"
+                      value={settings.ask_timeout}
+                      onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                </div>
 
-            <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.enable_logging}
-                onChange={e => setSettings({ ...settings, enable_logging: e.target.checked })}
-                className="w-4 h-4 rounded accent-white"
-              />
-              <div className="flex-1">
-                <span className="text-white/80 text-sm">启用日志记录</span>
-                <span className="text-white/40 text-xs block">~/.cc-island/cc-island.log</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">警告时间(秒)</label>
+                    <input
+                      type="number"
+                      value={settings.warning_time}
+                      onChange={e => setSettings({ ...settings, warning_time: parseInt(e.target.value) || 30 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">紧急时间(秒)</label>
+                    <input
+                      type="number"
+                      value={settings.critical_time}
+                      onChange={e => setSettings({ ...settings, critical_time: parseInt(e.target.value) || 10 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">刷新间隔(ms)</label>
+                    <input
+                      type="number"
+                      value={settings.poll_interval}
+                      onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">通知关闭(ms)</label>
+                    <input
+                      type="number"
+                      value={settings.notification_auto_close}
+                      onChange={e => setSettings({ ...settings, notification_auto_close: parseInt(e.target.value) || 5000 })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-white/60 text-xs block mb-1">Hook转发地址</label>
+                  <input
+                    type="text"
+                    placeholder="http://localhost:8080/hook"
+                    value={settings.hook_forward_url || ''}
+                    onChange={e => setSettings({ ...settings, hook_forward_url: e.target.value || null })}
+                    className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                  />
+                </div>
               </div>
-            </label>
-          </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* Numeric Inputs */}
-          <div className="space-y-3 border-t border-white/10 pt-3">
-            <div>
-              <label className="text-white/60 text-xs block mb-1">最大实例数量</label>
-              <input
-                type="number"
-                value={settings.max_instances}
-                onChange={e => setSettings({ ...settings, max_instances: parseInt(e.target.value) || 10 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">最大弹窗队列</label>
-              <input
-                type="number"
-                value={settings.max_popup_queue}
-                onChange={e => setSettings({ ...settings, max_popup_queue: parseInt(e.target.value) || 5 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">权限请求超时（秒）</label>
-              <input
-                type="number"
-                value={settings.permission_timeout}
-                onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">Ask 问题超时（秒）</label>
-              <input
-                type="number"
-                value={settings.ask_timeout}
-                onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">警告时间（秒）</label>
-              <span className="text-white/30 text-xs">超时前此时间显示黄色警告</span>
-              <input
-                type="number"
-                value={settings.warning_time}
-                onChange={e => setSettings({ ...settings, warning_time: parseInt(e.target.value) || 30 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30 mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">紧急时间（秒）</label>
-              <span className="text-white/30 text-xs">超时前此时间显示红色紧急</span>
-              <input
-                type="number"
-                value={settings.critical_time}
-                onChange={e => setSettings({ ...settings, critical_time: parseInt(e.target.value) || 10 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30 mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">数据刷新间隔（毫秒）</label>
-              <input
-                type="number"
-                value={settings.poll_interval}
-                onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">通知自动关闭（毫秒）</label>
-              <input
-                type="number"
-                value={settings.notification_auto_close}
-                onChange={e => setSettings({ ...settings, notification_auto_close: parseInt(e.target.value) || 5000 })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-
-            <div>
-              <label className="text-white/60 text-xs block mb-1">Hook 转发地址</label>
-              <input
-                type="text"
-                placeholder="http://localhost:8080/hook"
-                value={settings.hook_forward_url || ''}
-                onChange={e => setSettings({ ...settings, hook_forward_url: e.target.value || null })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/30 placeholder-white/30"
-              />
-              <span className="text-white/30 text-xs mt-1 block">配置后将异步转发所有 Hook 数据到此地址</span>
-            </div>
-          </div>
-
-          <button
-            onClick={saveSettings}
-            disabled={saving}
-            className="w-full py-2 mt-4 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-sm font-medium"
-          >
-            {saving ? '保存中...' : '保存设置'}
-          </button>
-
-          {/* Message */}
-          <AnimatePresence>
-            {message && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className={`mt-3 p-2 rounded text-sm text-center ${
-                  message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                }`}
-              >
-                {message.text}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Message */}
+        <AnimatePresence>
+          {message && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className={`mt-3 p-2 rounded text-sm text-center ${
+                message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+              }`}
+            >
+              {message.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
 
 // Initial setup modal shown on first launch
@@ -541,7 +475,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
   const optionalHooks = result.hooks.filter(h => !h.required);
 
   return (
-    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-[360px] bg-black w-full rounded-b-xl">
       {/* Top Navigation Bar */}
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <span className="text-sm font-medium text-white/80">配置 Claude Code Hooks</span>
@@ -593,7 +527,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
 
         {/* Optional hooks */}
         <div className="text-white/50 text-xs mb-2">可选 Hooks：</div>
-        <div className="space-y-1 max-h-[180px] overflow-y-auto">
+        <div className="space-y-1 max-h-[140px] overflow-y-auto">
           {optionalHooks.map(hook => (
             <label
               key={hook.name}

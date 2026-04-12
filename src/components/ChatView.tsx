@@ -172,7 +172,10 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
       {/* Top Navigation Bar */}
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <button
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose?.();
+          }}
           className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">

@@ -471,7 +471,7 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="px-3 pb-3 overflow-hidden w-full rounded-b-xl"
+              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
             >
               <div className="max-h-[360px] overflow-y-auto scrollbar-thin w-full rounded-b-xl">
                 {activeInstances.length > 0 && (
@@ -501,14 +501,21 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="overflow-hidden w-full px-3"
+              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <ChatView
-                sessionId={selectedSessionId!}
-                projectName={selectedInstance?.project_name || 'Unknown'}
-                onClose={() => setSelectedSessionId(null)}
-              />
+              <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
+                <ChatView
+                  sessionId={selectedSessionId!}
+                  projectName={selectedInstance?.project_name || 'Unknown'}
+                  onClose={() => {
+                    setSelectedSessionId(null);
+                    // Keep expanded to show the instance list
+                    setIsExpanded(true);
+                  }}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -521,14 +528,21 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="overflow-hidden w-full px-3 pb-3"
+              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <SettingsModal
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
-                onSettingsChange={handleSettingsChange}
-              />
+              <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
+                <SettingsModal
+                  isOpen={showSettings}
+                  onClose={() => {
+                    setShowSettings(false);
+                    // Keep expanded to show the instance list
+                    setIsExpanded(true);
+                  }}
+                  onSettingsChange={handleSettingsChange}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -541,16 +555,19 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="overflow-hidden w-full px-3 pb-3"
+              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <HooksSetupModal
-                result={hooksCheckResult}
-                onComplete={() => {
-                  setShowHooksSetup(false);
-                  handleSettingsChange();
-                }}
-              />
+              <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
+                <HooksSetupModal
+                  result={hooksCheckResult}
+                  onComplete={() => {
+                    setShowHooksSetup(false);
+                    handleSettingsChange();
+                  }}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
