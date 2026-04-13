@@ -9,7 +9,7 @@ import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ChatView } from './components/ChatView';
 import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, MenuIcon } from './components/StatusIcons';
 import { getCornerRadii, generateNotchPath } from './components/NotchShape';
-import { ClaudeInstance, PopupItem, HooksCheckResult } from './types';
+import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification } from './types';
 
 // Window sizes
 const COLLAPSED_WIDTH = 300;
@@ -32,6 +32,8 @@ function App() {
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
   const [showHooksSetup, setShowHooksSetup] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [productName, setProductName] = useState<string>('');
+  const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
 
   // Drag state for horizontal dragging
   const [isDragging, setIsDragging] = useState(false);
@@ -108,6 +110,20 @@ function App() {
     checkHooks();
   }, []);
 
+  // Get product name from config
+  useEffect(() => {
+    const fetchProductName = async () => {
+      try {
+        const name = await invoke<string>('get_product_name');
+        setProductName(name);
+      } catch (e) {
+        console.error('Failed to get product name:', e);
+        setProductName('CC-Island');
+      }
+    };
+    fetchProductName();
+  }, []);
+
   // Listen for window blur (click outside) to collapse island or close modals
   useEffect(() => {
     const handleBlur = () => {
@@ -127,13 +143,19 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instancesData, popupsData] = await Promise.all([
+        const [instancesData, popupsData, sessionNotif] = await Promise.all([
           invoke<ClaudeInstance[]>('get_instances'),
           invoke<PopupItem[]>('get_popups'),
+          invoke<SessionNotification | null>('get_session_notification'),
         ]);
 
         setInstances(instancesData);
         setPopups(popupsData);
+
+        // Update session notification (will be cleared by backend after 3 seconds)
+        if (sessionNotif) {
+          setSessionNotification(sessionNotif);
+        }
 
         // Update display states with minimum display time
         updateDisplays(instancesData);
@@ -148,6 +170,16 @@ function App() {
       clearInterval(interval);
     };
   }, [setInstances, setPopups]);
+
+  // Clear session notification after display (frontend fallback)
+  useEffect(() => {
+    if (sessionNotification) {
+      const timer = setTimeout(() => {
+        setSessionNotification(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionNotification]);
 
   // Stats - updated for new InstanceStatus format
   const activeInstances = instances.filter(i => i.status.type !== 'ended');
@@ -329,8 +361,20 @@ function App() {
               <span className="text-white/70 text-xs font-medium truncate">
                 {headerText}
               </span>
+            ) : showExpanded ? (
+              // Expanded with no activity: show product name
+              <span className="text-white/70 text-xs font-medium truncate">
+                {productName}
+              </span>
+            ) : sessionNotification ? (
+              // Collapsed with session notification: show project started/ended
+              <span className="text-white/70 text-xs font-medium truncate">
+                {sessionNotification.notification_type === 'started'
+                  ? `${sessionNotification.project_name}已启动`
+                  : `${sessionNotification.project_name}已停止`}
+              </span>
             ) : (
-              // No activity: empty (no CC-Island label)
+              // Collapsed with no activity: empty
               <div />
             )}
           </div>

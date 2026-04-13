@@ -31,6 +31,14 @@ pub struct ToolActivity {
     pub timestamp: u64,
 }
 
+/// Session notification for display (start/end)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionNotification {
+    pub project_name: String,
+    pub notification_type: String, // "started" or "ended"
+    pub timestamp: u64,
+}
+
 /// Global state shared between HTTP server and frontend
 pub struct AppState {
     pub instances: InstanceManager,
@@ -38,6 +46,7 @@ pub struct AppState {
     pub chat_history: ChatHistory,
     pub settings: config::AppSettings,
     pub recent_activities: Vec<ToolActivity>,
+    pub session_notification: Option<SessionNotification>,
 }
 
 impl AppState {
@@ -48,6 +57,7 @@ impl AppState {
             chat_history: ChatHistory::new(),
             settings: config::load_settings(),
             recent_activities: Vec::new(),
+            session_notification: None,
         }
     }
 
@@ -73,6 +83,28 @@ impl AppState {
         self.recent_activities.iter()
             .filter(|a| now - a.timestamp < 2)
             .collect()
+    }
+
+    /// Set session notification (start/end)
+    pub fn set_session_notification(&mut self, notification: SessionNotification) {
+        self.session_notification = Some(notification);
+    }
+
+    /// Get session notification and clear if expired (after 3 seconds)
+    pub fn get_session_notification(&mut self) -> Option<SessionNotification> {
+        if let Some(notification) = &self.session_notification {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            // Clear notification after 3 seconds
+            if now - notification.timestamp > 3 {
+                self.session_notification = None;
+                return None;
+            }
+            return Some(notification.clone());
+        }
+        None
     }
 }
 
@@ -159,6 +191,12 @@ fn get_popups() -> Vec<popup_queue::PopupItem> {
 fn get_recent_activities() -> Vec<ToolActivity> {
     let state = SHARED_STATE.read();
     state.get_display_activities().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+fn get_session_notification() -> Option<SessionNotification> {
+    let mut state = SHARED_STATE.write();
+    state.get_session_notification()
 }
 
 #[tauri::command]
@@ -326,6 +364,11 @@ fn get_settings() -> config::AppSettings {
 }
 
 #[tauri::command]
+fn get_product_name(app: tauri::AppHandle) -> String {
+    app.config().product_name.clone().unwrap_or_else(|| "CC-Island".to_string())
+}
+
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Update atomic logging flag first (no lock)
     set_logging_enabled(settings.enable_logging);
@@ -361,6 +404,7 @@ pub fn run() {
                 get_instances,
                 get_popups,
                 get_recent_activities,
+                get_session_notification,
                 get_chat_messages,
                 respond_popup,
                 jump_to_instance,
@@ -368,7 +412,8 @@ pub fn run() {
                 check_claude_hooks,
                 update_claude_hooks,
                 get_settings,
-                update_settings
+                update_settings,
+                get_product_name
             ])
             .setup(|app| {
                 // Initialize logging flag from saved settings

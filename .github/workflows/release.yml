@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      product_name:
+        description: 'Product name displayed in the app (e.g., Ease-Island)'
+        required: false
+        default: 'CC-Island'
+        type: string
 
 jobs:
   build:
@@ -35,6 +41,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set product name
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'CC-Island' }}"
+          echo "Setting product name to: $PRODUCT_NAME"
+          # Update tauri.conf.json
+          sed -i 's/"productName": ".*"/"productName": "'"$PRODUCT_NAME"'"/' src-tauri/tauri.conf.json
+          # Verify change
+          cat src-tauri/tauri.conf.json | grep productName
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -64,13 +79,20 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Get product name
+        id: product
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'CC-Island' }}"
+          echo "NAME=$PRODUCT_NAME" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'CC-Island ${{ github.ref_name }}'
+          releaseName: '${{ steps.product.outputs.NAME }} ${{ github.ref_name }}'
           releaseBody: 'See assets below.'
           releaseDraft: true
           prerelease: false
@@ -123,7 +145,7 @@ jobs:
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          name: ${{ steps.product.outputs.NAME }}_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
           path: ${{ steps.find-macos.outputs.DMG }}
           retention-days: 7
 
@@ -131,7 +153,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          name: ${{ steps.product.outputs.NAME }}_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
           path: |
             ${{ steps.find-windows.outputs.MSI }}
             ${{ steps.find-windows.outputs.EXE }}
@@ -141,7 +163,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
-          name: CC-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
+          name: ${{ steps.product.outputs.NAME }}_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
           path: |
             ${{ steps.find-linux.outputs.DEB }}
             ${{ steps.find-linux.outputs.APPIMAGE }}
@@ -177,21 +199,18 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: CC-Island ${{ github.ref_name }}
+          name: ${{ inputs.product_name || 'CC-Island' }} ${{ github.ref_name }}
           body: |
             ## Downloads
 
             ### macOS
-            - `CC-Island_*_aarch64-apple-darwin/*.dmg` - Apple Silicon (M1/M2/M3)
-            - `CC-Island_*_x86_64-apple-darwin/*.dmg` - Intel Mac
+            - DMG for Apple Silicon (M1/M2/M3) and Intel Mac
 
             ### Windows
-            - `CC-Island_*_x86_64-pc-windows-msvc/*.msi` - Windows Installer
-            - `CC-Island_*_x86_64-pc-windows-msvc/*.exe` - Portable Executable
+            - MSI installer and portable EXE
 
             ### Linux
-            - `CC-Island_*_x86_64-unknown-linux-gnu/*.deb` - Debian/Ubuntu
-            - `CC-Island_*_x86_64-unknown-linux-gnu/*.AppImage` - Universal Linux
+            - DEB for Debian/Ubuntu and AppImage for universal Linux
 
             ---
 

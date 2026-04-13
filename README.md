@@ -30,6 +30,19 @@
 - **Ask 问题回答** - 回答 Claude 的 AskUserQuestion 提问
 - **实例跳转** - 一键激活对应的终端窗口（Jump 功能）
 - **状态通知** - 实例状态变化时显示通知
+- **Session 启停提示** - SessionStart/SessionEnd 时显示项目启动/停止提示（收起状态）
+
+### 界面特点
+
+- **灵动岛设计** - 类似 iOS 灵动岛的弧形胶囊 UI，底部大圆角设计
+- **点击展开** - 点击灵动岛展开实例列表（不再是悬停展开）
+- **自动展开** - 收到权限请求时自动展开
+- **像素风格图标** - Claude 螃蟹图标和状态指示器
+- **流畅动画** - iOS 风格的弹性动画效果
+- **Tab 设置页** - Hooks 配置和通用设置通过 Tab 切换
+- **内联权限** - 在实例行内直接显示 Allow/Deny 按钮
+- **聊天视图** - 点击查看实例的完整消息历史
+- **可定制产品名** - 展开空闲状态显示可配置的产品名称（如 Ease-Island）
 
 ### 界面特点
 
@@ -52,6 +65,54 @@
 | 空闲 | 🦀 + ● 灰色 | 空闲状态 |
 
 状态图标采用像素风格设计，处理时螃蟹腿部会有动画。
+
+### Header 文案显示（优先级）
+
+| 状态 | 显示内容 |
+|------|----------|
+| ChatView 模式 | 当前实例项目名 |
+| 正在处理 | 工具名 / "Thinking" / "需要授权" |
+| 展开 + 空闲 | 产品名称（可定制） |
+| 收起 + Session 通知 | "项目名已启动" / "项目名已停止"（3秒） |
+| 收起 + 空闲 | 空白 |
+
+### Session 启停提示
+
+当 Claude Code Session 启动或结束时，收起状态的 header 中间会显示：
+
+- **启动**：`项目名已启动`（如 `demo已启动`）
+- **停止**：`项目名已停止`（如 `demo已停止`）
+
+显示持续 **3 秒** 后自动消失。展开状态下不显示此提示，而是显示产品名称。
+
+---
+
+## 产品定制化
+
+### 本地编译定制
+
+修改 `src-tauri/tauri.conf.json` 中的 `productName`：
+
+```json
+{
+  "productName": "Ease-Island",
+  ...
+}
+```
+
+编译后，展开空闲状态将显示 "Ease-Island"。
+
+### GitHub Release 定制
+
+1. 进入 Actions → Build and Release → Run workflow
+2. 在 **Product name** 输入框填写自定义名称（如 "Ease-Island"）
+3. 默认值为 "CC-Island"
+
+打包后的安装包名称也会使用自定义产品名。
+
+### Fork 定制
+
+Fork 项目后直接修改 `tauri.conf.json`，打 tag 发布即可。
 
 ---
 
@@ -371,16 +432,34 @@ CC-Island 提供 HTTP API：
 | `/jump` | POST | 跳转到终端 |
 | `/instances` | GET | 获取实例列表 |
 | `/popups` | GET | 获取弹窗列表 |
+| `/chat/:session_id` | GET | 获取聊天历史 |
 | `/instance/:id` | GET/DELETE | 获取/删除实例 |
 | `/settings` | GET/PUT | 获取/更新设置 |
+
+**Tauri IPC Commands：**
+
+| 命令 | 说明 |
+|------|------|
+| `get_instances` | 获取实例列表 |
+| `get_popups` | 获取弹窗列表 |
+| `get_recent_activities` | 获取近期活动 |
+| `get_session_notification` | 获取 Session 启停通知（3秒后自动清除） |
+| `get_product_name` | 获取产品名称 |
+| `respond_popup` | 响应弹窗 |
+| `jump_to_instance` | 跳转到实例终端 |
 
 ### 测试命令
 
 ```bash
-# 测试 SessionStart
+# 测试 SessionStart（会显示"项目名已启动"）
 curl -X POST http://localhost:17527/hook \
   -H "Content-Type: application/json" \
   -d '{"hook_event_name":"SessionStart","session_id":"test-1","cwd":"/Users/you/project/demo"}'
+
+# 测试 SessionEnd（会显示"项目名已停止"）
+curl -X POST http://localhost:17527/hook \
+  -H "Content-Type: application/json" \
+  -d '{"hook_event_name":"SessionEnd","session_id":"test-1"}'
 
 # 测试 PermissionRequest
 curl -X POST http://localhost:17527/hook \
@@ -392,6 +471,13 @@ curl http://localhost:17527/instances | jq
 
 # 查看弹窗
 curl http://localhost:17527/popups | jq
+
+# 模拟多个 Session 启动
+for i in {1..10}; do
+  curl -s -X POST http://localhost:17527/hook \
+    -H "Content-Type: application/json" \
+    -d "{\"hook_event_name\":\"SessionStart\",\"session_id\":\"test-$i\",\"cwd\":\"/home/user/Project-$i\"}"
+done
 ```
 
 ---
@@ -428,6 +514,13 @@ macOS 需要：
 ### Q: 项目名显示为 "unknown"？
 
 确保 Hook 请求中包含 `cwd` 字段，CC-Island 从工作目录提取项目名。
+
+### Q: 如何定制产品名称？
+
+展开空闲状态显示的产品名可定制：
+1. 本地编译：修改 `src-tauri/tauri.conf.json` 的 `productName`
+2. GitHub Release：Actions → Run workflow 时输入自定义产品名
+3. Fork：直接修改配置后发布
 
 ---
 

@@ -229,7 +229,7 @@ async fn handle_hook(
                 "SessionStart" => {
                     let session_id = input.session_id.clone();
                     let project_name = extract_project_name(&input);
-                    let mut instance = ClaudeInstance::new(session_id.clone(), project_name);
+                    let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
 
                     // Try to find process info
                     if let Some(cwd) = &input.cwd {
@@ -251,8 +251,24 @@ async fn handle_hook(
 
                     tracing::info!("New session: {} - {}", instance.session_id, instance.project_name);
                     state_guard.instances.add_instance(instance);
+
+                    // Set session notification
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs();
+                    state_guard.set_session_notification(crate::SessionNotification {
+                        project_name,
+                        notification_type: "started".to_string(),
+                        timestamp: now,
+                    });
                 }
                 "SessionEnd" => {
+                    // Get project name before marking as ended
+                    let project_name = state_guard.instances.get_instance(&input.session_id)
+                        .map(|i| i.project_name.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+
                     // Cancel any pending popups for this session
                     let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
                     if !cancelled.is_empty() {
@@ -267,6 +283,17 @@ async fn handle_hook(
 
                     // Clear chat history for this session
                     state_guard.chat_history.clear_session(&input.session_id);
+
+                    // Set session notification
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs();
+                    state_guard.set_session_notification(crate::SessionNotification {
+                        project_name,
+                        notification_type: "ended".to_string(),
+                        timestamp: now,
+                    });
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {

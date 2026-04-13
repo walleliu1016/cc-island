@@ -130,6 +130,13 @@ export interface ToolActivity {
   timestamp: number;
 }
 
+// Session notification (start/end)
+export interface SessionNotification {
+  project_name: string;
+  notification_type: 'started' | 'ended';
+  timestamp: number;
+}
+
 // Chat message types
 export type ChatMessageType = 'user' | 'assistant' | 'toolCall' | 'toolResult' | 'thinking' | 'interrupted';
 

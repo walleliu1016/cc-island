@@ -114,6 +114,20 @@ Response: `{answers: [["React"]]}` (array per question).
 - Center (flex-1): Status text or project name
 - Right (w-10): Menu button (when expanded) or status icon
 
+**Header Text Display (Priority):**
+
+| State | Display |
+|-------|---------|
+| ChatView mode | Project name (selected instance) |
+| Active processing | Tool name / "Thinking" / "需要授权" |
+| Expanded, idle | Product name (configurable via `productName` in tauri.conf.json) |
+| Collapsed, session notification | "项目名已启动" / "项目名已停止" (3 seconds) |
+| Collapsed, idle | Empty |
+
+**Session Notifications:**
+- SessionStart → Shows "项目名已启动" in collapsed header center (3s)
+- SessionEnd → Shows "项目名已停止" in collapsed header center (3s)
+
 **Window Dimensions (Unified):**
 - Collapsed: 300x38px
 - Expanded: 480x400px
@@ -133,4 +147,31 @@ Tauri window config in `src-tauri/tauri.conf.json`: always on top, transparent, 
 
 ## Frontend Polling
 
-Frontend polls every 100ms via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`). Tool activities have 2-second display window to catch fast executions.
+Frontend polls every 100ms via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`, `get_session_notification`). Tool activities have 2-second display window to catch fast executions.
+
+## Product Name Customization
+
+The product name displayed in expanded idle state is configurable:
+
+1. **Local Build**: Edit `src-tauri/tauri.conf.json`:
+   ```json
+   {
+     "productName": "Ease-Island",
+     ...
+   }
+   ```
+
+2. **GitHub Release**: Use workflow dispatch with `product_name` input:
+   - Go to Actions → Build and Release → Run workflow
+   - Enter custom product name (e.g., "Ease-Island")
+   - Default is "CC-Island" if not specified
+
+3. **Fork Customization**: After forking, modify `productName` in config directly.
+
+## Key Components (Updated)
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| HTTP API | `src-tauri/src/http_server.rs` | Receives Claude Code hooks, handles blocking (PermissionRequest/Ask) and non-blocking events, sets session notifications |
+| State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) with `session_notification` field for start/end alerts |
+| Frontend | `src/App.tsx` | Handles session notification display, product name fetch via `get_product_name` command |
