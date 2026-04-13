@@ -1,0 +1,65 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 渐变背景 -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f0f1a"/>
+    </linearGradient>
+
+    <!-- 灵动岛渐变 -->
+    <linearGradient id="islandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0a0a0f"/>
+      <stop offset="50%" style="stop-color:#1a1a25"/>
+      <stop offset="100%" style="stop-color:#0a0a0f"/>
+    </linearGradient>
+
+    <!-- E 字母渐变 -->
+    <linearGradient id="eGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ade80"/>
+      <stop offset="100%" style="stop-color:#22c55e"/>
+    </linearGradient>
+
+    <!-- 发光效果 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- 阴影 -->
+    <filter id="shadow" x="-10%" y="-30%" width="120%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+
+    <!-- 圆角裁剪 -->
+    <clipPath id="roundedClip">
+      <rect width="1024" height="1024" rx="225" ry="225"/>
+    </clipPath>
+  </defs>
+
+  <!-- 圆角背景 -->
+  <rect width="1024" height="1024" rx="225" ry="225" fill="url(#bgGradient)"/>
+
+  <g clip-path="url(#roundedClip)">
+    <!-- 灵动岛 -->
+    <rect x="112" y="200" width="800" height="240" rx="120" fill="url(#islandGradient)" filter="url(#shadow)"/>
+
+    <!-- E 字母 - 简洁现代 -->
+    <text x="512" y="420" font-family="SF Pro Display, -apple-system, sans-serif" font-size="160" font-weight="700" fill="url(#eGradient)" text-anchor="middle" filter="url(#glow)">E</text>
+
+    <!-- 岛屿轮廓 -->
+    <path d="M150 700 Q300 650 512 700 Q700 650 850 700 L850 900 L150 900 Z" fill="#2d5a3f" opacity="0.6"/>
+
+    <!-- 小棕榈树 -->
+    <g transform="translate(400, 620)">
+      <path d="M15 80 Q17 50 20 10" stroke="#5d4037" stroke-width="6" fill="none"/>
+      <ellipse cx="20" cy="10" rx="30" ry="10" fill="#43a047" transform="rotate(-30 20 10)"/>
+      <ellipse cx="20" cy="5" rx="28" ry="9" fill="#4ade80" transform="rotate(30 20 5)"/>
+    </g>
+
+    <!-- Ease 文字 -->
+    <text x="512" y="850" font-family="SF Pro Display, -apple-system, sans-serif" font-size="48" font-weight="500" fill="white" text-anchor="middle" opacity="0.85">Ease</text>
+  </g>
+</svg>
