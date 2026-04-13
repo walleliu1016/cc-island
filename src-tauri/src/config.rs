@@ -89,12 +89,12 @@ pub const REQUIRED_HOOKS: &[(&str, u64, bool)] = &[
     ("PermissionRequest", 300, false),
     ("Notification", 120, false),
     ("UserPromptSubmit", 5, false),  // Required for "thinking" status display
+    ("Stop", 5, false),              // Required for session stop detection
+    ("PostToolUseFailure", 5, false), // Required for tool failure tracking
 ];
 
 /// Optional hooks
 pub const OPTIONAL_HOOKS: &[(&str, u64, bool)] = &[
-    ("Stop", 5, false),
-    ("PostToolUseFailure", 5, false),
     ("PreCompact", 5, false),
     ("PostCompact", 5, false),
     ("SubagentStart", 5, false),

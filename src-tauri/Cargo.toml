@@ -46,3 +46,8 @@ windows = { version = "0.58", features = [
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+
+# Reduce export symbols for MinGW linker (fixes "export ordinal too large" error)
+[profile.dev]
+lto = false
+codegen-units = 256
