@@ -9,7 +9,7 @@ on:
       product_name:
         description: 'Product name displayed in the app (e.g., Ease-Island)'
         required: false
-        default: 'CC-Island'
+        default: 'Ease-Island'
         type: string
 
 jobs:
@@ -43,10 +43,10 @@ jobs:
 
       - name: Set product name
         run: |
-          PRODUCT_NAME="${{ inputs.product_name || 'CC-Island' }}"
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
           echo "Setting product name to: $PRODUCT_NAME"
-          # Update tauri.conf.json
-          sed -i 's/"productName": ".*"/"productName": "'"$PRODUCT_NAME"'"/' src-tauri/tauri.conf.json
+          # Update tauri.conf.json (use perl for cross-platform compatibility)
+          perl -pi -e 's/"productName": ".*"/"productName": "'"$PRODUCT_NAME"'"/' src-tauri/tauri.conf.json
           # Verify change
           cat src-tauri/tauri.conf.json | grep productName
 
@@ -82,7 +82,7 @@ jobs:
       - name: Get product name
         id: product
         run: |
-          PRODUCT_NAME="${{ inputs.product_name || 'CC-Island' }}"
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
           echo "NAME=$PRODUCT_NAME" >> $GITHUB_OUTPUT
         shell: bash
 
@@ -199,7 +199,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ inputs.product_name || 'CC-Island' }} ${{ github.ref_name }}
+          name: ${{ inputs.product_name || 'Ease-Island' }} ${{ github.ref_name }}
           body: |
             ## Downloads
 
