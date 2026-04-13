@@ -42,6 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set product name
+        shell: bash
         run: |
           PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
           echo "Setting product name to: $PRODUCT_NAME"
