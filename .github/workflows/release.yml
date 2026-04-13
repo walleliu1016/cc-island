@@ -217,6 +217,12 @@ jobs:
             ### macOS
             - DMG for Apple Silicon (M1/M2/M3) and Intel Mac
 
+            **注意：macOS 用户安装后如果提示"文件已损坏"，请运行以下命令：**
+            ```bash
+            xattr -cr /Applications/Ease-Island.app
+            ```
+            或前往 系统设置 > 隐私与安全 > 安全性，点击"仍要打开"。
+
             ### Windows
             - MSI installer and portable EXE
 

@@ -129,6 +129,29 @@ Fork 项目后直接修改 `tauri.conf.json`，打 tag 发布即可。
 | Windows | `.msi`, `.exe` |
 | Linux | `.deb`, `.rpm`, `.AppImage` |
 
+### macOS 安装注意事项
+
+由于应用未进行代码签名，首次安装后 macOS 可能会提示"文件已损坏"。解决方法：
+
+**方法 1（推荐）：**
+```bash
+xattr -cr /Applications/Ease-Island.app
+```
+
+**方法 2：**
+1. 打开 系统设置 > 隐私与安全 > 安全性
+2. 找到 Ease-Island 的阻止记录
+3. 点击"仍要打开"
+
+**方法 3（仅 Apple Silicon）：**
+```bash
+# 确保 Rosetta 2 已安装
+softwareupdate --install-rosetta --agree-to-license
+
+# 移除隔离属性
+xattr -cr /Applications/Ease-Island.app
+```
+
 ### 系统要求
 
 - **macOS**: 10.15 (Catalina) 及以上
