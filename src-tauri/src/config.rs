@@ -331,7 +331,7 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
 
     let mut hooks: Vec<HookStatus> = Vec::new();
     let mut missing_required: Vec<String> = Vec::new();
-    let mut missing_optional: Vec<String> = Vec::new();
+    let missing_optional: Vec<String> = Vec::new();
 
     // Load cc-island settings to get enabled hooks
     let cc_island_settings = load_settings();
@@ -353,7 +353,36 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
         }
     }
 
-    // Check optional hooks
+    // If missing required hooks, auto-fix by adding all required hooks
+    if !missing_required.is_empty() {
+        tracing::info!("Auto-fixing missing required hooks: {:?}", missing_required);
+
+        // Get current enabled hooks and add all required hooks
+        let mut all_enabled: Vec<String> = cc_island_settings.enabled_hooks.clone();
+        for (name, _, _) in REQUIRED_HOOKS {
+            if !all_enabled.contains(&name.to_string()) {
+                all_enabled.push(name.to_string());
+            }
+        }
+
+        // Update Claude hooks config
+        if let Err(e) = update_claude_hooks_config(all_enabled) {
+            tracing::error!("Failed to auto-fix hooks config: {}", e);
+        } else {
+            tracing::info!("Successfully auto-fixed hooks config");
+            // Clear missing_required since we fixed it
+            missing_required.clear();
+
+            // Update hooks status to reflect the fix
+            for hook in &mut hooks {
+                if hook.required {
+                    hook.configured = true;
+                }
+            }
+        }
+    }
+
+    // Check optional hooks (don't auto-fix)
     for (name, timeout, _is_command) in OPTIONAL_HOOKS {
         let configured = enabled_hooks.contains(*name);
         let status = HookStatus {
@@ -363,10 +392,6 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
             timeout: *timeout,
         };
         hooks.push(status);
-
-        if !configured {
-            missing_optional.push(name.to_string());
-        }
     }
 
     HooksCheckResult {
