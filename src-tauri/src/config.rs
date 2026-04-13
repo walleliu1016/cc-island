@@ -335,7 +335,7 @@ pub fn check_claude_hooks_config() -> HooksCheckResult {
 
     // Load cc-island settings to get enabled hooks
     let cc_island_settings = load_settings();
-    let enabled_hooks: std::collections::HashSet<String> = cc_island_settings.enabled_hooks.into_iter().collect();
+    let enabled_hooks: std::collections::HashSet<String> = cc_island_settings.enabled_hooks.iter().cloned().collect();
 
     // Check required hooks
     for (name, timeout, _is_command) in REQUIRED_HOOKS {
