@@ -378,7 +378,7 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
             >
               <div className="max-h-[360px] overflow-y-auto scrollbar-thin w-full rounded-b-xl">
                 {activeInstances.length > 0 && (
@@ -409,7 +409,7 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -436,7 +436,7 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -463,7 +463,7 @@ function App() {
               animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
-              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
