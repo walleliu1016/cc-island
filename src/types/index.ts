@@ -149,3 +149,35 @@ export interface ChatMessage {
   toolName?: string;
   timestamp: number;
 }
+
+// FullChatMessage from JSONL (matches Rust FullChatMessage)
+export type ChatRole = 'user' | 'assistant';
+
+export type MessageBlockType = 'text' | 'toolUse' | 'toolResult' | 'thinking' | 'interrupted';
+
+export interface ToolUseBlock {
+  id: string;
+  name: string;
+  input: Record<string, string>;
+  preview?: string;
+}
+
+export interface ToolResultBlock {
+  tool_use_id: string;
+  content: string;
+  is_error: boolean;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface MessageBlock {
+  type: MessageBlockType;
+  data: string | ToolUseBlock | ToolResultBlock;
+}
+
+export interface FullChatMessage {
+  id: string;
+  role: ChatRole;
+  timestamp: number;
+  content: MessageBlock[];
+}

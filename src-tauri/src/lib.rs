@@ -5,10 +5,12 @@ pub mod hook_handler;
 pub mod platform;
 pub mod config;
 pub mod chat_messages;
+pub mod jsonl_watcher;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
 use chat_messages::ChatHistory;
+use jsonl_watcher::ConversationManager;
 use http_server::HttpServer;
 use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
@@ -44,6 +46,7 @@ pub struct AppState {
     pub instances: InstanceManager,
     pub popups: PopupQueue,
     pub chat_history: ChatHistory,
+    pub conversation_manager: ConversationManager,
     pub settings: config::AppSettings,
     pub recent_activities: Vec<ToolActivity>,
     pub session_notification: Option<SessionNotification>,
@@ -55,6 +58,7 @@ impl AppState {
             instances: InstanceManager::new(),
             popups: PopupQueue::new(),
             chat_history: ChatHistory::new(),
+            conversation_manager: ConversationManager::new(),
             settings: config::load_settings(),
             recent_activities: Vec::new(),
             session_notification: None,
@@ -203,6 +207,13 @@ fn get_session_notification() -> Option<SessionNotification> {
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     let state = SHARED_STATE.read();
     state.chat_history.get_messages(&session_id)
+}
+
+#[tauri::command]
+fn get_full_chat(session_id: String, cwd: String) -> Vec<jsonl_watcher::FullChatMessage> {
+    tracing::info!("get_full_chat called: session_id={}, cwd={}", session_id, cwd);
+    let mut state = SHARED_STATE.write();
+    state.conversation_manager.parse_full(&session_id, &cwd)
 }
 
 #[tauri::command]
@@ -406,6 +417,7 @@ pub fn run() {
                 get_recent_activities,
                 get_session_notification,
                 get_chat_messages,
+                get_full_chat,
                 respond_popup,
                 jump_to_instance,
                 refresh_instance_process,

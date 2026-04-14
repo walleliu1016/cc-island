@@ -460,6 +460,7 @@ function App() {
               <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
                 <ChatView
                   sessionId={selectedSessionId!}
+                  cwd={selectedInstance?.process_info?.working_directory || ''}
                   projectName={selectedInstance?.project_name || 'Unknown'}
                   onClose={() => {
                     setSelectedSessionId(null);

@@ -34,6 +34,7 @@ impl HttpServer {
             .route("/instances", get(get_instances))
             .route("/popups", get(get_popups))
             .route("/chat/:session_id", get(get_chat_messages_http))
+            .route("/full_chat", get(get_full_chat_http))
             .route("/instance/:id", get(get_instance).delete(delete_instance))
             .route("/settings", get(get_settings).put(update_settings))
             .route("/position", put(update_position))
@@ -599,6 +600,20 @@ async fn get_chat_messages_http(
 ) -> Json<Vec<ChatMessage>> {
     let state_guard = state.read();
     Json(state_guard.chat_history.get_messages(&session_id))
+}
+
+/// Get full chat messages from JSONL file for a session
+async fn get_full_chat_http(
+    State(state): State<Arc<RwLock<AppState>>>,
+    query: axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<Vec<crate::jsonl_watcher::FullChatMessage>> {
+    let session_id = query.get("session_id").cloned().unwrap_or_default();
+    let cwd = query.get("cwd").cloned().unwrap_or_default();
+
+    tracing::info!("get_full_chat_http called: session_id={}, cwd={}", session_id, cwd);
+
+    let mut state_guard = state.write();
+    Json(state_guard.conversation_manager.parse_full(&session_id, &cwd))
 }
 async fn update_position(
     Json(_pos): Json<serde_json::Value>,

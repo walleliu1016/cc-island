@@ -1,39 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { ChatMessage, PopupItem, AskQuestion, AskOption } from '../types';
+import { PopupItem, AskQuestion, AskOption, FullChatMessage, MessageBlock, ToolUseBlock, ToolResultBlock } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
-
-// Terminal-style colors
-const Colors = {
-  user: '#d97857',        // Claude orange
-  assistant: '#66c075',   // Green
-  toolCall: '#ffb700',    // Amber for tool name
-  toolResult: '#66c075',  // Green
-  thinking: '#ffb700',    // Amber
-  interrupted: '#ff4d4d', // Red
-  dim: 'rgba(255,255,255,0.4)',
-  codeBg: 'rgba(255,255,255,0.05)',
-};
-
-// Parse AskUserQuestion content
-function parseAskQuestions(content: string): AskQuestion[] | null {
-  try {
-    // Content format: "AskUserQuestion: {json}" or just "{json}"
-    let jsonStr = content;
-    if (content.includes(':')) {
-      const colonIndex = content.indexOf(':');
-      jsonStr = content.substring(colonIndex + 1).trim();
-    }
-    const parsed = JSON.parse(jsonStr);
-    if (parsed.questions && Array.isArray(parsed.questions)) {
-      return parsed.questions as AskQuestion[];
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { MarkdownText, CompactMarkdown } from './MarkdownRenderer';
 
 // Multi-step Question Wizard Component
 function QuestionWizard({
@@ -63,14 +33,12 @@ function QuestionWizard({
     }
 
     if (currentQuestion.multiSelect) {
-      // Multi-select: toggle
       if (newAnswers[currentIndex].includes(label)) {
         newAnswers[currentIndex] = newAnswers[currentIndex].filter(a => a !== label);
       } else {
         newAnswers[currentIndex] = [...newAnswers[currentIndex], label];
       }
     } else {
-      // Single-select: replace
       newAnswers[currentIndex] = [label];
     }
     onChange(newAnswers);
@@ -136,7 +104,6 @@ function QuestionWizard({
               >
                 <span className="mt-0.5 flex-shrink-0">
                   {currentQuestion.multiSelect ? (
-                    // Checkbox for multi-select (square)
                     <span className={`w-4 h-4 border flex items-center justify-center transition-colors ${
                       isSelected ? 'border-white bg-white/40' : 'border-white/30 bg-transparent'
                     }`}>
@@ -147,7 +114,6 @@ function QuestionWizard({
                       )}
                     </span>
                   ) : (
-                    // Radio for single-select
                     <span className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
                       isSelected ? 'border-white' : 'border-white/30'
                     }`}>
@@ -170,7 +136,6 @@ function QuestionWizard({
       {/* Navigation Footer */}
       <div className="px-3 py-3 border-t border-white/10">
         <div className="flex items-center justify-between">
-          {/* Left: Prev button or Cancel */}
           <div>
             {currentIndex > 0 ? (
               <button
@@ -190,8 +155,6 @@ function QuestionWizard({
               </button>
             )}
           </div>
-
-          {/* Right: Next or Submit */}
           <div>
             {readOnly ? (
               currentIndex < questions.length - 1 ? (
@@ -230,193 +193,126 @@ function QuestionWizard({
   );
 }
 
-// Parse AskUserQuestion answers from content
-function parseAskAnswers(content: string): string[][] | null {
-  try {
-    // Content format: "AskUserQuestion Answers: {"answers": [["A", "B"], ["C"]]}"
-    const jsonMatch = content.match(/\{.*\}/s);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.answers && Array.isArray(parsed.answers)) {
-        return parsed.answers as string[][];
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-// Format tool content for display - human readable format
-function formatToolContent(toolName: string | undefined, content: string): React.ReactNode {
-  if (!toolName) return content;
+// ============== New Message Views (Swift Style) ==============
 
-  try {
-    // Content format: "ToolName: {json}"
-    let jsonStr = content;
-    if (content.includes(':')) {
-      const colonIndex = content.indexOf(':');
-      jsonStr = content.substring(colonIndex + 1).trim();
-    }
-    const parsed = JSON.parse(jsonStr);
-
-    switch (toolName) {
-      case 'Bash':
-        return formatBashTool(parsed);
-      case 'Read':
-        return formatReadTool(parsed);
-      case 'Write':
-        return formatWriteTool(parsed);
-      case 'Edit':
-        return formatEditTool(parsed);
-      case 'WebFetch':
-        return formatWebFetchTool(parsed);
-      case 'WebSearch':
-        return formatWebSearchTool(parsed);
-      case 'Glob':
-        return formatGlobTool(parsed);
-      case 'Grep':
-        return formatGrepTool(parsed);
-      default:
-        return JSON.stringify(parsed, null, 2);
-    }
-  } catch {
-    return content;
-  }
-}
-
-// Bash: Show command with description
-function formatBashTool(input: { command?: string; description?: string; timeout?: number }): React.ReactNode {
+// User Message View - Right-aligned bubble, white/15% opacity background
+function UserMessageView({ text }: { text: string }) {
   return (
-    <div className="space-y-2">
-      {input.description && (
-        <div className="text-xs text-white/50">{input.description}</div>
-      )}
-      {input.command && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-green-400/90 whitespace-pre-wrap">
-          {input.command}
-        </div>
+    <div className="flex justify-end">
+      <div className="max-w-[85%] px-2 py-1.5 rounded-2xl bg-white/[0.15]">
+        <MarkdownText text={text} colorClass="text-white" fontSize="text-xs" />
+      </div>
+    </div>
+  );
+}
+
+// Thinking View - Gray italic, collapsible
+function ThinkingView({ text }: { text: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const canExpand = text.length > 50;
+
+  return (
+    <div
+      className="flex items-start gap-1 cursor-pointer"
+      onClick={() => canExpand && setIsExpanded(!isExpanded)}
+    >
+      <span className="w-1 h-1 rounded-full bg-gray-500/50 mt-0.5" />
+      <span className={`text-[11px] text-gray-500 italic flex-1 ${!isExpanded && canExpand ? 'line-clamp-1' : ''}`}>
+        {isExpanded ? text : (text.slice(0, 50) + (canExpand ? '...' : ''))}
+      </span>
+      {canExpand && (
+        <motion.span
+          className="text-gray-500/50 text-[9px]"
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          →
+        </motion.span>
       )}
     </div>
   );
 }
 
-// Read: Show file path with line info
-function formatReadTool(input: { file_path?: string; offset?: number; limit?: number }): React.ReactNode {
+// Interrupted Message View
+function InterruptedMessageView() {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
+    <div className="text-xs text-red-500">
+      Interrupted
+    </div>
+  );
+}
+
+// Tool Call View - Status dot + tool name + preview, expandable
+function ToolCallView({ block }: { block: ToolUseBlock }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Generate preview from input
+  const preview = block.input.file_path ||
+    block.input.command?.slice(0, 30) ||
+    block.input.pattern ||
+    Object.values(block.input)[0]?.slice(0, 30) || '';
+
+  return (
+    <div
+      className="flex flex-col gap-0.5"
+      onClick={() => setIsExpanded(!isExpanded)}
+    >
+      <div className="flex items-center gap-1">
+        <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+        <span className="text-[11px] font-medium text-amber-500">{block.name}</span>
+        <span className="text-[11px] text-white/40 truncate">{preview}</span>
       </div>
-      {(input.offset || input.limit) && (
-        <div className="text-xs text-white/40">
-          Lines {input.offset || 1}-{input.limit ? (input.offset || 1) + input.limit - 1 : 'end'}
-        </div>
+      {isExpanded && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="ml-2 text-[11px] text-white/50"
+        >
+          {Object.entries(block.input).map(([key, value]) => (
+            <div key={key} className="truncate">
+              <span className="text-white/30">{key}: </span>
+              <span>{value.slice(0, 60)}</span>
+            </div>
+          ))}
+        </motion.div>
       )}
     </div>
   );
 }
 
-// Write: Show file path and preview content
-function formatWriteTool(input: { file_path?: string; content?: string }): React.ReactNode {
-  const preview = input.content?.slice(0, 200) || '';
-  const hasMore = input.content && input.content.length > 200;
+// Tool Result View
+function ToolResultView({ block }: { block: ToolResultBlock }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
+    <div className="flex items-start gap-1">
+      <span className={`w-1 h-1 rounded-full ${block.is_error ? 'bg-red-500' : 'bg-green-500'} mt-0.5`} />
+      <div className="flex-1">
+        <CompactMarkdown text={block.content} />
       </div>
-      {preview && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-white/60 whitespace-pre-wrap">
-          {preview}{hasMore && '...'}
-        </div>
-      )}
     </div>
   );
 }
 
-// Edit: Show file path and change summary
-function formatEditTool(input: { file_path?: string; old_string?: string; new_string?: string; replace_all?: boolean }): React.ReactNode {
+// Processing Indicator View - Claude orange spinner + "Processing..."
+function ProcessingIndicatorView() {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
-        {input.replace_all && <span className="text-amber-400/80">(replace all)</span>}
-      </div>
-      {input.old_string && (
-        <div className="space-y-1">
-          <div className="text-xs text-red-400/70">− {input.old_string.slice(0, 50)}{input.old_string.length > 50 && '...'}</div>
-          <div className="text-xs text-green-400/70">+ {input.new_string?.slice(0, 50)}{input.new_string && input.new_string.length > 50 && '...'}</div>
-        </div>
-      )}
+    <div className="flex items-center gap-1.5">
+      <ProcessingSpinner size={6} />
+      <span className="text-xs text-[#d97857]">Processing...</span>
     </div>
   );
 }
 
-// WebFetch: Show URL
-function formatWebFetchTool(input: { url?: string; prompt?: string }): React.ReactNode {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-xs text-blue-400/80">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-          <path d="M6 0a6 6 0 0 1 6 6 6 6 0 0 1-6 6 6 6 0 0 1-6-6 6 6 0 0 1 6-6zm0 1a5 5 0 0 0-5 5 5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-5-5zm0 2a3 3 0 0 1 3 3 3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1 3-3z"/>
-        </svg>
-        <span className="truncate">{input.url}</span>
-      </div>
-      {input.prompt && <div className="text-xs text-white/40">{input.prompt}</div>}
-    </div>
-  );
-}
-
-// WebSearch: Show query
-function formatWebSearchTool(input: { query?: string }): React.ReactNode {
-  return (
-    <div className="text-xs">
-      <span className="text-white/40">Search:</span>{' '}
-      <span className="text-white/70">{input.query}</span>
-    </div>
-  );
-}
-
-// Glob: Show pattern
-function formatGlobTool(input: { pattern?: string; path?: string }): React.ReactNode {
-  return (
-    <div className="text-xs">
-      <span className="text-white/40">Pattern:</span>{' '}
-      <span className="text-white/70">{input.path}/{input.pattern}</span>
-    </div>
-  );
-}
-
-// Grep: Show pattern and path
-function formatGrepTool(input: { pattern?: string; path?: string; output_mode?: string }): React.ReactNode {
-  return (
-    <div className="space-y-1">
-      <div className="text-xs">
-        <span className="text-white/40">Pattern:</span>{' '}
-        <span className="text-amber-400/80">{input.pattern}</span>
-      </div>
-      <div className="text-xs text-white/50">in {input.path}</div>
-    </div>
-  );
-}
+// ============== Main ChatView ==============
 
 interface ChatViewProps {
   sessionId: string;
+  cwd: string;
   projectName: string;
   onClose?: () => void;
 }
 
-export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function ChatView({ sessionId, cwd, projectName, onClose }: ChatViewProps) {
+  const [messages, setMessages] = useState<FullChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingPopup, setPendingPopup] = useState<PopupItem | null>(null);
   const [askAnswers, setAskAnswers] = useState<string[][]>([]);
@@ -426,12 +322,33 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [messagesData, popupsData] = await Promise.all([
-          invoke<ChatMessage[]>('get_chat_messages', { sessionId }),
-          invoke<PopupItem[]>('get_popups'),
-        ]);
+        console.log('ChatView fetching data:', { sessionId, cwd });
+        if (!cwd) {
+          console.warn('ChatView: cwd is empty, skipping fetch');
+          return;
+        }
 
-        setMessages(messagesData);
+        // Try Tauri invoke first, fallback to HTTP API
+        let fullChatData: FullChatMessage[];
+        try {
+          fullChatData = await invoke<FullChatMessage[]>('get_full_chat', { sessionId, cwd });
+          console.log('ChatView received from Tauri:', { messagesCount: fullChatData.length });
+        } catch (tauriError) {
+          console.warn('Tauri invoke failed, using HTTP API:', tauriError);
+          const response = await fetch(`http://localhost:17527/full_chat?session_id=${sessionId}&cwd=${encodeURIComponent(cwd)}`);
+          fullChatData = await response.json();
+          console.log('ChatView received from HTTP:', { messagesCount: fullChatData.length });
+        }
+
+        const popupsData = await invoke<PopupItem[]>('get_popups');
+
+        console.log('ChatView full data:', {
+          messagesCount: fullChatData.length,
+          messages: fullChatData.slice(0, 3),
+          popupsCount: popupsData.length
+        });
+
+        setMessages(fullChatData);
 
         // Find pending popup for this session
         const sessionPopup = popupsData.find(
@@ -439,27 +356,18 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         );
         setPendingPopup(sessionPopup || null);
 
-        // Initialize ask answers from popup or from messages
+        // Initialize ask answers from popup
         if (sessionPopup?.ask_data?.questions && askAnswers.length === 0) {
           setAskAnswers(sessionPopup.ask_data.questions.map(() => []));
-        } else if (askAnswers.length === 0) {
-          // Check messages for AskUserQuestion
-          const askMsg = messagesData.find(m => m.toolName === 'AskUserQuestion');
-          if (askMsg) {
-            const questions = parseAskQuestions(askMsg.content);
-            if (questions && questions.length > 0) {
-              setAskAnswers(questions.map(() => []));
-            }
-          }
         }
 
-        // Check if processing
-        const now = Date.now() / 1000;
-        const hasRecentActivity = messagesData.some(m =>
-          (m.messageType === 'thinking' || m.messageType === 'toolCall') &&
-          m.timestamp / 1000 > now - 3
+        // Check if processing (last message is assistant with no complete content)
+        const lastMsg = fullChatData[fullChatData.length - 1];
+        const isLastAssistant = lastMsg?.role === 'assistant';
+        const hasIncompleteTool = lastMsg?.content.some(b =>
+          b.type === 'toolUse' && typeof b.data !== 'string'
         );
-        setIsProcessing(hasRecentActivity);
+        setIsProcessing(isLastAssistant && hasIncompleteTool);
       } catch (e) {
         console.error('Failed to fetch data:', e);
       }
@@ -468,9 +376,9 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
     fetchData();
     const interval = setInterval(fetchData, 500);
     return () => clearInterval(interval);
-  }, [sessionId, askAnswers.length]);
+  }, [sessionId, cwd, askAnswers.length]);
 
-  // Auto scroll to bottom only when new messages arrive
+  // Auto scroll to bottom when new messages arrive
   const prevMessagesLengthRef = useRef(0);
   useEffect(() => {
     if (messages.length > prevMessagesLengthRef.current) {
@@ -498,20 +406,14 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
   // Handle ask response
   const handleAskRespond = async () => {
-    // Only submit if we have a pending ask popup for this session
-    const askPopup = messages.find(m => m.toolName === 'AskUserQuestion');
-    if (!askPopup) return;
-
-    // Find the pending popup by checking if there's an ask popup for this session
     try {
-      // Get latest popups to find the ask popup
       const popups = await invoke<PopupItem[]>('get_popups');
       const askPendingPopup = popups.find(
         p => p.session_id === sessionId && p.status === 'pending' && p.type === 'ask'
       );
 
       if (!askPendingPopup) {
-        console.log('No pending ask popup found, cannot submit');
+        console.log('No pending ask popup found');
         return;
       }
 
@@ -526,22 +428,48 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
     }
   };
 
+  // Render message block
+  const renderBlock = (block: MessageBlock, _msgId: string) => {
+    switch (block.type) {
+      case 'text':
+        return typeof block.data === 'string' ? (
+          <MarkdownText text={block.data} colorClass="text-white/90" fontSize="text-xs" />
+        ) : null;
+      case 'toolUse':
+        return typeof block.data !== 'string' ? (
+          <ToolCallView block={block.data as ToolUseBlock} />
+        ) : null;
+      case 'toolResult':
+        return typeof block.data !== 'string' ? (
+          <ToolResultView block={block.data as ToolResultBlock} />
+        ) : null;
+      case 'thinking':
+        return typeof block.data === 'string' ? (
+          <ThinkingView text={block.data} />
+        ) : null;
+      case 'interrupted':
+        return <InterruptedMessageView />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
       {/* Top Navigation Bar */}
-      <div className="flex items-center px-3 py-2 border-b border-white/10">
+      <div className="flex items-center px-2 py-1.5 border-b border-white/10 bg-black/20">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onClose?.();
           }}
-          className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
+          className="flex items-center justify-center w-6 h-6 text-white/50 hover:text-white/80 transition-colors"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
           </svg>
         </button>
-        <span className="ml-2 text-sm font-medium text-white/80 truncate">
+        <span className="ml-1.5 text-xs font-medium text-white/80 truncate">
           {projectName}
         </span>
       </div>
@@ -549,124 +477,42 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
       {/* Messages Area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin"
+        className="flex-1 overflow-y-auto px-2 py-1.5 scrollbar-thin"
       >
         <AnimatePresence>
-          {messages.map((msg) => {
-            // Check if this is an AskUserQuestion
-            const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
-
-            if (askQuestions) {
-              // Check if this AskUserQuestion has a pending popup
-              const hasPendingPopup = pendingPopup?.type === 'ask' && pendingPopup?.ask_data;
-
-              // Use QuestionWizard for interactive question answering
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3 bg-white/5 rounded-lg overflow-hidden"
-                >
-                  <QuestionWizard
-                    questions={askQuestions}
-                    selectedAnswers={askAnswers}
-                    onChange={setAskAnswers}
-                    onSubmit={handleAskRespond}
-                    onCancel={() => handleRespond('deny')}
-                    readOnly={!hasPendingPopup}
-                  />
-                </motion.div>
-              );
-            }
-
-            // Regular tool call
-            if (msg.messageType === 'toolCall') {
-              const formatted = formatToolContent(msg.toolName, msg.content);
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3"
-                >
-                  <div className="py-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
-                        {msg.toolName}
-                      </span>
-                      <span className="text-xs text-white/40">Waiting for approval...</span>
+          {messages.map((msg) => (
+            <motion.div
+              key={msg.id}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-2"
+            >
+              {msg.role === 'user' ? (
+                // User message - right-aligned bubble
+                <div className="space-y-1">
+                  {msg.content.map((block, idx) => (
+                    <div key={idx}>
+                      {block.type === 'text' && typeof block.data === 'string' && (
+                        <UserMessageView text={block.data} />
+                      )}
+                      {block.type === 'interrupted' && (
+                        <InterruptedMessageView />
+                      )}
                     </div>
-                    <div className="mt-1.5">
-                      {formatted}
+                  ))}
+                </div>
+              ) : (
+                // Assistant message - left-aligned with dot
+                <div className="space-y-1">
+                  {msg.content.map((block, idx) => (
+                    <div key={idx}>
+                      {renderBlock(block, msg.id)}
                     </div>
-                  </div>
-                </motion.div>
-              );
-            }
-
-            // User message
-            if (msg.messageType === 'user') {
-              // Check if this is an AskUserQuestion answer
-              if (msg.toolName === 'AskUserQuestionAnswer') {
-                const answerData = parseAskAnswers(msg.content);
-                if (answerData) {
-                  return (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mb-3"
-                    >
-                      <div className="py-1">
-                        <div className="text-xs text-white/40 mb-1">Your Answers</div>
-                        <div className="space-y-1">
-                          {answerData.map((answer, idx) => (
-                            <div key={idx} className="text-sm text-white/80">
-                              <span className="text-white/50">Q{idx + 1}:</span>{' '}
-                              {answer.join(', ')}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                }
-              }
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3"
-                >
-                  <div className="py-1">
-                    <div className="text-xs text-white/40 mb-1">You</div>
-                    <div className="text-sm text-white/90">{msg.content}</div>
-                  </div>
-                </motion.div>
-              );
-            }
-
-            // Tool result
-            if (msg.messageType === 'toolResult') {
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3"
-                >
-                  <div className="py-1">
-                    <div className="text-xs text-white/40 mb-1">Result</div>
-                    <div className="text-sm text-white/70">{msg.content}</div>
-                  </div>
-                </motion.div>
-              );
-            }
-
-            return null;
-          })}
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          ))}
         </AnimatePresence>
 
         {/* Processing indicator */}
@@ -674,20 +520,18 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex items-center gap-2 py-2"
+            className="mb-2"
           >
-            <ProcessingSpinner size={10} />
-            <span className="text-white/40 text-xs">Processing...</span>
+            <ProcessingIndicatorView />
           </motion.div>
         )}
 
         {/* Empty state */}
         {messages.length === 0 && !isProcessing && (
-          <div className="text-white/30 text-xs text-center py-8">
-            <div className="mb-2">No messages yet</div>
+          <div className="text-white/30 text-xs text-center py-4">
+            <div className="mb-1">No messages yet</div>
             <div className="text-white/20 text-[10px]">
-              Chat history shows user input and tool calls.<br/>
-              AI responses are displayed in the terminal.
+              Chat history shows full conversation from JSONL file.
             </div>
           </div>
         )}
@@ -695,32 +539,54 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
       {/* Bottom Action Bar - Permission Buttons */}
       {pendingPopup?.type === 'permission' && (
-        <div className="px-3 py-3 border-t border-white/10">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-2 py-2 border-t border-white/10 bg-black/20"
+        >
+          <div className="flex items-center gap-1 mb-2">
+            <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-xs font-medium text-amber-500">
               {pendingPopup.permission_data?.tool_name}
             </span>
             {pendingPopup.permission_data?.action && (
-              <span className="text-xs text-white/40 truncate">
+              <span className="text-[11px] text-white/40 truncate">
                 {pendingPopup.permission_data.action}
               </span>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-1.5">
             <button
               onClick={() => handleRespond('deny')}
-              className="px-4 py-2 text-xs font-medium text-white/70 bg-white/10 hover:bg-red-500/80 hover:text-white rounded-lg transition-all"
+              className="px-3 py-1.5 text-xs font-medium text-white/70 bg-white/10 hover:bg-red-500/80 hover:text-white rounded-lg transition-all"
             >
               Deny
             </button>
             <button
               onClick={() => handleRespond('allow')}
-              className="px-4 py-2 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
+              className="px-3 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
             >
               Allow
             </button>
           </div>
-        </div>
+        </motion.div>
+      )}
+
+      {/* Ask User Question Bar */}
+      {pendingPopup?.type === 'ask' && pendingPopup.ask_data && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-2 py-2 border-t border-white/10 bg-black/20"
+        >
+          <QuestionWizard
+            questions={pendingPopup.ask_data.questions}
+            selectedAnswers={askAnswers}
+            onChange={setAskAnswers}
+            onSubmit={handleAskRespond}
+            onCancel={() => handleRespond('deny')}
+          />
+        </motion.div>
       )}
     </div>
   );
