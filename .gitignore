@@ -11,6 +11,12 @@ src-tauri/target/
 src-tauri/target/
 src-tauri/WixTools/
 src-tauri/Cargo.lock
+src-tauri/gen/schemas/
+
+# Capacitor mobile app build outputs
+mobile-app/android/app/build/
+mobile-app/ios/App/build/
+mobile-app/dist/
 
 # IDE
 .idea/

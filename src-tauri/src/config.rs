@@ -56,6 +56,10 @@ pub struct AppSettings {
     pub notification_auto_close: u64, // milliseconds before notification auto-close
     // Enabled hooks (synced with Claude hooks config)
     pub enabled_hooks: Vec<String>,   // list of enabled hook names
+    // WebSocket remote access settings
+    pub websocket_enabled: bool,      // enable WebSocket server for remote access
+    pub websocket_port: Option<u16>,  // WebSocket server port (default 17528)
+    pub websocket_password: Option<String>, // WebSocket authentication password
 }
 
 impl Default for AppSettings {
@@ -75,6 +79,9 @@ impl Default for AppSettings {
             critical_time: 10,
             notification_auto_close: 5000,
             enabled_hooks: REQUIRED_HOOKS.iter().map(|(name, _, _)| name.to_string()).collect(),
+            websocket_enabled: false,
+            websocket_port: Some(17528),
+            websocket_password: None,
         }
     }
 }

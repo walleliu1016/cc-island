@@ -15,6 +15,7 @@ use crate::instance_manager::{ClaudeInstance, ClaudeInstanceDisplay, InstanceSta
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
 use crate::chat_messages::{ChatMessage, MessageType};
+use crate::websocket_server;
 
 /// HTTP Server for receiving Claude Code hooks
 pub struct HttpServer {
@@ -146,6 +147,9 @@ async fn handle_hook(
             let tool_name = input.tool_name.clone();
             let tool_input = input.tool_input.clone();
 
+            // Clone popup for WebSocket broadcast
+            let popup_for_broadcast = popup.clone();
+
             // Update instance status to WaitingForApproval
             if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                 if let Some(ref name) = tool_name {
@@ -186,6 +190,9 @@ async fn handle_hook(
 
             state_guard.popups.add(popup);
             state_guard.popups.register_waiter(popup_id.clone(), tx, timeout_secs);
+
+            // Broadcast new popup to WebSocket clients
+            websocket_server::broadcast_new_popup(popup_for_broadcast);
 
             (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input)
         };
@@ -257,11 +264,19 @@ async fn handle_hook(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap()
                         .as_secs();
-                    state_guard.set_session_notification(crate::SessionNotification {
+                    let notification = crate::SessionNotification {
                         project_name,
                         notification_type: "started".to_string(),
                         timestamp: now,
-                    });
+                    };
+                    state_guard.set_session_notification(notification.clone());
+
+                    // Broadcast to WebSocket clients
+                    websocket_server::broadcast_session_notification(notification);
+                    websocket_server::broadcast_state_update(
+                        state_guard.instances.get_all_instances_display(),
+                        state_guard.popups.get_all()
+                    );
                 }
                 "SessionEnd" => {
                     // Get project name before marking as ended
@@ -289,11 +304,19 @@ async fn handle_hook(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap()
                         .as_secs();
-                    state_guard.set_session_notification(crate::SessionNotification {
+                    let notification = crate::SessionNotification {
                         project_name,
                         notification_type: "ended".to_string(),
                         timestamp: now,
-                    });
+                    };
+                    state_guard.set_session_notification(notification.clone());
+
+                    // Broadcast to WebSocket clients
+                    websocket_server::broadcast_session_notification(notification);
+                    websocket_server::broadcast_state_update(
+                        state_guard.instances.get_all_instances_display(),
+                        state_guard.popups.get_all()
+                    );
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {

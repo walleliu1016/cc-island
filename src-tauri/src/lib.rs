@@ -5,6 +5,7 @@ pub mod hook_handler;
 pub mod platform;
 pub mod config;
 pub mod chat_messages;
+pub mod websocket_server;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -370,6 +371,16 @@ fn get_product_name(app: tauri::AppHandle) -> String {
 
 #[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
+    // Get old WebSocket config to check if restart needed
+    let old_ws_config = {
+        let state = SHARED_STATE.read();
+        (
+            state.settings.websocket_enabled,
+            state.settings.websocket_port,
+            state.settings.websocket_password.clone(),
+        )
+    };
+
     // Update atomic logging flag first (no lock)
     set_logging_enabled(settings.enable_logging);
 
@@ -377,7 +388,19 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     config::save_settings(&settings)?;
 
     let mut state = SHARED_STATE.write();
-    state.settings = settings;
+    state.settings = settings.clone();
+
+    // Check if WebSocket config changed
+    let ws_changed = old_ws_config.0 != settings.websocket_enabled
+        || old_ws_config.1 != settings.websocket_port
+        || old_ws_config.2 != settings.websocket_password;
+
+    if ws_changed {
+        // Restart WebSocket server (need to release lock first)
+        drop(state);
+        websocket_server::restart_server(SHARED_STATE.clone());
+    }
+
     Ok(())
 }
 
@@ -459,6 +482,22 @@ pub fn run() {
                         tracing::error!("HTTP server error: {}", e);
                     }
                 });
+
+                // Start WebSocket server in background (if enabled)
+                let ws_config = websocket_server::WsServerConfig {
+                    port: SHARED_STATE.read().settings.websocket_port.unwrap_or(17528),
+                    enabled: SHARED_STATE.read().settings.websocket_enabled,
+                    password: SHARED_STATE.read().settings.websocket_password.clone(),
+                };
+                if ws_config.enabled {
+                    let ws_server = websocket_server::WsServer::new(ws_config, SHARED_STATE.clone());
+                    tokio::spawn(async move {
+                        if let Err(e) = ws_server.run().await {
+                            tracing::error!("WebSocket server error: {}", e);
+                        }
+                    });
+                    tracing::info!("WebSocket server enabled on port {}", SHARED_STATE.read().settings.websocket_port.unwrap_or(17528));
+                }
 
                 tracing::info!("CC-Island started successfully");
                 Ok(())

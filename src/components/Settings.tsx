@@ -393,6 +393,50 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
                   />
                 </div>
+
+                {/* WebSocket Remote Access */}
+                <div className="border-t border-white/10 pt-3 mt-3">
+                  <div className="text-white/80 text-sm mb-2">手机远程访问</div>
+                  <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.websocket_enabled || false}
+                      onChange={e => setSettings({ ...settings, websocket_enabled: e.target.checked })}
+                      className="w-4 h-4 rounded accent-white"
+                    />
+                    <div className="flex-1">
+                      <span className="text-white/80 text-sm">启用 WebSocket</span>
+                      <span className="text-white/40 text-xs ml-2">(手机远程控制)</span>
+                    </div>
+                  </label>
+
+                  {settings.websocket_enabled && (
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="text-white/60 text-xs block mb-1">WebSocket 端口</label>
+                        <input
+                          type="number"
+                          value={settings.websocket_port || 17528}
+                          onChange={e => setSettings({ ...settings, websocket_port: parseInt(e.target.value) || 17528 })}
+                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white/60 text-xs block mb-1">连接密码</label>
+                        <input
+                          type="password"
+                          placeholder="设置密码以保护连接"
+                          value={settings.websocket_password || ''}
+                          onChange={e => setSettings({ ...settings, websocket_password: e.target.value || null })}
+                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                        />
+                      </div>
+                      <div className="text-white/40 text-xs">
+                        手机连接地址: ws://本机IP:{settings.websocket_port || 17528}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
