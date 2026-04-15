@@ -84,3 +84,28 @@ export interface SessionNotification {
   notification_type: 'started' | 'ended'
   timestamp: number
 }
+
+// Cloud-specific message types
+export interface CloudMessage {
+  type: string
+  sessions?: SessionState[]
+  popups?: PopupState[]
+  popup?: PopupState
+}
+
+export interface SessionState {
+  session_id: string
+  project_name?: string
+  status: string
+  current_tool?: string
+  tool_input?: any
+}
+
+export interface PopupState {
+  id: string
+  session_id?: string
+  project_name?: string
+  popup_type: string
+  data: any
+  status: string
+}
