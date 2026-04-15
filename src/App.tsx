@@ -37,6 +37,7 @@ function App() {
 
   // Drag state for horizontal dragging
   const [isDragging, setIsDragging] = useState(false);
+  const [hasDragMoved, setHasDragMoved] = useState(false);
   const dragStartXRef = useRef(0);
   const windowStartXRef = useRef(0);
   const appWindowRef = useRef<ReturnType<typeof getCurrentWindow> | null>(null);
@@ -49,8 +50,10 @@ function App() {
   // Handle drag start
   const handleDragStart = async (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
-    dragStartXRef.current = e.clientX;
+    setHasDragMoved(false);
+    dragStartXRef.current = e.screenX; // Use screenX for absolute position
 
     // Get current window position
     if (appWindowRef.current) {
@@ -70,7 +73,13 @@ function App() {
     const handleMouseMove = async (e: MouseEvent) => {
       if (!appWindowRef.current) return;
 
-      const deltaX = e.clientX - dragStartXRef.current;
+      const deltaX = e.screenX - dragStartXRef.current; // Use screenX
+
+      // Mark as moved if threshold exceeded (5px)
+      if (Math.abs(deltaX) > 5) {
+        setHasDragMoved(true);
+      }
+
       const newX = windowStartXRef.current + deltaX;
 
       // Only update X position, keep Y at 0 (top of screen)
@@ -251,8 +260,8 @@ function App() {
 
   // Click to expand (replacing hover)
   const handleClick = () => {
-    // Don't expand if dragging
-    if (isDragging) return;
+    // Don't expand if actually dragged
+    if (hasDragMoved) return;
     setIsExpanded(!isExpanded);
   };
 
