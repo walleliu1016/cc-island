@@ -50,8 +50,10 @@ impl Repository {
 
     // ===== Session operations =====
 
-    /// Upsert multiple sessions for a device
+    /// Upsert multiple sessions for a device (with transaction)
     pub async fn upsert_sessions(&self, device_token: &str, sessions: &[crate::messages::SessionState]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         for session in sessions {
             sqlx::query(
                 r#"
@@ -67,9 +69,11 @@ impl Repository {
             .bind(&session.status)
             .bind(&session.current_tool)
             .bind(&session.tool_input)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         }
+
+        tx.commit().await?;
         Ok(())
     }
 
