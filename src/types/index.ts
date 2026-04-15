@@ -153,7 +153,7 @@ export interface ChatMessage {
 // FullChatMessage from JSONL (matches Rust FullChatMessage)
 export type ChatRole = 'user' | 'assistant';
 
-export type MessageBlockType = 'text' | 'toolUse' | 'toolResult' | 'thinking' | 'interrupted';
+export type MessageBlockType = 'text' | 'tooluse' | 'toolresult' | 'thinking' | 'interrupted';
 
 export interface ToolUseBlock {
   id: string;
@@ -168,6 +168,11 @@ export interface ToolResultBlock {
   is_error: boolean;
   stdout?: string;
   stderr?: string;
+  interrupted?: boolean;
+  isImage?: boolean;
+  backgroundTaskId?: string;
+  returnCodeInterpretation?: string;
+  noOutputExpected?: boolean;
 }
 
 export interface MessageBlock {

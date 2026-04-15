@@ -52,6 +52,16 @@ pub struct ToolResultBlock {
     pub stdout: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_image: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_code_interpretation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_output_expected: Option<bool>,
 }
 
 impl ToolUseBlock {
@@ -279,17 +289,13 @@ impl ConversationManager {
         let message_obj = message_obj.unwrap();
 
         match msg_type {
-            "user" => Self::parse_user_message(uuid, timestamp, message_obj),
+            "user" => Self::parse_user_message(uuid, timestamp, message_obj, &json),
             "assistant" => Self::parse_assistant_message(seen_tool_ids, uuid, timestamp, message_obj),
-            "tool_result" => {
-                Self::parse_tool_result(seen_tool_ids, &json, message_obj);
-                None
-            }
             _ => None
         }
     }
 
-    fn parse_user_message(uuid: &str, timestamp: u64, message_obj: &serde_json::Value) -> Option<FullChatMessage> {
+    fn parse_user_message(uuid: &str, timestamp: u64, message_obj: &serde_json::Value, full_json: &serde_json::Value) -> Option<FullChatMessage> {
         let content = message_obj.get("content")?;
 
         // Try string content first
@@ -328,10 +334,50 @@ impl ConversationManager {
                             message_blocks.push(MessageBlock::Text(text.to_string()));
                         }
                     }
-                    Some("tool_use") => {
-                        if let Some(tool_block) = Self::parse_tool_use_block(block) {
-                            message_blocks.push(MessageBlock::ToolUse(tool_block));
+                    Some("tool_result") => {
+                        let tool_use_id = block.get("tool_use_id").and_then(|i| i.as_str()).unwrap_or("");
+                        let content_str = block.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                        let is_error = block.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false);
+
+                        // Extract structured toolUseResult from top-level JSON
+                        let mut tool_result = ToolResultBlock {
+                            tool_use_id: tool_use_id.to_string(),
+                            content: content_str.to_string(),
+                            is_error,
+                            stdout: None,
+                            stderr: None,
+                            interrupted: None,
+                            is_image: None,
+                            background_task_id: None,
+                            return_code_interpretation: None,
+                            no_output_expected: None,
+                        };
+
+                        if let Some(tool_use_result) = full_json.get("toolUseResult") {
+                            // toolUseResult can be a string (error) or object (structured)
+                            if let Some(result_obj) = tool_use_result.as_object() {
+                                tool_result.stdout = result_obj.get("stdout")
+                                    .and_then(|s| s.as_str())
+                                    .map(|s| s.to_string());
+                                tool_result.stderr = result_obj.get("stderr")
+                                    .and_then(|s| s.as_str())
+                                    .map(|s| s.to_string());
+                                tool_result.interrupted = result_obj.get("interrupted")
+                                    .and_then(|i| i.as_bool());
+                                tool_result.is_image = result_obj.get("isImage")
+                                    .and_then(|i| i.as_bool());
+                                tool_result.background_task_id = result_obj.get("backgroundTaskId")
+                                    .and_then(|b| b.as_str())
+                                    .map(|s| s.to_string());
+                                tool_result.return_code_interpretation = result_obj.get("returnCodeInterpretation")
+                                    .and_then(|r| r.as_str())
+                                    .map(|s| s.to_string());
+                                tool_result.no_output_expected = result_obj.get("noOutputExpected")
+                                    .and_then(|n| n.as_bool());
+                            }
                         }
+
+                        message_blocks.push(MessageBlock::ToolResult(tool_result));
                     }
                     _ => {}
                 }
@@ -440,29 +486,6 @@ impl ConversationManager {
             input,
             preview: None,
         })
-    }
-
-    fn parse_tool_result(
-        seen_tool_ids: &mut HashMap<String, String>,
-        _json: &serde_json::Value,
-        message_obj: &serde_json::Value
-    ) {
-        if let Some(content) = message_obj.get("content") {
-            if let Some(blocks) = content.as_array() {
-                for block in blocks {
-                    if block.get("type").and_then(|t| t.as_str()) != Some("tool_result") {
-                        continue;
-                    }
-
-                    let tool_use_id = block.get("tool_use_id").and_then(|i| i.as_str()).unwrap_or("");
-
-                    // Track tool result
-                    if !tool_use_id.is_empty() {
-                        seen_tool_ids.insert(tool_use_id.to_string(), "result".to_string());
-                    }
-                }
-            }
-        }
     }
 
     /// Clear conversation for a session

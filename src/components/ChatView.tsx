@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { PopupItem, AskQuestion, AskOption, FullChatMessage, MessageBlock, ToolUseBlock, ToolResultBlock } from '../types';
+import { PopupItem, AskQuestion, AskOption, FullChatMessage, ToolUseBlock, ToolResultBlock } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
-import { MarkdownText, CompactMarkdown } from './MarkdownRenderer';
+import { MarkdownText } from './MarkdownRenderer';
 
 // Multi-step Question Wizard Component
 function QuestionWizard({
@@ -206,33 +206,6 @@ function UserMessageView({ text }: { text: string }) {
   );
 }
 
-// Thinking View - Gray italic, collapsible
-function ThinkingView({ text }: { text: string }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const canExpand = text.length > 50;
-
-  return (
-    <div
-      className="flex items-start gap-1 cursor-pointer"
-      onClick={() => canExpand && setIsExpanded(!isExpanded)}
-    >
-      <span className="w-1 h-1 rounded-full bg-gray-500/50 mt-0.5" />
-      <span className={`text-[11px] text-gray-500 italic flex-1 ${!isExpanded && canExpand ? 'line-clamp-1' : ''}`}>
-        {isExpanded ? text : (text.slice(0, 50) + (canExpand ? '...' : ''))}
-      </span>
-      {canExpand && (
-        <motion.span
-          className="text-gray-500/50 text-[9px]"
-          animate={{ rotate: isExpanded ? 90 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          →
-        </motion.span>
-      )}
-    </div>
-  );
-}
-
 // Interrupted Message View
 function InterruptedMessageView() {
   return (
@@ -248,30 +221,39 @@ function ToolCallView({ block }: { block: ToolUseBlock }) {
 
   // Generate preview from input
   const preview = block.input.file_path ||
-    block.input.command?.slice(0, 30) ||
+    block.input.command ||
     block.input.pattern ||
-    Object.values(block.input)[0]?.slice(0, 30) || '';
+    Object.values(block.input)[0] || '';
 
   return (
-    <div
-      className="flex flex-col gap-0.5"
-      onClick={() => setIsExpanded(!isExpanded)}
-    >
-      <div className="flex items-center gap-1">
-        <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+    <div className="flex flex-col gap-0.5">
+      <div
+        className="flex items-center gap-1 cursor-pointer group"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
         <span className="text-[11px] font-medium text-amber-500">{block.name}</span>
-        <span className="text-[11px] text-white/40 truncate">{preview}</span>
+        <span className="text-[11px] text-white/60 truncate flex-1 max-w-[200px]">
+          {preview.slice(0, 50)}
+        </span>
+        <motion.span
+          className="text-white/30 text-[9px] opacity-0 group-hover:opacity-100 transition-opacity"
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          →
+        </motion.span>
       </div>
       {isExpanded && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="ml-2 text-[11px] text-white/50"
+          className="ml-2 text-[11px] text-white/50 bg-white/[0.05] rounded p-1.5 mt-0.5"
         >
           {Object.entries(block.input).map(([key, value]) => (
-            <div key={key} className="truncate">
+            <div key={key}>
               <span className="text-white/30">{key}: </span>
-              <span>{value.slice(0, 60)}</span>
+              <span className="text-white/60 truncate">{String(value).slice(0, 100)}</span>
             </div>
           ))}
         </motion.div>
@@ -280,13 +262,80 @@ function ToolCallView({ block }: { block: ToolUseBlock }) {
   );
 }
 
-// Tool Result View
+// Tool Result View - Claude format: ⎿ result indented below
 function ToolResultView({ block }: { block: ToolResultBlock }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Determine what content to show
+  let displayContent = '';
+  let isLongContent = false;
+
+  // Use stdout/stderr if available (from toolUseResult)
+  if (block.stdout && block.stdout.length > 0) {
+    displayContent = block.stdout;
+    if (block.stderr && block.stderr.length > 0) {
+      displayContent += '\n[stderr]\n' + block.stderr;
+    }
+  } else if (block.stderr && block.stderr.length > 0) {
+    displayContent = block.stderr;
+  } else if (block.content) {
+    displayContent = block.content;
+  }
+
+  // Handle special cases
+  if (block.noOutputExpected && displayContent.includes('(completed with no output)')) {
+    displayContent = '';  // Don't show "(completed with no output)" text
+  }
+
+  if (block.interrupted) {
+    displayContent = '[interrupted]';
+  }
+
+  if (block.returnCodeInterpretation) {
+    displayContent = block.returnCodeInterpretation;
+  }
+
+  if (block.backgroundTaskId) {
+    displayContent = `[background: ${block.backgroundTaskId}]`;
+  }
+
+  isLongContent = displayContent.length > 200;
+
+  // If no content to display, show status only
+  if (!displayContent || displayContent.length === 0) {
+    return (
+      <div className="flex items-start gap-1 ml-2">
+        <span className="text-white/30 text-[11px]">⎿</span>
+        <span className={`text-[11px] ${block.is_error ? 'text-red-400/70' : 'text-green-400/70'}`}>
+          {block.is_error ? 'Error' : 'Done'}
+        </span>
+      </div>
+    );
+  }
+
+  const previewContent = isLongContent && !isExpanded
+    ? displayContent.slice(0, 200) + '...'
+    : displayContent;
+
   return (
-    <div className="flex items-start gap-1">
-      <span className={`w-1 h-1 rounded-full ${block.is_error ? 'bg-red-500' : 'bg-green-500'} mt-0.5`} />
-      <div className="flex-1">
-        <CompactMarkdown text={block.content} />
+    <div className="flex items-start gap-1 ml-2">
+      <span className="text-white/30 text-[11px] flex-shrink-0">⎿</span>
+      <div className="flex-1 min-w-0">
+        <div className={`text-[11px] font-mono ${
+          block.is_error ? 'text-red-400/80' : 'text-white/70'
+        } bg-white/[0.04] px-1.5 py-1 rounded ${
+          !isExpanded && isLongContent ? 'max-h-20 overflow-hidden' : ''
+        }`}>
+          <pre className="whitespace-pre-wrap break-all">{previewContent}</pre>
+        </div>
+        {isLongContent && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-[10px] text-white/40 hover:text-white/70 mt-0.5"
+          >
+            {isExpanded ? '收起' : '展开'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -365,7 +414,7 @@ export function ChatView({ sessionId, cwd, projectName, onClose }: ChatViewProps
         const lastMsg = fullChatData[fullChatData.length - 1];
         const isLastAssistant = lastMsg?.role === 'assistant';
         const hasIncompleteTool = lastMsg?.content.some(b =>
-          b.type === 'toolUse' && typeof b.data !== 'string'
+          b.type === 'tooluse' && typeof b.data !== 'string'
         );
         setIsProcessing(isLastAssistant && hasIncompleteTool);
       } catch (e) {
@@ -428,32 +477,6 @@ export function ChatView({ sessionId, cwd, projectName, onClose }: ChatViewProps
     }
   };
 
-  // Render message block
-  const renderBlock = (block: MessageBlock, _msgId: string) => {
-    switch (block.type) {
-      case 'text':
-        return typeof block.data === 'string' ? (
-          <MarkdownText text={block.data} colorClass="text-white/90" fontSize="text-xs" />
-        ) : null;
-      case 'toolUse':
-        return typeof block.data !== 'string' ? (
-          <ToolCallView block={block.data as ToolUseBlock} />
-        ) : null;
-      case 'toolResult':
-        return typeof block.data !== 'string' ? (
-          <ToolResultView block={block.data as ToolResultBlock} />
-        ) : null;
-      case 'thinking':
-        return typeof block.data === 'string' ? (
-          <ThinkingView text={block.data} />
-        ) : null;
-      case 'interrupted':
-        return <InterruptedMessageView />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
       {/* Top Navigation Bar */}
@@ -488,12 +511,15 @@ export function ChatView({ sessionId, cwd, projectName, onClose }: ChatViewProps
               className="mb-2"
             >
               {msg.role === 'user' ? (
-                // User message - right-aligned bubble
+                // User message - tool results or text
                 <div className="space-y-1">
                   {msg.content.map((block, idx) => (
                     <div key={idx}>
                       {block.type === 'text' && typeof block.data === 'string' && (
                         <UserMessageView text={block.data} />
+                      )}
+                      {block.type === 'toolresult' && typeof block.data !== 'string' && (
+                        <ToolResultView block={block.data as ToolResultBlock} />
                       )}
                       {block.type === 'interrupted' && (
                         <InterruptedMessageView />
@@ -502,11 +528,16 @@ export function ChatView({ sessionId, cwd, projectName, onClose }: ChatViewProps
                   ))}
                 </div>
               ) : (
-                // Assistant message - left-aligned with dot
+                // Assistant message - text + tool calls
                 <div className="space-y-1">
                   {msg.content.map((block, idx) => (
                     <div key={idx}>
-                      {renderBlock(block, msg.id)}
+                      {block.type === 'text' && typeof block.data === 'string' && (
+                        <MarkdownText text={block.data} colorClass="text-white/90" fontSize="text-xs" />
+                      )}
+                      {block.type === 'tooluse' && typeof block.data !== 'string' && (
+                        <ToolCallView block={block.data as ToolUseBlock} />
+                      )}
                     </div>
                   ))}
                 </div>
