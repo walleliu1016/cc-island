@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use tokio::sync::oneshot;
+use std::fmt;
 
 /// Popup type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -11,6 +12,16 @@ pub enum PopupType {
     Notification,
 }
 
+impl fmt::Display for PopupType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PopupType::Permission => write!(f, "permission"),
+            PopupType::Ask => write!(f, "ask"),
+            PopupType::Notification => write!(f, "notification"),
+        }
+    }
+}
+
 /// Popup status
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -19,6 +30,17 @@ pub enum PopupStatus {
     Processing,
     Resolved,
     AutoClose,
+}
+
+impl fmt::Display for PopupStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PopupStatus::Pending => write!(f, "pending"),
+            PopupStatus::Processing => write!(f, "processing"),
+            PopupStatus::Resolved => write!(f, "resolved"),
+            PopupStatus::AutoClose => write!(f, "autoclose"),
+        }
+    }
 }
 
 /// Permission request data (re-export from hook_handler)

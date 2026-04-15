@@ -16,6 +16,7 @@ use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskDa
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
 use crate::chat_messages::{ChatMessage, MessageType};
 use crate::websocket_server;
+use crate::cloud_client::{SessionState, PopupState};
 
 /// HTTP Server for receiving Claude Code hooks
 pub struct HttpServer {
@@ -131,7 +132,7 @@ async fn handle_hook(
         let timeout_secs = if hook_event == "PermissionRequest" { 300 } else { 120 };
 
         // Store context for building response
-        let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input) = {
+        let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input, popup_for_cloud) = {
             let mut state_guard = state.write();
 
             // Create popup item
@@ -147,7 +148,7 @@ async fn handle_hook(
             let tool_name = input.tool_name.clone();
             let tool_input = input.tool_input.clone();
 
-            // Clone popup for WebSocket broadcast
+            // Clone popup for WebSocket broadcast and cloud push
             let popup_for_broadcast = popup.clone();
 
             // Update instance status to WaitingForApproval
@@ -192,10 +193,13 @@ async fn handle_hook(
             state_guard.popups.register_waiter(popup_id.clone(), tx, timeout_secs);
 
             // Broadcast new popup to WebSocket clients
-            websocket_server::broadcast_new_popup(popup_for_broadcast);
+            websocket_server::broadcast_new_popup(popup_for_broadcast.clone());
 
-            (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input)
+            (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input, popup_for_broadcast)
         };
+
+        // Push new popup to cloud client if enabled
+        push_new_popup_to_cloud(&state, &popup_for_cloud);
 
         // Wait for response (with timeout handled in popup_queue)
         match rx.await {
@@ -229,7 +233,7 @@ async fn handle_hook(
         }
     } else {
         // Non-blocking event - process immediately
-        {
+        let should_push_to_cloud = {
             let mut state_guard = state.write();
 
             match hook_event {
@@ -277,6 +281,8 @@ async fn handle_hook(
                         state_guard.instances.get_all_instances_display(),
                         state_guard.popups.get_all()
                     );
+
+                    true // Push state to cloud after SessionStart
                 }
                 "SessionEnd" => {
                     // Get project name before marking as ended
@@ -317,6 +323,8 @@ async fn handle_hook(
                         state_guard.instances.get_all_instances_display(),
                         state_guard.popups.get_all()
                     );
+
+                    true // Push state to cloud after SessionEnd
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -339,6 +347,8 @@ async fn handle_hook(
                         tool_name: None,
                         timestamp: now_ms,
                     });
+
+                    false
                 }
                 "PreToolUse" => {
                     // First, update instance and extract data
@@ -416,6 +426,8 @@ async fn handle_hook(
                             timestamp: now_ms,
                         });
                     }
+
+                    false
                 }
                 "PostToolUse" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -446,6 +458,8 @@ async fn handle_hook(
                         tool_name: Some(tool_name),
                         timestamp: now_ms,
                     });
+
+                    false
                 }
                 "PostToolUseFailure" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -453,16 +467,22 @@ async fn handle_hook(
                         instance.current_tool = None;
                         instance.tool_input = None;
                     }
+
+                    false
                 }
                 "PreCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Compacting);
                     }
+
+                    false
                 }
                 "PostCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Idle);
                     }
+
+                    false
                 }
                 "UserPromptSubmit" => {
                     // User submitted a prompt → AI is thinking
@@ -476,7 +496,7 @@ async fn handle_hook(
                         .and_then(|ti| ti.get("prompt"))
                         .and_then(|p| p.as_str())
                     {
-                        let now = std::time::SystemTime::now()
+                        let now_ms = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_millis() as u64;
@@ -487,19 +507,28 @@ async fn handle_hook(
                             message_type: MessageType::User,
                             content: prompt.to_string(),
                             tool_name: None,
-                            timestamp: now,
+                            timestamp: now_ms,
                         };
                         state_guard.chat_history.add_message(message);
                     }
+
+                    false
                 }
                 "SubagentStart" | "SubagentStop" => {
                     // Just update activity
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.update_activity();
                     }
+
+                    false
                 }
-                _ => {}
+                _ => false
             }
+        };
+
+        // Push state to cloud after SessionStart/SessionEnd
+        if should_push_to_cloud {
+            push_state_to_cloud(&state);
         }
 
         Ok(Json(HookOutput {
@@ -1153,6 +1182,80 @@ async fn forward_hook(url: &str, input: HookInput) {
         }
         Err(e) => {
             tracing::debug!("Hook forward failed: {}", e);
+        }
+    }
+}
+
+/// Push state update to cloud client if enabled and connected
+fn push_state_to_cloud(state: &Arc<RwLock<AppState>>) {
+    let state_guard = state.read();
+    if let Some(ref cloud_client) = state_guard.cloud_client {
+        // Try to get read lock on async RwLock (non-blocking)
+        if let Ok(client) = cloud_client.try_read() {
+            if client.is_connected() {
+                // Convert instances to cloud SessionState
+                let sessions: Vec<SessionState> = state_guard.instances
+                    .get_all_instances_display()
+                    .iter()
+                    .map(|inst| SessionState {
+                        session_id: inst.session_id.clone(),
+                        project_name: Some(inst.project_name.clone()),
+                        status: serde_json::to_string(&inst.status).unwrap_or_else(|_| "idle".to_string()),
+                        current_tool: inst.current_tool.clone(),
+                        tool_input: inst.tool_input.clone().map(|ti| {
+                            serde_json::json!({
+                                "action": ti.action,
+                                "details": ti.details,
+                            })
+                        }),
+                    })
+                    .collect();
+
+                // Convert popups to cloud PopupState
+                let popups: Vec<PopupState> = state_guard.popups
+                    .get_all()
+                    .iter()
+                    .map(|p| PopupState {
+                        id: p.id.clone(),
+                        session_id: Some(p.session_id.clone()),
+                        project_name: Some(p.project_name.clone()),
+                        popup_type: p.popup_type.to_string(),
+                        data: serde_json::json!({
+                            "permission_data": p.permission_data,
+                            "ask_data": p.ask_data,
+                            "notification_data": p.notification_data,
+                        }),
+                        status: p.status.to_string(),
+                    })
+                    .collect();
+
+                client.push_state(sessions, popups);
+            }
+        }
+    }
+}
+
+/// Push new popup to cloud client if enabled and connected
+fn push_new_popup_to_cloud(state: &Arc<RwLock<AppState>>, popup: &PopupItem) {
+    let state_guard = state.read();
+    if let Some(ref cloud_client) = state_guard.cloud_client {
+        // Try to get read lock on async RwLock (non-blocking)
+        if let Ok(client) = cloud_client.try_read() {
+            if client.is_connected() {
+                let popup_state = PopupState {
+                    id: popup.id.clone(),
+                    session_id: Some(popup.session_id.clone()),
+                    project_name: Some(popup.project_name.clone()),
+                    popup_type: popup.popup_type.to_string(),
+                    data: serde_json::json!({
+                        "permission_data": popup.permission_data,
+                        "ask_data": popup.ask_data,
+                        "notification_data": popup.notification_data,
+                    }),
+                    status: popup.status.to_string(),
+                };
+                client.push_new_popup(popup_state);
+            }
         }
     }
 }

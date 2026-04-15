@@ -5,6 +5,7 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use futures_util::{SinkExt, StreamExt};
 use crate::machine_id::get_machine_token;
 use crate::AppState;
+use crate::popup_queue::PopupResponse;
 
 /// Cloud client configuration
 pub struct CloudConfig {
@@ -192,16 +193,50 @@ impl CloudClient {
 fn handle_popup_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {
     let popup_id = json["popup_id"].as_str().unwrap_or("");
     let decision = json["decision"].as_str();
-    let _answers = json["answers"].as_array();
+    let answers = json["answers"].as_array();
 
     tracing::info!("Received popup response from mobile: {} -> {:?}", popup_id, decision);
 
-    // Forward to popup queue resolver
-    // Note: This integration will be completed in Task 14
-    let state = app_state.read();
-    if let Some(_popup) = state.popups.get(popup_id) {
-        // TODO: Send response through resolver channel
-        tracing::info!("Popup {} found, response forwarding to be implemented", popup_id);
+    // Build PopupResponse and resolve via popup_queue
+    let response = PopupResponse {
+        popup_id: popup_id.to_string(),
+        decision: decision.map(|s| s.to_string()),
+        answer: None,
+        answers: answers.map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_array())
+                .map(|inner| inner.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .collect()
+        }),
+    };
+
+    // Get popup info before resolving (need session_id for instance update)
+    let popup_session_id = {
+        let state = app_state.read();
+        state.popups.get(popup_id).map(|p| p.session_id.clone())
+    };
+
+    // Resolve the popup through popup_queue (needs write lock)
+    let resolved = {
+        let mut state = app_state.write();
+        state.popups.resolve(response.clone())
+    };
+
+    if resolved {
+        // Clear WaitingForApproval status for the instance
+        if let Some(session_id) = popup_session_id {
+            let mut state = app_state.write();
+            if let Some(instance) = state.instances.get_instance_mut(&session_id) {
+                if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                    instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                    instance.current_tool = None;
+                    instance.tool_input = None;
+                }
+            }
+        }
+        tracing::info!("Popup {} resolved successfully from mobile", popup_id);
+    } else {
+        tracing::warn!("Popup {} not found or already resolved", popup_id);
     }
 }
 
