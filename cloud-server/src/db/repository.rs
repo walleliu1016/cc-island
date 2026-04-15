@@ -4,6 +4,7 @@ use chrono::Utc;
 use super::models::{Device, Session, Popup};
 
 /// Repository for database operations
+#[derive(Clone)]
 pub struct Repository {
     pool: PgPool,
 }

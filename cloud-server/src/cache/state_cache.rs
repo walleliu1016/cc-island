@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 use parking_lot::RwLock;
 use crate::messages::{SessionState, PopupState};
@@ -12,14 +13,15 @@ pub struct DeviceState {
 }
 
 /// State cache managing all device states
+#[derive(Clone)]
 pub struct StateCache {
-    devices: RwLock<HashMap<String, DeviceState>>,
+    devices: Arc<RwLock<HashMap<String, DeviceState>>>,
 }
 
 impl StateCache {
     pub fn new() -> Self {
         Self {
-            devices: RwLock::new(HashMap::new()),
+            devices: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
