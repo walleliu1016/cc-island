@@ -6,6 +6,7 @@ pub mod platform;
 pub mod config;
 pub mod chat_messages;
 pub mod websocket_server;
+pub mod machine_id;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -370,6 +371,11 @@ fn get_product_name(app: tauri::AppHandle) -> String {
 }
 
 #[tauri::command]
+fn get_device_token() -> String {
+    machine_id::get_machine_token()
+}
+
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Get old WebSocket config to check if restart needed
     let old_ws_config = {
@@ -436,7 +442,8 @@ pub fn run() {
                 update_claude_hooks,
                 get_settings,
                 update_settings,
-                get_product_name
+                get_product_name,
+                get_device_token
             ])
             .setup(|app| {
                 // Initialize logging flag from saved settings
