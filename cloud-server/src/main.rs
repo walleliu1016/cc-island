@@ -39,15 +39,24 @@ async fn main() -> anyhow::Result<()> {
     // Create shutdown token
     let shutdown = CancellationToken::new();
 
-    // Spawn TTL cleanup task for StateCache
+    // Spawn TTL cleanup task for StateCache (with shutdown support)
     let cleanup_cache = cache.clone();
+    let cleanup_shutdown = shutdown.clone();
     let cleanup_interval = Duration::from_secs(config.cleanup_interval_secs);
     let max_age = config.max_device_age_secs;
     tokio::spawn(async move {
+        let mut interval = tokio::time::interval(cleanup_interval);
         loop {
-            tokio::time::sleep(cleanup_interval).await;
-            cleanup_cache.cleanup_stale(max_age);
-            tracing::debug!("Completed stale device cache cleanup");
+            tokio::select! {
+                _ = cleanup_shutdown.cancelled() => {
+                    tracing::info!("Cache cleanup task shutting down");
+                    break;
+                }
+                _ = interval.tick() => {
+                    cleanup_cache.cleanup_stale(max_age);
+                    tracing::debug!("Completed stale device cache cleanup");
+                }
+            }
         }
     });
 
