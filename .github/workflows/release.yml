@@ -92,11 +92,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '${{ steps.product.outputs.NAME }} ${{ github.ref_name }}'
-          releaseBody: 'See assets below.'
-          releaseDraft: true
-          prerelease: false
+          # Don't create release here - let release job handle it
+          tagName: ''
+          releaseName: ''
           target: ${{ matrix.target }}
 
       - name: Get version
