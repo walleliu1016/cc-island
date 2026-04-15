@@ -28,7 +28,7 @@ CREATE TABLE popups (
     device_token TEXT NOT NULL REFERENCES devices(device_token),
     session_id TEXT,
     project_name TEXT,
-    type TEXT NOT NULL,
+    popup_type TEXT NOT NULL,
     data JSONB NOT NULL,
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW(),

@@ -31,7 +31,6 @@ pub struct Popup {
     pub device_token: String,
     pub session_id: Option<String>,
     pub project_name: Option<String>,
-    #[serde(rename = "type")]
     pub popup_type: String,
     pub data: serde_json::Value,
     pub status: String,
