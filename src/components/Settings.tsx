@@ -40,6 +40,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showRequired, setShowRequired] = useState(false);
+  const [deviceToken, setDeviceToken] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -48,6 +49,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
       loadSettings();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (settings?.cloud_mode) {
+      invoke<string>('get_device_token').then(setDeviceToken).catch(() => setDeviceToken(''));
+    }
+  }, [settings?.cloud_mode]);
 
   const loadHooksStatus = async () => {
     try {
@@ -433,6 +440,70 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       </div>
                       <div className="text-white/40 text-xs">
                         手机连接地址: ws://本机IP:{settings.websocket_port || 17528}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cloud Relay Configuration */}
+                <div className="border-t border-white/10 pt-3 mt-3">
+                  <div className="text-white/80 text-sm mb-2">云转发配置</div>
+
+                  <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.cloud_mode || false}
+                      onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })}
+                      className="w-4 h-4 rounded accent-white"
+                    />
+                    <div className="flex-1">
+                      <span className="text-white/80 text-sm">启用云转发</span>
+                      <span className="text-white/40 text-xs ml-2">(公网访问)</span>
+                    </div>
+                  </label>
+
+                  {settings.cloud_mode && (
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="text-white/60 text-xs block mb-1">云服务器地址</label>
+                        <input
+                          type="text"
+                          placeholder="wss://cloud.example.com:17528"
+                          value={settings.cloud_server_url || ''}
+                          onChange={e => setSettings({ ...settings, cloud_server_url: e.target.value || null })}
+                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-white/60 text-xs block mb-1">设备名称 (可选)</label>
+                        <input
+                          type="text"
+                          placeholder="我的电脑"
+                          value={settings.device_name || ''}
+                          onChange={e => setSettings({ ...settings, device_name: e.target.value || null })}
+                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                        />
+                      </div>
+
+                      <div className="bg-white/[0.08] rounded p-2 mt-2">
+                        <div className="text-white/50 text-xs">设备 Token:</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-white/70 text-xs bg-black/30 px-1 rounded flex-1 truncate">
+                            {deviceToken || '加载中...'}
+                          </code>
+                          <button
+                            onClick={() => deviceToken && navigator.clipboard.writeText(deviceToken)}
+                            className="text-white/50 hover:text-white px-2 py-1 text-xs"
+                            disabled={!deviceToken}
+                          >
+                            复制
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-white/40 text-xs">
+                        将此Token输入到手机App即可连接此设备
                       </div>
                     </div>
                   )}

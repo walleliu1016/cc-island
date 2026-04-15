@@ -124,6 +124,10 @@ export interface AppSettings {
   websocket_enabled: boolean;
   websocket_port: number | null;
   websocket_password: string | null;
+  // Cloud relay
+  cloud_mode: boolean;
+  cloud_server_url: string | null;
+  device_name: string | null;
 }
 
 // Tool activity for display
