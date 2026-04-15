@@ -105,8 +105,11 @@ impl SessionConversation {
 
     /// Get the JSONL file path for this session
     pub fn jsonl_path(&self) -> PathBuf {
+        // Claude projects directory naming: replace /, \, ., _ with -
+        // Cross-platform: handle both Unix (/) and Windows (\) path separators
         let project_dir = self.cwd
             .replace("/", "-")
+            .replace("\\", "-")  // Windows path separator
             .replace(".", "-")
             .replace("_", "-");
         tracing::debug!("jsonl_path: cwd={}, project_dir={}", self.cwd, project_dir);
