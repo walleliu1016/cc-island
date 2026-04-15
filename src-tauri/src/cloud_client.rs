@@ -68,19 +68,34 @@ impl CloudClient {
         });
         ws_tx.send(Message::text(register_msg.to_string())).await?;
 
-        // Wait for auth response
-        if let Some(Ok(msg)) = ws_rx.next().await {
-            if let Message::Text(text) = msg {
-                let json: serde_json::Value = serde_json::from_str(&text)?;
-                if json["type"] == "auth_success" {
-                    tracing::info!("Cloud authentication successful");
-                    *self.connected.write() = true;
-                } else if json["type"] == "auth_failed" {
-                    let reason = json["reason"].as_str().unwrap_or("unknown");
-                    tracing::error!("Cloud authentication failed: {}", reason);
-                    return Err(format!("Auth failed: {}", reason).into());
+        // Wait for auth response - must receive one
+        match ws_rx.next().await {
+            Some(Ok(msg)) => {
+                if let Message::Text(text) = msg {
+                    let json: serde_json::Value = serde_json::from_str(&text)?;
+                    if json["type"] == "auth_success" {
+                        tracing::info!("Cloud authentication successful");
+                        *self.connected.write() = true;
+                    } else if json["type"] == "auth_failed" {
+                        let reason = json["reason"].as_str().unwrap_or("unknown");
+                        tracing::error!("Cloud authentication failed: {}", reason);
+                        return Err(format!("Auth failed: {}", reason).into());
+                    } else {
+                        tracing::error!("Unexpected auth response: {}", json["type"]);
+                        return Err("Unexpected auth response".into());
+                    }
+                } else {
+                    return Err("Expected text message for auth response".into());
                 }
-            }
+            },
+            Some(Err(e)) => {
+                tracing::error!("WebSocket error during auth: {}", e);
+                return Err(format!("WebSocket error: {}", e).into());
+            },
+            None => {
+                tracing::error!("Connection closed before auth response received");
+                return Err("No auth response received".into());
+            },
         }
 
         // Spawn send task
@@ -99,7 +114,13 @@ impl CloudClient {
             while let Some(msg) = ws_rx.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        let json: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::json!({}));
+                        let json: serde_json::Value = match serde_json::from_str(&text) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::warn!("Failed to parse WebSocket message as JSON: {}", e);
+                            serde_json::json!({})
+                        }
+                    };
                         if json["type"] == "popup_response" {
                             handle_popup_response(&app_state, &json);
                         }
