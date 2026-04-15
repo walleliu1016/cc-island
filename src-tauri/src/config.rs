@@ -60,6 +60,10 @@ pub struct AppSettings {
     pub websocket_enabled: bool,      // enable WebSocket server for remote access
     pub websocket_port: Option<u16>,  // WebSocket server port (default 17528)
     pub websocket_password: Option<String>, // WebSocket authentication password
+    // Cloud relay configuration
+    pub cloud_mode: bool,             // false = local WebSocket, true = cloud relay
+    pub cloud_server_url: Option<String>, // e.g., "wss://cloud.example.com:17528"
+    pub device_name: Option<String>,   // user-defined device name (optional)
 }
 
 impl Default for AppSettings {
@@ -82,6 +86,9 @@ impl Default for AppSettings {
             websocket_enabled: false,
             websocket_port: Some(17528),
             websocket_password: None,
+            cloud_mode: false,
+            cloud_server_url: None,
+            device_name: None,
         }
     }
 }

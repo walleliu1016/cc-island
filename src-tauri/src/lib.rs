@@ -13,6 +13,7 @@ use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
 use chat_messages::ChatHistory;
 use http_server::HttpServer;
+use cloud_client::{CloudClient, CloudConfig};
 use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
 
@@ -21,6 +22,7 @@ use parking_lot::RwLock;
 use once_cell::sync::Lazy;
 use tauri::Manager;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::RwLock as AsyncRwLock;
 
 /// Global atomic flag for logging (no lock needed)
 pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -50,6 +52,7 @@ pub struct AppState {
     pub settings: config::AppSettings,
     pub recent_activities: Vec<ToolActivity>,
     pub session_notification: Option<SessionNotification>,
+    pub cloud_client: Option<Arc<AsyncRwLock<CloudClient>>>,
 }
 
 impl AppState {
@@ -61,6 +64,7 @@ impl AppState {
             settings: config::load_settings(),
             recent_activities: Vec::new(),
             session_notification: None,
+            cloud_client: None,
         }
     }
 
@@ -505,6 +509,41 @@ pub fn run() {
                         }
                     });
                     tracing::info!("WebSocket server enabled on port {}", SHARED_STATE.read().settings.websocket_port.unwrap_or(17528));
+                }
+
+                // Start Cloud client in background (if enabled)
+                {
+                    let state = SHARED_STATE.read();
+                    if state.settings.cloud_mode {
+                        if let Some(ref url) = state.settings.cloud_server_url {
+                            let url_clone = url.clone(); // Clone to avoid borrow issues
+                            let cloud_config = CloudConfig {
+                                server_url: url_clone.clone(),
+                                device_name: state.settings.device_name.clone(),
+                            };
+                            let app_state = SHARED_STATE.clone();
+
+                            // Initialize cloud client
+                            let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
+                            let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
+
+                            // Store in app state
+                            drop(state);
+                            SHARED_STATE.write().cloud_client = Some(cloud_client_arc.clone());
+
+                            // Spawn connection task
+                            tokio::spawn(async move {
+                                let mut client = cloud_client_arc.write().await;
+                                if let Err(e) = client.connect().await {
+                                    tracing::error!("Cloud client connection error: {}", e);
+                                }
+                            });
+
+                            tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
+                        } else {
+                            tracing::warn!("Cloud mode enabled but no server URL configured");
+                        }
+                    }
                 }
 
                 tracing::info!("CC-Island started successfully");
