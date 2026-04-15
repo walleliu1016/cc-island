@@ -107,7 +107,8 @@ impl SessionConversation {
     pub fn jsonl_path(&self) -> PathBuf {
         let project_dir = self.cwd
             .replace("/", "-")
-            .replace(".", "-");
+            .replace(".", "-")
+            .replace("_", "-");
         tracing::debug!("jsonl_path: cwd={}, project_dir={}", self.cwd, project_dir);
         dirs::home_dir()
             .unwrap_or(PathBuf::from("/"))
