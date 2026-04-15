@@ -7,6 +7,7 @@ pub mod config;
 pub mod chat_messages;
 pub mod websocket_server;
 pub mod machine_id;
+pub mod cloud_client;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
