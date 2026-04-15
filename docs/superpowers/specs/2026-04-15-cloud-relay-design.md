@@ -82,7 +82,7 @@
 -- 设备表：每个CC-Island实例注册一个设备
 CREATE TABLE devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_token TEXT UNIQUE NOT NULL,     -- 设备唯一标识（桌面端本地生成）
+    device_token TEXT UNIQUE NOT NULL,     -- 设备唯一标识（机器硬件特征计算）
     name TEXT,                              -- 设备名称（可选，用户自定义）
     status TEXT DEFAULT 'offline',          -- online/offline
     last_seen_at TIMESTAMPTZ,               -- 最后活跃时间（心跳检测）
@@ -403,6 +403,92 @@ src-tauri/src/
 ├── lib.rs                       # 改动：根据配置选择模式
 ```
 
+### device_token生成机制（机器唯一ID）
+
+为确保卸载重装后token不变，采用**基于机器硬件特征生成稳定token**的方案。
+
+#### 各平台机器唯一标识来源
+
+| 平台 | 来源 | 说明 |
+|------|------|------|
+| **Linux** | `/etc/machine-id` | systemd生成的机器唯一ID，重装系统才会变 |
+| **Windows** | 注册表 `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` | Windows安装时生成 |
+| **macOS** | `IOPlatformUUID` | Apple硬件UUID，主板绑定 |
+
+#### Rust实现
+
+```rust
+use std::hash::{Hash, Hasher};
+use twox_hash::XxHash64;
+
+pub fn get_machine_token() -> String {
+    let machine_id = get_platform_machine_id();
+    
+    let mut hasher = XxHash64::with_seed(42);
+    machine_id.hash(&mut hasher);
+    let hash = hasher.finish();
+    
+    format_uuid_from_hash(hash)
+}
+
+fn get_platform_machine_id() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/etc/machine-id")
+            .unwrap_or_else(|_| {
+                std::fs::read_to_string("/var/lib/dbus/machine-id")
+                    .unwrap_or_else(|_| fallback_machine_id())
+            })
+            .trim()
+            .to_string()
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::RegKey;
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let key = hklm.open_subkey("SOFTWARE\\Microsoft\\Cryptography").unwrap();
+        key.get_value("MachineGuid").unwrap()
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        use system_information;
+        let info = system_information::get_system_info();
+        info.platform_uuid.clone()
+    }
+}
+
+fn fallback_machine_id() -> String {
+    // 兜底：MAC地址 + hostname组合
+    let mac = get_primary_mac_address();
+    let hostname = get_hostname();
+    format!("{}-{}", mac, hostname)
+}
+```
+
+#### 依赖库
+
+```toml
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+system-information = "0.1"
+
+[dependencies]
+twox-hash = "1.6"
+```
+
+#### 稳定性验证
+
+| 场景 | token变化 |
+|------|-----------|
+| 应用卸载重装 | ✅ 不变 |
+| 应用更新 | ✅ 不变 |
+| 系统重装 | ❌ 变化 |
+| 换电脑 | ❌ 变化 |
+
 ### 配置项新增
 
 ```rust
@@ -412,22 +498,17 @@ pub struct AppSettings {
     // 云转发配置
     pub cloud_mode: bool,                    // false = 本地模式, true = 云转发
     pub cloud_server_url: Option<String>,    // 如 "wss://cloud.example.com:17528"
-    pub device_token: Option<String>,        // 本地生成的设备token
     pub device_name: Option<String>,         // 用户自定义设备名称
+    // 注意：device_token不存储在配置中，由机器硬件特征实时计算
 }
 ```
 
-### device_token生成逻辑
+### device_token获取逻辑
 
 ```rust
-fn ensure_device_token(config_path: &Path) -> String {
-    if let Some(token) = read_config().device_token {
-        return token;
-    }
-    
-    let token = uuid::Uuid::new_v4().to_string();
-    save_config_token(&token);
-    token
+// 每次启动时从机器硬件特征计算，无需存储
+fn get_device_token() -> String {
+    get_machine_token()  // 基于机器唯一ID计算
 }
 ```
 
