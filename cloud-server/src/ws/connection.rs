@@ -126,6 +126,11 @@ pub async fn handle_connection(
                 _ = recv_task => {},
             }
 
+            // Close WebSocket connection gracefully
+            if let Err(e) = ws_tx.close().await {
+                tracing::debug!("WebSocket close error: {}", e);
+            }
+
             // Cleanup on disconnect
             match conn_type {
                 ConnectionType::Desktop => {
