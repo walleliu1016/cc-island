@@ -1,17 +1,35 @@
 use std::hash::{Hash, Hasher};
+use std::sync::OnceLock;
 use twox_hash::XxHash64;
 
+static DEVICE_TOKEN: OnceLock<String> = OnceLock::new();
+
 /// Generate stable device token from machine hardware ID.
+///
 /// Token remains constant across app reinstall/updates.
 /// Only changes on OS reinstall or hardware replacement.
+///
+/// Platform-specific sources:
+/// - Linux: /etc/machine-id (systemd) or /var/lib/dbus/machine-id
+/// - Windows: Registry MachineGuid (HKLM\SOFTWARE\Microsoft\Cryptography)
+/// - macOS: IOPlatformUUID via ioreg command
+///
+/// Result is cached after first call for performance.
 pub fn get_machine_token() -> String {
-    let machine_id = get_platform_machine_id();
+    DEVICE_TOKEN.get_or_init(|| {
+        let machine_id = get_platform_machine_id();
 
-    let mut hasher = XxHash64::with_seed(42);
-    machine_id.hash(&mut hasher);
-    let hash = hasher.finish();
+        // Use two 64-bit hashes with different seeds for 128-bit result
+        let mut hasher1 = XxHash64::with_seed(42);
+        let mut hasher2 = XxHash64::with_seed(137);
+        machine_id.hash(&mut hasher1);
+        machine_id.hash(&mut hasher2);
 
-    format_uuid_from_hash(hash)
+        let hash1 = hasher1.finish();
+        let hash2 = hasher2.finish();
+
+        format_device_token(hash1, hash2)
+    }).clone()
 }
 
 fn get_platform_machine_id() -> String {
@@ -39,60 +57,52 @@ fn get_platform_machine_id() -> String {
 
     #[cfg(target_os = "macos")]
     {
-        // On macOS, use IOPlatformUUID via system_profiler or ioreg
-        // For MVP, we use a simple approach
         use std::process::Command;
 
-        // Try to get IOPlatformUUID via ioreg
-        let output = Command::new("ioreg")
+        Command::new("ioreg")
             .arg("-rd1")
             .arg("-c")
             .arg("IOPlatformExpertDevice")
-            .output();
-
-        if let Ok(output) = output {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            // Parse IOPlatformUUID from output
-            for line in stdout.lines() {
-                if line.contains("IOPlatformUUID") {
-                    // Extract the UUID value
-                    if let Some(start) = line.find('"') {
-                        let rest = &line[start + 1..];
-                        if let Some(end) = rest.find('"') {
-                            return rest[..end].to_string();
-                        }
-                    }
-                }
-            }
-        }
-
-        fallback_machine_id()
+            .output()
+            .map(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .find_map(|line| {
+                        line.split("IOPlatformUUID = \"")
+                            .nth(1)
+                            .and_then(|s| s.split('"').next())
+                            .map(|s| s.to_string())
+                    })
+                    .unwrap_or_else(|| fallback_machine_id())
+            })
+            .unwrap_or_else(|_| fallback_machine_id())
     }
 }
 
+/// Fallback using hostname when platform-specific ID unavailable
 fn fallback_machine_id() -> String {
-    // Use hostname + MAC address as fallback
     let hostname = std::env::var("HOSTNAME")
         .or_else(|_| std::env::var("COMPUTERNAME"))
-        .or_else(|_| {
-            std::process::Command::new("hostname")
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        })
-        .unwrap_or_else(|_| "unknown".to_string());
+        .unwrap_or_else(|_| {
+            // Last resort: generate random-ish value from process info
+            format!("unknown-{}", std::process::id())
+        });
 
     hostname
 }
 
-fn format_uuid_from_hash(hash: u64) -> String {
-    let bytes = hash.to_be_bytes();
+/// Format two 64-bit hashes as a 32-char hex string (not UUID format, just unique identifier)
+fn format_device_token(hash1: u64, hash2: u64) -> String {
+    let bytes1 = hash1.to_be_bytes();
+    let bytes2 = hash2.to_be_bytes();
+
+    // Concatenate to form 16-byte unique identifier
     format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5],
-        bytes[6], bytes[7],
-        bytes[0] ^ 0x80, bytes[1],  // Set UUID version bits
-        bytes[2], bytes[3], bytes[4], bytes[5]
+        "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
+        bytes1[4], bytes1[5], bytes1[6], bytes1[7],
+        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
+        bytes2[4], bytes2[5], bytes2[6], bytes2[7]
     )
 }
 
@@ -103,9 +113,9 @@ mod tests {
     #[test]
     fn test_machine_token_format() {
         let token = get_machine_token();
-        // Should be a valid UUID format
-        assert_eq!(token.len(), 36);
-        assert!(token.contains('-'));
+        // Should be a 32-char hex string (16 bytes = 32 hex chars)
+        assert_eq!(token.len(), 32);
+        assert!(!token.contains('-'));
     }
 
     #[test]
