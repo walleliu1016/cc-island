@@ -8,14 +8,13 @@ import { PopupState, PermissionData, AskData } from '../types'
 interface PopupCardProps {
   popup: PopupState
   onRespond: (popupId: string, decision?: string | null, answers?: string[][]) => void
-  onDismiss?: (popupId: string) => void
 }
 
 export function PopupCard({ popup, onRespond }: PopupCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState<string[][]>(() =>
-    popup.type === 'ask' ? (popup.data as AskData).questions.map(() => []) : []
+    popup.type === 'ask' ? ((popup.data as AskData)?.questions || []).map(() => []) : []
   )
 
   // Auto-dismiss animation
@@ -83,7 +82,7 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
 
   // Ask popup (multi-question)
   const askData = popup.data as AskData
-  if (!askData?.questions) return null
+  if (!askData?.questions || askData.questions.length === 0) return null
 
   const questions = askData.questions
   const totalQuestions = questions.length
@@ -205,4 +204,7 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
       </div>
     </motion.div>
   )
+
+  // Fallback for unknown popup types
+  return null
 }
