@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCloudWebSocket } from '../hooks/useCloudWebSocket';
-import { PopupState, SessionState } from '../types';
+import { PopupState, SessionState, PermissionData, AskData } from '../types';
 import { ChatView } from './ChatView';
 
 interface DeviceDetailPageProps {
@@ -106,12 +106,13 @@ function SessionCard({ session, onViewChat }: { session: SessionState; onViewCha
 
 function PopupCard({ popup, onRespond }: { popup: PopupState; onRespond: (d: string | null, a?: string[][]) => void }) {
   if (popup.popup_type === 'permission') {
+    const permData = popup.data as PermissionData;
     return (
       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-2">
         <div className="text-amber-400 text-sm font-medium">需要授权</div>
-        <div className="text-white text-xs mt-1">{popup.data?.tool_name}</div>
-        {popup.data?.action && (
-          <div className="text-white/50 text-xs mt-1 truncate">{popup.data.action}</div>
+        <div className="text-white text-xs mt-1">{permData?.tool_name}</div>
+        {permData?.action && (
+          <div className="text-white/50 text-xs mt-1 truncate">{permData.action}</div>
         )}
         <div className="flex gap-2 mt-2">
           <button
@@ -131,11 +132,14 @@ function PopupCard({ popup, onRespond }: { popup: PopupState; onRespond: (d: str
     );
   }
 
-  // Ask popup - simplified
+  // Ask popup - show question preview
+  const askData = popup.data as AskData;
   return (
     <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-2">
       <div className="text-blue-400 text-sm font-medium">问题</div>
-      <div className="text-white text-xs mt-1">点击查看详情</div>
+      <div className="text-white text-xs mt-1">
+        {askData?.questions?.[0]?.question || '等待用户回答'}
+      </div>
     </div>
   );
 }

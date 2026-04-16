@@ -101,7 +101,7 @@ export interface SessionState {
   project_name?: string
   status: string
   current_tool?: string
-  tool_input?: any
+  tool_input?: Record<string, unknown>
 }
 
 export interface PopupState {
@@ -109,7 +109,7 @@ export interface PopupState {
   session_id?: string
   project_name?: string
   popup_type: string
-  data: any
+  data: PermissionData | AskData | NotificationData | Record<string, unknown>
   status: string
 }
 

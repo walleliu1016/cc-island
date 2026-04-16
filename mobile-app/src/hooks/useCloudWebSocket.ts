@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CloudMessage, SessionState, PopupState, ChatMessageData } from '../types'
+import { CloudMessage, SessionState, PopupState, ChatMessageData, PermissionData, AskData } from '../types'
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -122,6 +122,10 @@ export function useCloudWebSocket(deviceToken: string) {
 
     ws.onclose = () => {
       setState(s => ({ ...s, status: 'disconnected' }))
+      // Clear previous reconnect timeout before creating new one
+      if (reconnectTimeoutRef.current) {
+        window.clearTimeout(reconnectTimeoutRef.current)
+      }
       // Attempt reconnect after delay
       reconnectTimeoutRef.current = window.setTimeout(() => {
         connect()
@@ -192,10 +196,12 @@ export function useCloudWebSocket(deviceToken: string) {
 
 function showNotification(popup: PopupState) {
   if ('Notification' in window && Notification.permission === 'granted') {
+    const permData = popup.data as PermissionData;
+    const askData = popup.data as AskData;
     new Notification(`${popup.project_name || 'CC-Island'} 需要审批`, {
       body: popup.popup_type === 'permission'
-        ? `工具: ${popup.data?.tool_name || '未知'}`
-        : `问题: ${popup.data?.questions?.[0]?.question || '未知'}`,
+        ? `工具: ${permData?.tool_name || '未知'}`
+        : `问题: ${askData?.questions?.[0]?.question || '未知'}`,
       tag: popup.id,
     })
   }
