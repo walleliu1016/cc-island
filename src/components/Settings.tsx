@@ -1,9 +1,16 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { HooksCheckResult, AppSettings } from '../types';
+
+// Cloud connection status type
+type CloudConnectionStatus =
+  | { type: 'Disconnected' }
+  | { type: 'Connecting' }
+  | { type: 'Connected' }
+  | { type: 'Failed'; message: string };
 
 // Hooks 中文描述映射
 const HOOK_DESCRIPTIONS: Record<string, string> = {
@@ -45,6 +52,40 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const [deviceToken, setDeviceToken] = useState<string>('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeSvg, setQRCodeSvg] = useState<string>('');
+  const [connectionStatus, setConnectionStatus] = useState<CloudConnectionStatus>({ type: 'Disconnected' });
+  const pollingRef = useRef<number | null>(null);
+
+  // Poll connection status when cloud mode is enabled
+  const pollConnectionStatus = async () => {
+    if (settings?.cloud_mode) {
+      try {
+        const status = await invoke<CloudConnectionStatus>('get_cloud_connection_status');
+        setConnectionStatus(status);
+      } catch (e) {
+        console.error('Failed to get connection status:', e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && settings?.cloud_mode) {
+      // Start polling
+      pollConnectionStatus();
+      pollingRef.current = window.setInterval(pollConnectionStatus, 2000);
+    } else {
+      // Stop polling
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    }
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [isOpen, settings?.cloud_mode]);
 
   useEffect(() => {
     if (isOpen) {
@@ -111,10 +152,28 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const saveAll = async () => {
     setSaving(true);
     setMessage(null);
+
+    // Validate cloud server URL if cloud mode is enabled
+    if (settings?.cloud_mode && !settings.cloud_server_url) {
+      setMessage({ text: '请配置云服务器地址', type: 'error' });
+      setSaving(false);
+      return;
+    }
+
+    // Validate URL format
+    if (settings?.cloud_mode && settings.cloud_server_url) {
+      const url = settings.cloud_server_url;
+      if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+        setMessage({ text: '云服务器地址必须以 ws:// 或 wss:// 开头', type: 'error' });
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       // Save hooks
       await invoke('update_claude_hooks', { hooks: Array.from(selectedHooks) });
-      // Save settings
+      // Save settings (backend will validate and connect)
       if (settings) {
         await invoke('update_settings', { settings });
       }
@@ -416,53 +475,9 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   />
                 </div>
 
-                {/* WebSocket Remote Access */}
+                {/* Mobile Remote Access (Cloud Relay) */}
                 <div className="border-t border-white/10 pt-3 mt-3">
                   <div className="text-white/80 text-sm mb-2">手机远程访问</div>
-                  <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={settings.websocket_enabled || false}
-                      onChange={e => setSettings({ ...settings, websocket_enabled: e.target.checked })}
-                      className="w-4 h-4 rounded accent-white"
-                    />
-                    <div className="flex-1">
-                      <span className="text-white/80 text-sm">启用 WebSocket</span>
-                      <span className="text-white/40 text-xs ml-2">(手机远程控制)</span>
-                    </div>
-                  </label>
-
-                  {settings.websocket_enabled && (
-                    <div className="mt-2 space-y-2">
-                      <div>
-                        <label className="text-white/60 text-xs block mb-1">WebSocket 端口</label>
-                        <input
-                          type="number"
-                          value={settings.websocket_port || 17528}
-                          onChange={e => setSettings({ ...settings, websocket_port: parseInt(e.target.value) || 17528 })}
-                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-white/60 text-xs block mb-1">连接密码</label>
-                        <input
-                          type="password"
-                          placeholder="设置密码以保护连接"
-                          value={settings.websocket_password || ''}
-                          onChange={e => setSettings({ ...settings, websocket_password: e.target.value || null })}
-                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
-                        />
-                      </div>
-                      <div className="text-white/40 text-xs">
-                        手机连接地址: ws://本机IP:{settings.websocket_port || 17528}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cloud Relay Configuration */}
-                <div className="border-t border-white/10 pt-3 mt-3">
-                  <div className="text-white/80 text-sm mb-2">云转发配置</div>
 
                   <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
                     <input
@@ -472,8 +487,8 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       className="w-4 h-4 rounded accent-white"
                     />
                     <div className="flex-1">
-                      <span className="text-white/80 text-sm">启用云转发</span>
-                      <span className="text-white/40 text-xs ml-2">(公网访问)</span>
+                      <span className="text-white/80 text-sm">启用远程访问</span>
+                      <span className="text-white/40 text-xs ml-2">(通过云服务器)</span>
                     </div>
                   </label>
 
@@ -525,6 +540,32 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
 
                       <div className="text-white/40 text-xs">
                         将此Token输入到手机App即可连接此设备
+                      </div>
+
+                      {/* Connection Status */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-white/50 text-xs">连接状态:</span>
+                        {connectionStatus.type === 'Disconnected' && (
+                          <span className="text-white/40 text-xs">未连接</span>
+                        )}
+                        {connectionStatus.type === 'Connecting' && (
+                          <span className="text-yellow-400 text-xs flex items-center gap-1">
+                            <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>●</motion.span>
+                            连接中...
+                          </span>
+                        )}
+                        {connectionStatus.type === 'Connected' && (
+                          <span className="text-green-400 text-xs flex items-center gap-1">
+                            <span>●</span>
+                            已连接
+                          </span>
+                        )}
+                        {connectionStatus.type === 'Failed' && (
+                          <span className="text-red-400 text-xs flex items-center gap-1">
+                            <span>●</span>
+                            连接失败: {connectionStatus.message}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

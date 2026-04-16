@@ -122,11 +122,7 @@ export interface AppSettings {
   warning_time: number;
   critical_time: number;
   notification_auto_close: number;
-  // WebSocket remote access
-  websocket_enabled: boolean;
-  websocket_port: number | null;
-  websocket_password: string | null;
-  // Cloud relay
+  // Cloud relay (mobile remote access)
   cloud_mode: boolean;
   cloud_server_url: string | null;
   device_name: string | null;

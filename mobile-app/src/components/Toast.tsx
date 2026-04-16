@@ -1,8 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { motion, AnimatePresence } from 'framer-motion'
-
-type ToastType = 'success' | 'error' | 'warning'
+import { ToastType } from '../hooks/useToast'
 
 interface ToastProps {
   visible: boolean

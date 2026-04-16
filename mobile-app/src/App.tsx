@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { DeviceListPage } from './components/DeviceListPage';
 import { DeviceDetailPage } from './components/DeviceDetailPage';
 import { AddDeviceModal } from './components/AddDeviceModal';
+import { SettingsModal } from './components/SettingsModal';
 
 function App() {
   const [devices, setDevices] = useState<string[]>(() => {
@@ -11,8 +12,13 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [serverUrl, setServerUrl] = useState<string>(() => {
+    return localStorage.getItem('cloud-server-url') || '';
+  });
+
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Save devices to localStorage
   useEffect(() => {
@@ -23,6 +29,12 @@ function App() {
     if (!devices.includes(token)) {
       setDevices([...devices, token]);
     }
+  };
+
+  const handleSaveSettings = (url: string) => {
+    localStorage.setItem('cloud-server-url', url);
+    setServerUrl(url);
+    setShowSettings(false);
   };
 
   return (
@@ -37,6 +49,7 @@ function App() {
           devices={devices}
           onSelectDevice={setActiveDevice}
           onAddDevice={() => setShowAddModal(true)}
+          onOpenSettings={() => setShowSettings(true)}
         />
       )}
 
@@ -44,6 +57,14 @@ function App() {
         <AddDeviceModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddDevice}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          initialServerUrl={serverUrl}
+          onSave={handleSaveSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

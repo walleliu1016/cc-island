@@ -4,20 +4,29 @@ interface DeviceListPageProps {
   devices: string[];
   onSelectDevice: (token: string) => void;
   onAddDevice: () => void;
+  onOpenSettings: () => void;
 }
 
-export function DeviceListPage({ devices, onSelectDevice, onAddDevice }: DeviceListPageProps) {
+export function DeviceListPage({ devices, onSelectDevice, onAddDevice, onOpenSettings }: DeviceListPageProps) {
   return (
     <div className="flex flex-col h-full bg-black">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <span className="text-white text-lg font-medium">我的设备</span>
-        <button
-          onClick={onAddDevice}
-          className="text-white/70 hover:text-white text-sm"
-        >
-          + 添加
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onOpenSettings}
+            className="text-white/70 hover:text-white text-sm"
+          >
+            ⚙
+          </button>
+          <button
+            onClick={onAddDevice}
+            className="text-white/70 hover:text-white text-sm"
+          >
+            + 添加
+          </button>
+        </div>
       </div>
 
       {/* Device List */}

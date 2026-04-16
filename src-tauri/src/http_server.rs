@@ -17,7 +17,6 @@ use crate::instance_manager::{ClaudeInstance, ClaudeInstanceDisplay, InstanceSta
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
 use crate::chat_messages::{ChatMessage, MessageType};
-use crate::websocket_server;
 use crate::cloud_client::{SessionState, PopupState};
 
 /// HTTP Server for receiving Claude Code hooks
@@ -194,9 +193,6 @@ async fn handle_hook(
             state_guard.popups.add(popup);
             state_guard.popups.register_waiter(popup_id.clone(), tx, timeout_secs);
 
-            // Broadcast new popup to WebSocket clients
-            websocket_server::broadcast_new_popup(popup_for_broadcast.clone());
-
             (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input, popup_for_broadcast)
         };
 
@@ -280,13 +276,6 @@ async fn handle_hook(
                     };
                     state_guard.set_session_notification(notification.clone());
 
-                    // Broadcast to WebSocket clients
-                    websocket_server::broadcast_session_notification(notification);
-                    websocket_server::broadcast_state_update(
-                        state_guard.instances.get_all_instances_display(),
-                        state_guard.popups.get_all()
-                    );
-
                     true // Push state to cloud after SessionStart
                 }
                 "SessionEnd" => {
@@ -321,13 +310,6 @@ async fn handle_hook(
                         timestamp: now,
                     };
                     state_guard.set_session_notification(notification.clone());
-
-                    // Broadcast to WebSocket clients
-                    websocket_server::broadcast_session_notification(notification);
-                    websocket_server::broadcast_state_update(
-                        state_guard.instances.get_all_instances_display(),
-                        state_guard.popups.get_all()
-                    );
 
                     true // Push state to cloud after SessionEnd
                 }

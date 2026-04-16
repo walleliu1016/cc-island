@@ -7,7 +7,6 @@ pub mod hook_handler;
 pub mod platform;
 pub mod config;
 pub mod chat_messages;
-pub mod websocket_server;
 pub mod machine_id;
 pub mod cloud_client;
 
@@ -46,6 +45,15 @@ pub struct SessionNotification {
     pub timestamp: u64,
 }
 
+/// Cloud connection status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum CloudConnectionStatus {
+    Disconnected,   // Not configured or disabled
+    Connecting,     // Attempting to connect
+    Connected,      // Successfully connected
+    Failed(String), // Connection failed with error message
+}
+
 /// Global state shared between HTTP server and frontend
 pub struct AppState {
     pub instances: InstanceManager,
@@ -55,6 +63,7 @@ pub struct AppState {
     pub recent_activities: Vec<ToolActivity>,
     pub session_notification: Option<SessionNotification>,
     pub cloud_client: Option<Arc<AsyncRwLock<CloudClient>>>,
+    pub cloud_connection_status: CloudConnectionStatus,
 }
 
 impl AppState {
@@ -67,6 +76,7 @@ impl AppState {
             recent_activities: Vec::new(),
             session_notification: None,
             cloud_client: None,
+            cloud_connection_status: CloudConnectionStatus::Disconnected,
         }
     }
 
@@ -383,6 +393,11 @@ fn get_device_token() -> String {
 }
 
 #[tauri::command]
+fn get_cloud_connection_status() -> CloudConnectionStatus {
+    SHARED_STATE.read().cloud_connection_status.clone()
+}
+
+#[tauri::command]
 fn generate_device_qrcode(server_url: String) -> Result<String, String> {
     let device_token = machine_id::get_machine_token();
 
@@ -409,34 +424,87 @@ fn generate_device_qrcode(server_url: String) -> Result<String, String> {
 
 #[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
-    // Get old WebSocket config to check if restart needed
-    let old_ws_config = {
-        let state = SHARED_STATE.read();
-        (
-            state.settings.websocket_enabled,
-            state.settings.websocket_port,
-            state.settings.websocket_password.clone(),
-        )
-    };
+    // Validate cloud mode settings
+    if settings.cloud_mode {
+        if settings.cloud_server_url.is_none() || settings.cloud_server_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            return Err("启用远程访问时必须配置云服务器地址".to_string());
+        }
+        // Validate URL format
+        if let Some(ref url) = settings.cloud_server_url {
+            if !url.starts_with("ws://") && !url.starts_with("wss://") {
+                return Err("云服务器地址必须以 ws:// 或 wss:// 开头".to_string());
+            }
+        }
+    }
 
     // Update atomic logging flag first (no lock)
     set_logging_enabled(settings.enable_logging);
 
+    // Get old cloud config to check if restart needed
+    let old_cloud_config = {
+        let state = SHARED_STATE.read();
+        (
+            state.settings.cloud_mode,
+            state.settings.cloud_server_url.clone(),
+        )
+    };
+
     // Save to file
     config::save_settings(&settings)?;
+    tracing::info!("Settings saved to file");
 
-    let mut state = SHARED_STATE.write();
-    state.settings = settings.clone();
+    // Update state
+    {
+        let mut state = SHARED_STATE.write();
+        state.settings = settings.clone();
+    }
 
-    // Check if WebSocket config changed
-    let ws_changed = old_ws_config.0 != settings.websocket_enabled
-        || old_ws_config.1 != settings.websocket_port
-        || old_ws_config.2 != settings.websocket_password;
+    // Check if cloud config changed - reconnect if needed
+    let cloud_changed = old_cloud_config.0 != settings.cloud_mode
+        || old_cloud_config.1 != settings.cloud_server_url;
 
-    if ws_changed {
-        // Restart WebSocket server (need to release lock first)
-        drop(state);
-        websocket_server::restart_server(SHARED_STATE.clone());
+    if cloud_changed && settings.cloud_mode {
+        // Start/restart Cloud client
+        if let Some(ref url) = settings.cloud_server_url {
+            let url_clone = url.clone();
+            let device_name = settings.device_name.clone();
+            let cloud_config = CloudConfig {
+                server_url: url_clone.clone(),
+                device_name,
+            };
+            let app_state = SHARED_STATE.clone();
+
+            tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
+
+            // Set status to Connecting
+            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
+
+            // Initialize cloud client
+            let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
+            let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
+
+            // Store in app state
+            SHARED_STATE.write().cloud_client = Some(cloud_client_arc.clone());
+
+            // Spawn connection task
+            let url_for_async = url_clone.clone();
+            tokio::spawn(async move {
+                let mut client = cloud_client_arc.write().await;
+                tracing::info!("Connecting to cloud server: {}", url_for_async);
+                if let Err(e) = client.connect().await {
+                    tracing::error!("Cloud client connection error: {}", e);
+                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed(e.to_string());
+                } else {
+                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connected;
+                    tracing::info!("Cloud connection established");
+                }
+            });
+        }
+    } else if !settings.cloud_mode && old_cloud_config.0 {
+        // Cloud mode disabled - disconnect
+        SHARED_STATE.write().cloud_client = None;
+        SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
+        tracing::info!("Cloud mode disabled");
     }
 
     Ok(())
@@ -476,6 +544,7 @@ pub fn run() {
                 update_settings,
                 get_product_name,
                 get_device_token,
+                get_cloud_connection_status,
                 generate_device_qrcode
             ])
             .setup(|app| {
@@ -523,53 +592,47 @@ pub fn run() {
                     }
                 });
 
-                // Start WebSocket server in background (if enabled)
-                let ws_config = websocket_server::WsServerConfig {
-                    port: SHARED_STATE.read().settings.websocket_port.unwrap_or(17528),
-                    enabled: SHARED_STATE.read().settings.websocket_enabled,
-                    password: SHARED_STATE.read().settings.websocket_password.clone(),
-                };
-                if ws_config.enabled {
-                    let ws_server = websocket_server::WsServer::new(ws_config, SHARED_STATE.clone());
-                    tokio::spawn(async move {
-                        if let Err(e) = ws_server.run().await {
-                            tracing::error!("WebSocket server error: {}", e);
-                        }
-                    });
-                    tracing::info!("WebSocket server enabled on port {}", SHARED_STATE.read().settings.websocket_port.unwrap_or(17528));
-                }
-
                 // Start Cloud client in background (if enabled)
                 {
                     let state = SHARED_STATE.read();
                     if state.settings.cloud_mode {
                         if let Some(ref url) = state.settings.cloud_server_url {
                             let url_clone = url.clone(); // Clone to avoid borrow issues
+                            let url_for_log = url_clone.clone();
                             let cloud_config = CloudConfig {
                                 server_url: url_clone.clone(),
                                 device_name: state.settings.device_name.clone(),
                             };
                             let app_state = SHARED_STATE.clone();
 
+                            // Set status to Connecting
+                            drop(state);
+                            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
+
+                            tracing::info!("Cloud mode enabled at startup, connecting to {}", url_for_log);
+
                             // Initialize cloud client
                             let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
                             let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
 
                             // Store in app state
-                            drop(state);
                             SHARED_STATE.write().cloud_client = Some(cloud_client_arc.clone());
 
                             // Spawn connection task
                             tokio::spawn(async move {
                                 let mut client = cloud_client_arc.write().await;
+                                tracing::info!("Connecting to cloud server: {}", url_clone);
                                 if let Err(e) = client.connect().await {
                                     tracing::error!("Cloud client connection error: {}", e);
+                                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed(e.to_string());
+                                } else {
+                                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connected;
+                                    tracing::info!("Cloud connection established at startup");
                                 }
                             });
-
-                            tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
                         } else {
                             tracing::warn!("Cloud mode enabled but no server URL configured");
+                            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed("未配置云服务器地址".to_string());
                         }
                     }
                 }
