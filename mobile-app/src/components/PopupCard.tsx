@@ -1,128 +1,208 @@
+// mobile-app/src/components/PopupCard.tsx
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useState } from 'react'
-import { PopupItem } from '../types'
+import { motion } from 'framer-motion'
+import { PopupState, PermissionData, AskData } from '../types'
 
 interface PopupCardProps {
-  popup: PopupItem
-  onRespond: (popupId: string, decision?: string, answers?: string[][]) => void
+  popup: PopupState
+  onRespond: (popupId: string, decision?: string | null, answers?: string[][]) => void
+  onDismiss?: (popupId: string) => void
 }
 
 export function PopupCard({ popup, onRespond }: PopupCardProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState<string[][]>(() =>
-    popup.ask_data?.questions.map(() => []) || []
+    popup.type === 'ask' ? (popup.data as AskData).questions.map(() => []) : []
   )
 
-  const handleAllow = () => {
-    onRespond(popup.id, 'allow')
+  // Auto-dismiss animation
+  const handleRespond = (decision?: string | null, answers?: string[][]) => {
+    onRespond(popup.id, decision, answers)
   }
 
-  const handleDeny = () => {
-    onRespond(popup.id, 'deny')
+  // Permission popup
+  if (popup.type === 'permission') {
+    const data = popup.data as PermissionData
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20, height: 0 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-[12px] p-4 shadow-lg"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[#f59e0b]">⚠</span>
+            <span className="text-[#1a1a1a] font-medium text-[16px]">{data?.tool_name || '权限请求'}</span>
+          </div>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[#737373] text-sm"
+          >
+            {expanded ? '收起' : '展开'}
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="text-[#1a1a1a] text-[14px] mb-3">
+          {expanded ? (
+            <div className="space-y-2">
+              <div><span className="text-[#737373]">操作:</span> {data?.action}</div>
+              {data?.details && <div className="text-[14px] text-[#737373] truncate">{data.details}</div>}
+              <div><span className="text-[#737373]">项目:</span> {popup.project_name}</div>
+            </div>
+          ) : (
+            <div className="truncate">{data?.action || ''}</div>
+          )}
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleRespond('deny')}
+            className="flex-1 py-2 bg-[#ef4444] text-white rounded-[8px] font-medium text-[14px]"
+          >
+            拒绝
+          </button>
+          <button
+            onClick={() => handleRespond('allow')}
+            className="flex-1 py-2 bg-[#22c55e] text-white rounded-[8px] font-medium text-[14px]"
+          >
+            允许
+          </button>
+        </div>
+      </motion.div>
+    )
   }
 
-  const handleAnswerSubmit = () => {
-    onRespond(popup.id, undefined, selectedAnswers)
-  }
+  // Ask popup (multi-question)
+  const askData = popup.data as AskData
+  if (!askData?.questions) return null
 
-  const handleOptionSelect = (questionIndex: number, optionLabel: string, multiSelect: boolean) => {
+  const questions = askData.questions
+  const totalQuestions = questions.length
+  const isLastQuestion = currentQuestion === totalQuestions - 1
+  const isFirstQuestion = currentQuestion === 0
+  const currentQ = questions[currentQuestion]
+
+  const handleOptionSelect = (optionLabel: string) => {
     setSelectedAnswers(prev => {
       const newAnswers = [...prev]
-      if (multiSelect) {
-        const current = newAnswers[questionIndex]
+      if (currentQ.multi_select) {
+        const current = newAnswers[currentQuestion]
         if (current.includes(optionLabel)) {
-          newAnswers[questionIndex] = current.filter(o => o !== optionLabel)
+          newAnswers[currentQuestion] = current.filter(o => o !== optionLabel)
         } else {
-          newAnswers[questionIndex] = [...current, optionLabel]
+          newAnswers[currentQuestion] = [...current, optionLabel]
         }
       } else {
-        newAnswers[questionIndex] = [optionLabel]
+        newAnswers[currentQuestion] = [optionLabel]
       }
       return newAnswers
     })
   }
 
+  const handleNext = () => {
+    if (currentQuestion < totalQuestions - 1) {
+      setCurrentQuestion(currentQuestion + 1)
+    }
+  }
+
+  const handlePrev = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1)
+    }
+  }
+
+  const handleSubmit = () => {
+    handleRespond(null, selectedAnswers)
+  }
+
   return (
-    <div className="bg-nexus-bg2 border border-nexus-warning rounded-lg p-3">
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20, height: 0 }}
+      transition={{ duration: 0.2 }}
+      className="bg-white rounded-[12px] p-4 shadow-lg"
+    >
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-2 h-2 rounded-full bg-nexus-warning animate-pulse" />
-        <span className="text-nexus-warning text-sm font-medium">
-          {popup.project_name}
-        </span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[#3b82f6]">❓</span>
+          <span className="text-[#1a1a1a] font-medium text-[16px]">AskUserQuestion</span>
+        </div>
+        <span className="text-[#737373] text-sm">问题 {currentQuestion + 1}/{totalQuestions}</span>
       </div>
 
-      {/* Permission Request */}
-      {popup.type === 'permission' && popup.permission_data && (
-        <>
-          <div className="text-nexus-text text-sm mb-1">
-            {popup.permission_data.tool_name}
-          </div>
-          <div className="text-nexus-text2 text-xs mb-3">
-            {popup.permission_data.action}
-            {popup.permission_data.details && (
-              <div className="truncate">{popup.permission_data.details}</div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleAllow}
-              className="flex-1 bg-nexus-success text-white rounded-lg py-2 text-sm font-medium"
-            >
-              允许
-            </button>
-            <button
-              onClick={handleDeny}
-              className="flex-1 bg-nexus-error text-white rounded-lg py-2 text-sm font-medium"
-            >
-              拒绝
-            </button>
-          </div>
-        </>
-      )}
+      {/* Question */}
+      <div className="mb-3">
+        <div className="text-[#1a1a1a] text-[14px] mb-2">
+          {currentQ.header}: {currentQ.question}
+        </div>
+        <div className="space-y-2">
+          {currentQ.options.map((opt, idx) => {
+            const isSelected = selectedAnswers[currentQuestion]?.includes(opt.label)
+            return (
+              <button
+                key={idx}
+                onClick={() => handleOptionSelect(opt.label)}
+                className={`w-full text-left py-2 px-3 rounded-[8px] border text-[14px] ${
+                  isSelected
+                    ? 'bg-[#22c55e] border-[#22c55e] text-white'
+                    : 'bg-[#f5f5f5] border-[#e5e5e5] text-[#1a1a1a]'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>{currentQ.multi_select ? (isSelected ? '☑' : '□') : (isSelected ? '●' : '○')}</span>
+                  <span>{opt.label}</span>
+                </div>
+                {opt.description && (
+                  <div className="text-xs mt-1 opacity-70">{opt.description}</div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-      {/* Ask Questions */}
-      {popup.type === 'ask' && popup.ask_data && (
-        <>
-          <div className="text-nexus-text2 text-xs mb-3">
-            AskUserQuestion
-          </div>
-          {popup.ask_data.questions.map((q, qIndex) => (
-            <div key={qIndex} className="mb-3">
-              <div className="text-nexus-text text-sm mb-2">
-                {q.header}: {q.question}
-              </div>
-              <div className="flex flex-col gap-1">
-                {q.options.map((opt, optIndex) => {
-                  const isSelected = selectedAnswers[qIndex]?.includes(opt.label)
-                  return (
-                    <button
-                      key={optIndex}
-                      onClick={() => handleOptionSelect(qIndex, opt.label, q.multi_select)}
-                      className={`w-full text-left py-2 px-3 rounded-lg text-sm border ${
-                        isSelected
-                          ? 'bg-nexus-accent border-nexus-accent text-white'
-                          : 'bg-nexus-bg border-nexus-border text-nexus-text'
-                      }`}
-                    >
-                      {opt.label}
-                      {opt.description && (
-                        <div className="text-xs text-nexus-text2 mt-0.5">{opt.description}</div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+      {/* Navigation */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={handlePrev}
+          disabled={isFirstQuestion}
+          className={`py-2 px-4 rounded-[8px] text-[14px] ${
+            isFirstQuestion
+              ? 'bg-[#f5f5f5] text-[#737373] cursor-not-allowed'
+              : 'bg-[#1a1a1a] text-white'
+          }`}
+        >
+          ◀ 上一题
+        </button>
+
+        {isLastQuestion ? (
           <button
-            onClick={handleAnswerSubmit}
-            className="w-full bg-nexus-accent text-white rounded-lg py-2 text-sm font-medium"
+            onClick={handleSubmit}
+            className="flex-1 py-2 bg-[#22c55e] text-white rounded-[8px] font-medium text-[14px]"
           >
-            提交答案
+            提交全部答案
           </button>
-        </>
-      )}
-    </div>
+        ) : (
+          <button
+            onClick={handleNext}
+            className="py-2 px-4 bg-[#1a1a1a] text-white rounded-[8px] text-[14px]"
+          >
+            下一题 ▶
+          </button>
+        )}
+      </div>
+    </motion.div>
   )
 }
