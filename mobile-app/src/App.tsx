@@ -8,6 +8,8 @@ import { SettingsPage } from './components/SettingsPage';
 import { Toast } from './components/Toast';
 import { useToast } from './hooks/useToast';
 
+type View = 'devices' | 'detail' | 'settings';
+
 function App() {
   const { toast, showSuccess, showError, showWarning } = useToast()
 
@@ -26,7 +28,7 @@ function App() {
 
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [view, setView] = useState<View>('devices');
   const [serverConnected, _setServerConnected] = useState(false);
 
   // Save devices to localStorage
@@ -37,16 +39,21 @@ function App() {
   const handleAddDevice = (token: string) => {
     if (!devices.includes(token)) {
       setDevices([...devices, token]);
+      showSuccess('设备已添加');
+    } else {
+      showWarning('设备已存在');
     }
   };
 
   const handleSaveServer = (url: string) => {
     localStorage.setItem('cloud-server-url', url);
     setServerUrl(url);
+    showSuccess('设置已保存');
   };
 
   const handleDeleteDevice = (token: string) => {
     setDevices(devices.filter(d => d !== token));
+    showSuccess('设备已删除');
   };
 
   const handleToggleAutoAllow = (token: string, enabled: boolean) => {
@@ -71,33 +78,10 @@ function App() {
 
   const getDeviceName = (token: string) => token.slice(0, 8) + '...'
 
-  return (
-    <div className="h-screen bg-black">
-      {activeDevice ? (
-        <DeviceDetailPage
-          deviceToken={activeDevice}
-          deviceName={getDeviceName(activeDevice)}
-          onBack={() => setActiveDevice(null)}
-          showToast={showToast}
-        />
-      ) : (
-        <DeviceListPage
-          devices={devices}
-          onSelectDevice={setActiveDevice}
-          onAddDevice={() => setShowAddModal(true)}
-          onOpenSettings={() => setShowSettings(true)}
-          serverConnected={serverConnected}
-        />
-      )}
-
-      {showAddModal && (
-        <AddDeviceModal
-          onClose={() => setShowAddModal(false)}
-          onAdd={handleAddDevice}
-        />
-      )}
-
-      {showSettings && (
+  // Render based on view state
+  if (view === 'settings') {
+    return (
+      <div className="h-screen">
         <SettingsPage
           serverUrl={serverUrl}
           serverConnected={serverConnected}
@@ -105,7 +89,44 @@ function App() {
           onSaveServer={handleSaveServer}
           onDeleteDevice={handleDeleteDevice}
           onToggleAutoAllow={handleToggleAutoAllow}
-          onBack={() => setShowSettings(false)}
+          onBack={() => setView('devices')}
+        />
+        <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+      </div>
+    )
+  }
+
+  if (view === 'detail' && activeDevice) {
+    return (
+      <div className="h-screen">
+        <DeviceDetailPage
+          deviceToken={activeDevice}
+          deviceName={getDeviceName(activeDevice)}
+          onBack={() => setView('devices')}
+          showToast={showToast}
+        />
+        <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-screen">
+      <DeviceListPage
+        devices={devices}
+        onSelectDevice={(token) => {
+          setActiveDevice(token);
+          setView('detail');
+        }}
+        onAddDevice={() => setShowAddModal(true)}
+        onOpenSettings={() => setView('settings')}
+        serverConnected={serverConnected}
+      />
+
+      {showAddModal && (
+        <AddDeviceModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={handleAddDevice}
         />
       )}
 
