@@ -1,5 +1,31 @@
 use serde::{Deserialize, Serialize};
 
+/// Chat message types (matches desktop's ChatMessage)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum MessageType {
+    User,
+    Assistant,
+    ToolCall,
+    ToolResult,
+    Thinking,
+    Interrupted,
+}
+
+/// Chat message data for WebSocket transmission (matches desktop's ChatMessage)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageData {
+    pub id: String,
+    pub session_id: String,
+    pub message_type: MessageType,
+    pub content: String,
+    /// Tool name for toolCall/toolResult
+    pub tool_name: Option<String>,
+    /// Timestamp in milliseconds
+    pub timestamp: u64,
+}
+
 /// WebSocket message types for CC-Island cloud relay protocol.
 ///
 /// Messages flow between three parties:
@@ -67,6 +93,17 @@ pub enum CloudMessage {
         popup: PopupState,
     },
 
+    /// Chat messages from desktop. Sent when new messages are added to a session.
+    #[serde(rename = "chat_messages")]
+    ChatMessages {
+        /// Device token identifying the source desktop
+        device_token: String,
+        /// Session ID these messages belong to
+        session_id: String,
+        /// Chat messages to sync
+        messages: Vec<ChatMessageData>,
+    },
+
     /// Keepalive ping from desktop.
     #[serde(rename = "ping")]
     Ping,
@@ -91,6 +128,26 @@ pub enum CloudMessage {
         popup: PopupState,
     },
 
+    /// New chat messages broadcast to mobile clients.
+    /// Sent when desktop pushes new chat messages for a session.
+    #[serde(rename = "new_chat")]
+    NewChat {
+        /// Session ID these messages belong to
+        session_id: String,
+        /// Chat messages to deliver
+        messages: Vec<ChatMessageData>,
+    },
+
+    /// Chat history response sent to mobile client.
+    /// Sent in response to RequestChatHistory.
+    #[serde(rename = "chat_history")]
+    ChatHistory {
+        /// Session ID these messages belong to
+        session_id: String,
+        /// Chat messages (limited by request)
+        messages: Vec<ChatMessageData>,
+    },
+
     // ===== Mobile → Cloud =====
 
     /// Popup response from mobile client. Sent when user responds to a popup.
@@ -104,6 +161,17 @@ pub enum CloudMessage {
         decision: Option<String>,
         /// User's answers for AskUserQuestion popups (array per question)
         answers: Option<Vec<Vec<String>>>,
+    },
+
+    /// Request chat history from mobile client. Sent when mobile needs to load past messages.
+    #[serde(rename = "request_chat_history")]
+    RequestChatHistory {
+        /// Device token identifying the target desktop
+        device_token: String,
+        /// Session ID to request history for
+        session_id: String,
+        /// Maximum number of messages to retrieve (most recent first)
+        limit: Option<u32>,
     },
 
     // ===== Cloud → Desktop =====
