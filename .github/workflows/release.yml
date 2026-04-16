@@ -50,23 +50,16 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Build cloud server
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
           cd cloud-server
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-            cargo build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare binary
         run: |
           mkdir -p cloud-server-dist
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            cp cloud-server/target/aarch64-unknown-linux-gnu/release/cc-island-cloud cloud-server-dist/
-          else
-            cp cloud-server/target/release/cc-island-cloud cloud-server-dist/
-          fi
+          cp cloud-server/target/${{ matrix.target }}/release/cc-island-cloud cloud-server-dist/
           # Copy migrations
           cp -r cloud-server/migrations cloud-server-dist/
           # Copy docker-compose.yml
@@ -116,7 +109,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -182,7 +175,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -297,7 +290,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
