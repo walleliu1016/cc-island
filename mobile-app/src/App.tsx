@@ -7,6 +7,7 @@ import { AddDeviceModal } from './components/AddDeviceModal';
 import { SettingsPage } from './components/SettingsPage';
 import { Toast } from './components/Toast';
 import { useToast } from './hooks/useToast';
+import { useAllDevicesWebSocket } from './hooks/useAllDevicesWebSocket';
 
 type View = 'devices' | 'detail' | 'settings';
 
@@ -29,7 +30,9 @@ function App() {
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [view, setView] = useState<View>('devices');
-  const [serverConnected, _setServerConnected] = useState(false);
+
+  // Aggregate WebSocket for all devices
+  const { state: wsState, respondPopup } = useAllDevicesWebSocket(devices, serverUrl)
 
   // Save devices to localStorage
   useEffect(() => {
@@ -76,15 +79,13 @@ function App() {
     }
   }
 
-  const getDeviceName = (token: string) => token.slice(0, 8) + '...'
-
   // Render based on view state
   if (view === 'settings') {
     return (
       <div className="h-screen">
         <SettingsPage
           serverUrl={serverUrl}
-          serverConnected={serverConnected}
+          serverConnected={wsState.serverConnected}
           devices={devices}
           onSaveServer={handleSaveServer}
           onDeleteDevice={handleDeleteDevice}
@@ -101,7 +102,7 @@ function App() {
       <div className="h-screen">
         <DeviceDetailPage
           deviceToken={activeDevice}
-          deviceName={getDeviceName(activeDevice)}
+          deviceName={activeDevice.slice(0, 8) + '...'}
           serverUrl={serverUrl}
           onBack={() => setView('devices')}
           showToast={showToast}
@@ -114,14 +115,18 @@ function App() {
   return (
     <div className="h-screen">
       <DeviceListPage
-        devices={devices}
+        sessions={wsState.allSessions}
+        popups={wsState.allPopups}
+        deviceStates={wsState.devices}
+        serverConnected={wsState.serverConnected}
+        serverUrl={serverUrl}
         onSelectDevice={(token) => {
           setActiveDevice(token);
           setView('detail');
         }}
+        onRespondPopup={respondPopup}
         onAddDevice={() => setShowAddModal(true)}
         onOpenSettings={() => setView('settings')}
-        serverConnected={serverConnected}
       />
 
       {showAddModal && (

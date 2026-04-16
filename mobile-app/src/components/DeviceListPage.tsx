@@ -1,53 +1,62 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState, useEffect } from 'react'
+import { SessionState, PopupState, ConnectionStatus } from '../types'
 
-interface DeviceInfo {
-  token: string
-  name: string
-  online: boolean
-  pendingCount: number
-  lastActivity: string | null
+interface DeviceState {
+  status: ConnectionStatus
+  sessions: SessionState[]
+  popups: PopupState[]
 }
 
 interface DeviceListPageProps {
-  devices: string[]
+  sessions: Array<SessionState & { deviceToken: string }>
+  popups: Array<PopupState & { deviceToken: string }>
+  deviceStates: Record<string, DeviceState>
+  serverConnected: boolean
+  serverUrl: string
   onSelectDevice: (token: string) => void
+  onRespondPopup: (deviceToken: string, popupId: string, decision: string | null) => void
   onAddDevice: () => void
   onOpenSettings: () => void
-  serverConnected: boolean
 }
 
 export function DeviceListPage({
-  devices,
+  sessions,
+  popups,
+  deviceStates,
+  serverConnected,
+  serverUrl,
   onSelectDevice,
+  onRespondPopup,
   onAddDevice,
   onOpenSettings,
-  serverConnected
 }: DeviceListPageProps) {
-  // Mock device info for now - will be replaced with real data from WebSocket
-  const [deviceInfos, setDeviceInfos] = useState<DeviceInfo[]>([])
+  // Sort by priority: popups first, then processing sessions
+  const pendingPopups = popups.filter(p => p.status === 'pending')
+  const activeSessions = sessions.filter(s => s.status !== 'ended')
 
-  useEffect(() => {
-    // Convert tokens to DeviceInfo objects
-    const infos: DeviceInfo[] = devices.map(token => ({
-      token,
-      name: token.slice(0, 8) + '...',
-      online: false, // Will be updated by WebSocket
-      pendingCount: 0,
-      lastActivity: null,
-    }))
-    setDeviceInfos(infos)
-  }, [devices])
+  // Sessions with pending popups (highest priority)
+  const popupSessionIds = new Set(pendingPopups.map(p => p.session_id))
+
+  // Processing sessions (with current_tool)
+  const processingSessions = activeSessions
+    .filter(s => !popupSessionIds.has(s.session_id))
+    .filter(s => s.current_tool || s.status === 'working')
+
+  // Idle sessions
+  const idleSessions = activeSessions
+    .filter(s => !popupSessionIds.has(s.session_id))
+    .filter(s => !s.current_tool && s.status !== 'working')
 
   return (
     <div className="flex flex-col h-full bg-[#0f0f0f]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626]">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${serverConnected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
+          {/* Cloud connection status */}
+          <div className={`w-2 h-2 rounded-full ${serverConnected ? 'bg-[#22c55e]' : serverUrl ? 'bg-[#f59e0b]' : 'bg-[#737373]'}`} />
           <span className="text-[#a3a3a3] text-sm">
-            {serverConnected ? '云服务器已连接' : '未连接'}
+            {serverConnected ? '☁ 已连接' : serverUrl ? '☁ 连接中' : '☁ 未配置'}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -60,27 +69,67 @@ export function DeviceListPage({
         </div>
       </div>
 
-      {/* Device List */}
-      <div className="flex-1 overflow-y-auto px-4 py-3">
-        {deviceInfos.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-[#737373] text-sm mb-4">暂无设备</div>
-            <button
-              onClick={onAddDevice}
-              className="px-4 py-2 bg-[#1a1a1a] rounded-[12px] text-[#a3a3a3] text-sm border border-[#262626]"
-            >
-              添加设备
-            </button>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Pending popups section */}
+        {pendingPopups.length > 0 && (
+          <div className="px-4 py-3">
+            <div className="text-[#a3a3a3] text-xs mb-2">待处理 ({pendingPopups.length})</div>
+            <div className="space-y-3">
+              {pendingPopups.map(popup => (
+                <PopupRow
+                  key={popup.id}
+                  popup={popup}
+                  session={sessions.find(s => s.session_id === popup.session_id)}
+                  onRespond={(decision) => onRespondPopup(popup.deviceToken, popup.id, decision)}
+                  onViewDetails={() => onSelectDevice(popup.deviceToken)}
+                />
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {deviceInfos.map(info => (
-              <DeviceCard
-                key={info.token}
-                info={info}
-                onClick={() => onSelectDevice(info.token)}
-              />
-            ))}
+        )}
+
+        {/* Sessions section */}
+        {(processingSessions.length > 0 || idleSessions.length > 0) && (
+          <div className="px-4 py-3 border-t border-[#262626]">
+            <div className="text-[#a3a3a3] text-xs mb-2">会话 ({processingSessions.length + idleSessions.length})</div>
+            <div className="space-y-2">
+              {/* Processing sessions first */}
+              {processingSessions.map(session => (
+                <SessionRow
+                  key={session.session_id}
+                  session={session}
+                  deviceState={deviceStates[session.deviceToken]}
+                  onClick={() => onSelectDevice(session.deviceToken)}
+                />
+              ))}
+              {/* Idle sessions */}
+              {idleSessions.map(session => (
+                <SessionRow
+                  key={session.session_id}
+                  session={session}
+                  deviceState={deviceStates[session.deviceToken]}
+                  onClick={() => onSelectDevice(session.deviceToken)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {activeSessions.length === 0 && pendingPopups.length === 0 && (
+          <div className="text-center py-12 px-4">
+            <div className="text-[#737373] text-sm mb-4">
+              {serverUrl ? '暂无活跃会话' : '请先配置云服务器地址'}
+            </div>
+            {!serverUrl && (
+              <button
+                onClick={onOpenSettings}
+                className="px-4 py-2 bg-[#1a1a1a] rounded-[12px] text-[#a3a3a3] text-sm border border-[#262626]"
+              >
+                前往设置
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -88,47 +137,96 @@ export function DeviceListPage({
   )
 }
 
-function DeviceCard({ info, onClick }: { info: DeviceInfo; onClick: () => void }) {
-  const timeText = info.lastActivity
-    ? `最后: ${formatTime(info.lastActivity)}`
-    : ''
+function PopupRow({
+  popup,
+  session,
+  onRespond,
+  onViewDetails,
+}: {
+  popup: PopupState & { deviceToken: string }
+  session?: SessionState & { deviceToken: string }
+  onRespond: (decision: 'allow' | 'deny') => void
+  onViewDetails: () => void
+}) {
+  const projectName = session?.project_name || popup.project_name || '未知项目'
+  const isAsk = popup.type === 'ask'
+
+  return (
+    <div className="bg-white rounded-[12px] p-4 shadow-lg">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[#f59e0b]">⚠</span>
+          <span className="text-[#1a1a1a] text-sm font-medium truncate">{projectName}</span>
+        </div>
+        <button
+          onClick={onViewDetails}
+          className="text-[#737373] text-xs hover:text-[#1a1a1a]"
+        >
+          详情 →
+        </button>
+      </div>
+
+      {isAsk ? (
+        <div className="mb-3">
+          <span className="text-[#3b82f6] text-xs font-medium">有问题待回答</span>
+        </div>
+      ) : (
+        <div className="text-[#737373] text-xs mb-3 truncate">
+          {(popup.data as { tool_name?: string; action?: string })?.tool_name || '权限请求'}
+          {(popup.data as { action?: string })?.action && `: ${(popup.data as { action?: string }).action}`}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          onClick={() => onRespond('deny')}
+          className="flex-1 py-2 bg-[#ef4444] text-white rounded-[8px] text-xs font-medium"
+        >
+          拒绝
+        </button>
+        <button
+          onClick={() => isAsk ? onViewDetails() : onRespond('allow')}
+          className="flex-1 py-2 bg-[#22c55e] text-white rounded-[8px] text-xs font-medium"
+        >
+          {isAsk ? '去回答' : '允许'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SessionRow({
+  session,
+  deviceState,
+  onClick,
+}: {
+  session: SessionState & { deviceToken: string }
+  deviceState?: DeviceState
+  onClick: () => void
+}) {
+  const projectName = session.project_name || '未知项目'
+  const deviceConnected = deviceState?.status === 'connected'
 
   return (
     <div
       onClick={onClick}
-      className="flex items-center justify-between p-4 rounded-[12px] bg-[#1a1a1a] border border-[#262626] cursor-pointer"
+      className="flex items-center gap-3 p-3 rounded-[8px] bg-[#1a1a1a] border border-[#262626] cursor-pointer"
     >
-      <div className="flex items-center gap-3">
-        <span className="text-[#f5f5f5] text-[16px] font-medium">{info.name}</span>
-        <div className={`w-2 h-2 rounded-full ${info.online ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
-        <span className="text-[#a3a3a3] text-[14px]">
-          {info.online ? '在线' : '离线'}
-        </span>
+      {/* Status indicator */}
+      <div className="w-4 flex items-center justify-center">
+        <div className={`w-2 h-2 rounded-full ${session.current_tool ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
       </div>
-      <div className="flex items-center gap-3">
-        {info.pendingCount > 0 && (
-          <div className="min-w-5 h-5 px-1.5 rounded-full bg-[#ef4444] flex items-center justify-center">
-            <span className="text-white text-xs font-medium">
-              {info.pendingCount > 99 ? '99+' : info.pendingCount}
-            </span>
-          </div>
-        )}
-        {timeText && (
-          <span className="text-[#737373] text-xs">{timeText}</span>
-        )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <span className="text-[#f5f5f5] text-sm font-medium truncate">{projectName}</span>
+        <div className="text-[#a3a3a3] text-xs truncate">
+          {session.current_tool ? `工具: ${session.current_tool}` : session.status}
+        </div>
       </div>
+
+      {/* Device connection indicator */}
+      <div className={`w-2 h-2 rounded-full ${deviceConnected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
     </div>
   )
-}
-
-function formatTime(timestamp: string): string {
-  const now = Date.now()
-  const then = new Date(timestamp).getTime()
-  if (isNaN(then)) return '未知时间'
-
-  const diff = Math.floor((now - then) / 1000 / 60)
-  if (diff < 1) return '刚刚'
-  if (diff < 60) return `${diff}分钟`
-  if (diff < 24 * 60) return `${Math.floor(diff / 60)}小时`
-  return `${Math.floor(diff / 24 / 60)}天`
 }

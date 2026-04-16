@@ -36,6 +36,7 @@ function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [productName, setProductName] = useState<string>('');
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
+  const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean }>({ connected: false, connecting: false });
 
   // Drag state for horizontal dragging
   const [isDragging, setIsDragging] = useState(false);
@@ -145,10 +146,11 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instancesData, popupsData, sessionNotif] = await Promise.all([
+        const [instancesData, popupsData, sessionNotif, cloudStatusRaw] = await Promise.all([
           invoke<ClaudeInstance[]>('get_instances'),
           invoke<PopupItem[]>('get_popups'),
           invoke<SessionNotification | null>('get_session_notification'),
+          invoke<string>('get_cloud_connection_status'),
         ]);
 
         setInstances(instancesData);
@@ -158,6 +160,11 @@ function App() {
         if (sessionNotif) {
           setSessionNotification(sessionNotif);
         }
+
+        // Update cloud connection status
+        const isConnected = cloudStatusRaw === 'Connected';
+        const isConnecting = cloudStatusRaw === 'Connecting';
+        setCloudStatus({ connected: isConnected, connecting: isConnecting });
 
         // Update display states with minimum display time
         updateDisplays(instancesData);
@@ -171,7 +178,7 @@ function App() {
     return () => {
       clearInterval(interval);
     };
-  }, [setInstances, setPopups]);
+  }, [setInstances, setPopups, updateDisplays]);
 
   // Clear session notification after display (frontend fallback)
   useEffect(() => {
@@ -382,22 +389,38 @@ function App() {
           </div>
 
           {/* Right column - Status icon or Menu, fixed width */}
-          <div className="flex items-center justify-end w-10 flex-shrink-0">
+          <div className="flex items-center justify-end gap-1.5 w-12 flex-shrink-0">
             {showChatView ? (
               // ChatView - spacer
               <div />
             ) : showExpanded ? (
-              // Expanded state - Menu button
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSettings(true);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="text-white/40 hover:text-white/70 transition-colors p-1"
-              >
-                <MenuIcon size={14} />
-              </button>
+              // Expanded state - Cloud status + Menu button
+              <>
+                {/* Cloud connection indicator */}
+                <div
+                  className="flex items-center justify-center"
+                  title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : '未连接'}
+                >
+                  {cloudStatus.connected ? (
+                    <span className="text-green-400 text-xs">☁</span>
+                  ) : cloudStatus.connecting ? (
+                    <span className="text-yellow-400 text-xs animate-pulse">☁</span>
+                  ) : (
+                    <span className="text-white/30 text-xs">☁</span>
+                  )}
+                </div>
+                {/* Menu button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(true);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="text-white/40 hover:text-white/70 transition-colors p-1"
+                >
+                  <MenuIcon size={14} />
+                </button>
+              </>
             ) : (
               // Collapsed state - Status icon based on headerPhase
               <>

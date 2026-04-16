@@ -1,5 +1,9 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
+
+// Connection status type
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
 // WebSocket message types
 export interface WsMessage {
   type: string
