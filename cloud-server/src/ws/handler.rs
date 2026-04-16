@@ -51,6 +51,18 @@ impl MessageHandler {
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
             }
 
+            CloudMessage::ChatMessages { device_token, session_id, messages } => {
+                // Save messages to database
+                if let Err(e) = self.repo.upsert_chat_messages(&device_token, &session_id, &messages).await {
+                    tracing::error!("Failed to upsert chat messages: {}", e);
+                }
+
+                // Broadcast NewChat to mobiles subscribed to this device_token
+                let new_chat_msg = CloudMessage::NewChat { session_id, messages };
+                let json = serde_json::to_string(&new_chat_msg).unwrap();
+                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+            }
+
             CloudMessage::Ping => {
                 let pong_msg = CloudMessage::Pong;
                 let json = serde_json::to_string(&pong_msg).unwrap();
@@ -79,6 +91,23 @@ impl MessageHandler {
                 self.router.send_to_desktop(&device_token, Message::text(json));
             }
 
+            CloudMessage::RequestChatHistory { device_token, session_id, limit } => {
+                // Query chat history from database
+                match self.repo.get_chat_history(&device_token, &session_id, limit).await {
+                    Ok(messages) => {
+                        // Send ChatHistory response back to the requesting client
+                        let history_msg = CloudMessage::ChatHistory { session_id, messages };
+                        let json = serde_json::to_string(&history_msg).unwrap();
+                        if let Err(e) = tx.try_send(Message::text(json)) {
+                            tracing::warn!("Failed to send chat history: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to get chat history: {}", e);
+                    }
+                }
+            }
+
             // Auth messages are handled separately in connection handler
             CloudMessage::DeviceRegister { .. } |
             CloudMessage::MobileAuth { .. } |
@@ -87,9 +116,16 @@ impl MessageHandler {
                 tracing::debug!("Auth message should be handled in connection setup");
             }
 
-            // Other messages not handled in MVP
-            _ => {
-                tracing::debug!("Unhandled message type: {:?}", msg);
+            // Cloud -> Mobile messages (should not be received from clients)
+            CloudMessage::InitialState { .. } |
+            CloudMessage::NewPopupFromDevice { .. } |
+            CloudMessage::NewChat { .. } |
+            CloudMessage::ChatHistory { .. } |
+
+            // Cloud -> Desktop messages (should not be received from clients)
+            CloudMessage::PopupResponse { .. } |
+            CloudMessage::Pong => {
+                tracing::warn!("Received unexpected message type from client: {:?}", msg);
             }
         }
     }
