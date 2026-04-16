@@ -107,10 +107,10 @@ function DeviceCard({ info, onClick }: { info: DeviceInfo; onClick: () => void }
       </div>
       <div className="flex items-center gap-3">
         {info.pendingCount > 0 && (
-          <div className="flex items-center gap-1">
-            <div className="w-5 h-5 rounded-full bg-[#ef4444] flex items-center justify-center">
-              <span className="text-white text-xs font-medium">{info.pendingCount}</span>
-            </div>
+          <div className="min-w-5 h-5 px-1.5 rounded-full bg-[#ef4444] flex items-center justify-center">
+            <span className="text-white text-xs font-medium">
+              {info.pendingCount > 99 ? '99+' : info.pendingCount}
+            </span>
           </div>
         )}
         {timeText && (
@@ -124,8 +124,9 @@ function DeviceCard({ info, onClick }: { info: DeviceInfo; onClick: () => void }
 function formatTime(timestamp: string): string {
   const now = Date.now()
   const then = new Date(timestamp).getTime()
-  const diff = Math.floor((now - then) / 1000 / 60)
+  if (isNaN(then)) return '未知时间'
 
+  const diff = Math.floor((now - then) / 1000 / 60)
   if (diff < 1) return '刚刚'
   if (diff < 60) return `${diff}分钟`
   if (diff < 24 * 60) return `${Math.floor(diff / 60)}小时`
