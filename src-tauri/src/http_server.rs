@@ -43,7 +43,7 @@ impl HttpServer {
             .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any))
             .with_state(SHARED_STATE.clone());
 
-        let addr = format!("127.0.0.1:{}", self.port);
+        let addr = format!("0.0.0.0:{}", self.port);
         tracing::info!("HTTP server listening on {}", addr);
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -279,7 +279,7 @@ async fn handle_hook(
                     true // Push state to cloud after SessionStart
                 }
                 "SessionEnd" => {
-                    // Get project name before marking as ended
+                    // Get project name before removing
                     let project_name = state_guard.instances.get_instance(&input.session_id)
                         .map(|i| i.project_name.clone())
                         .unwrap_or_else(|| "Unknown".to_string());
@@ -291,10 +291,8 @@ async fn handle_hook(
                             input.session_id, cancelled.len());
                     }
 
-                    // Mark instance as ended
-                    if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
-                        instance.set_status(InstanceStatus::Ended);
-                    }
+                    // Remove instance directly (exit means session ended)
+                    state_guard.instances.remove_instance(&input.session_id);
 
                     // Clear chat history for this session
                     state_guard.chat_history.clear_session(&input.session_id);
