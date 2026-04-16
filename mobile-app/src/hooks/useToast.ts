@@ -17,7 +17,7 @@ export function useToast() {
     type: 'success',
   })
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
