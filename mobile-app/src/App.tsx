@@ -19,6 +19,7 @@ function App() {
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [serverConnected, _setServerConnected] = useState(false);
 
   // Save devices to localStorage
   useEffect(() => {
@@ -50,6 +51,7 @@ function App() {
           onSelectDevice={setActiveDevice}
           onAddDevice={() => setShowAddModal(true)}
           onOpenSettings={() => setShowSettings(true)}
+          serverConnected={serverConnected}
         />
       )}
 
