@@ -5,8 +5,12 @@ import { DeviceListPage } from './components/DeviceListPage';
 import { DeviceDetailPage } from './components/DeviceDetailPage';
 import { AddDeviceModal } from './components/AddDeviceModal';
 import { SettingsPage } from './components/SettingsPage';
+import { Toast } from './components/Toast';
+import { useToast } from './hooks/useToast';
 
 function App() {
+  const { toast, showSuccess, showError, showWarning } = useToast()
+
   const [devices, setDevices] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('cc-cloud-devices');
@@ -50,12 +54,31 @@ function App() {
     // TODO: Send to cloud server via WebSocket
   };
 
+  // Wrapper function to match DeviceDetailPage's showToast signature
+  const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
+    switch (type) {
+      case 'success':
+        showSuccess(message)
+        break
+      case 'error':
+        showError(message)
+        break
+      case 'warning':
+        showWarning(message)
+        break
+    }
+  }
+
+  const getDeviceName = (token: string) => token.slice(0, 8) + '...'
+
   return (
     <div className="h-screen bg-black">
       {activeDevice ? (
         <DeviceDetailPage
           deviceToken={activeDevice}
+          deviceName={getDeviceName(activeDevice)}
           onBack={() => setActiveDevice(null)}
+          showToast={showToast}
         />
       ) : (
         <DeviceListPage
@@ -85,6 +108,8 @@ function App() {
           onBack={() => setShowSettings(false)}
         />
       )}
+
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
     </div>
   );
 }
