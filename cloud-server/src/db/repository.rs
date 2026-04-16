@@ -1,7 +1,8 @@
 use sqlx::PgPool;
 use anyhow::Result;
-use chrono::Utc;
-use super::models::{Device, Session, Popup};
+use chrono::{TimeZone, Utc};
+use super::models::{ChatMessage, Device, Session, Popup};
+use crate::messages::{ChatMessageData, MessageType};
 
 /// Repository for database operations
 #[derive(Clone)]
@@ -131,6 +132,116 @@ impl Repository {
             "UPDATE popups SET status = 'resolved', resolved_at = NOW() WHERE id = $1",
         )
         .bind(popup_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    // ===== Chat message operations =====
+
+    /// Upsert chat messages for a session (batch insert, skip duplicates)
+    pub async fn upsert_chat_messages(
+        &self,
+        device_token: &str,
+        session_id: &str,
+        messages: &[ChatMessageData],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        for msg in messages {
+            // Convert timestamp (milliseconds) to DateTime<Utc>
+            let timestamp = Utc.timestamp_millis_opt(msg.timestamp as i64).single().unwrap_or_else(Utc::now);
+
+            // Convert MessageType to string for storage
+            let message_type = match msg.message_type {
+                MessageType::User => "user",
+                MessageType::Assistant => "assistant",
+                MessageType::ToolCall => "toolCall",
+                MessageType::ToolResult => "toolResult",
+                MessageType::Thinking => "thinking",
+                MessageType::Interrupted => "interrupted",
+            };
+
+            sqlx::query(
+                r#"
+                INSERT INTO chat_messages (device_token, session_id, message_id, message_type, content, tool_name, timestamp)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (device_token, session_id, message_id) DO NOTHING
+                "#,
+            )
+            .bind(device_token)
+            .bind(session_id)
+            .bind(&msg.id)
+            .bind(message_type)
+            .bind(&msg.content)
+            .bind(&msg.tool_name)
+            .bind(timestamp)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Get chat history for a session
+    pub async fn get_chat_history(
+        &self,
+        device_token: &str,
+        session_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<ChatMessageData>> {
+        let limit = limit.unwrap_or(100);
+
+        let messages = sqlx::query_as::<_, ChatMessage>(
+            "SELECT * FROM chat_messages WHERE device_token = $1 AND session_id = $2 ORDER BY timestamp ASC LIMIT $3",
+        )
+        .bind(device_token)
+        .bind(session_id)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Convert database model to ChatMessageData
+        let result: Vec<ChatMessageData> = messages
+            .into_iter()
+            .map(|msg| {
+                // Convert message_type string to MessageType enum
+                let message_type = match msg.message_type.as_str() {
+                    "user" => MessageType::User,
+                    "assistant" => MessageType::Assistant,
+                    "toolCall" => MessageType::ToolCall,
+                    "toolResult" => MessageType::ToolResult,
+                    "thinking" => MessageType::Thinking,
+                    "interrupted" => MessageType::Interrupted,
+                    _ => MessageType::User, // Default fallback
+                };
+
+                // Convert DateTime<Utc> to milliseconds timestamp
+                let timestamp = msg.timestamp.timestamp_millis() as u64;
+
+                ChatMessageData {
+                    id: msg.message_id,
+                    session_id: msg.session_id,
+                    message_type,
+                    content: msg.content,
+                    tool_name: msg.tool_name,
+                    timestamp,
+                }
+            })
+            .collect();
+
+        Ok(result)
+    }
+
+    /// Delete chat history for a session (on session end)
+    pub async fn delete_chat_history(&self, device_token: &str, session_id: &str) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM chat_messages WHERE device_token = $1 AND session_id = $2",
+        )
+        .bind(device_token)
+        .bind(session_id)
         .execute(&self.pool)
         .await?;
 

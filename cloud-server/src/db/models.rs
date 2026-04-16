@@ -37,3 +37,16 @@ pub struct Popup {
     pub created_at: DateTime<Utc>,
     pub resolved_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub id: uuid::Uuid,
+    pub device_token: String,
+    pub session_id: String,
+    pub message_id: String,
+    pub message_type: String,
+    pub content: String,
+    pub tool_name: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
