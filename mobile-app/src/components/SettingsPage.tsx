@@ -31,15 +31,20 @@ export function SettingsPage({
   const [deviceSettings, setDeviceSettings] = useState<DeviceSettings[]>([])
 
   useEffect(() => {
-    // Load device settings from localStorage
-    const saved = localStorage.getItem('cc-device-settings')
-    if (saved) {
-      setDeviceSettings(JSON.parse(saved))
-    } else {
-      // Initialize with defaults
-      const initial: DeviceSettings[] = devices.map(token => ({ token, autoAllow: false }))
-      setDeviceSettings(initial)
-    }
+    // Load device settings from localStorage with error handling
+    setDeviceSettings(_prev => {
+      try {
+        const saved = localStorage.getItem('cc-device-settings')
+        let loaded: DeviceSettings[] = saved ? JSON.parse(saved) : []
+        // Merge: keep existing settings, add new devices
+        const existingTokens = new Set(loaded.map(s => s.token))
+        const newDevices = devices.filter(t => !existingTokens.has(t))
+        return [...loaded, ...newDevices.map(token => ({ token, autoAllow: false }))]
+      } catch {
+        // On error, initialize fresh
+        return devices.map(token => ({ token, autoAllow: false }))
+      }
+    })
   }, [devices])
 
   useEffect(() => {
@@ -56,13 +61,17 @@ export function SettingsPage({
   }
 
   const toggleAutoAllow = (token: string) => {
+    let newValue = false
     setDeviceSettings(prev =>
-      prev.map(s => s.token === token ? { ...s, autoAllow: !s.autoAllow } : s)
+      prev.map(s => {
+        if (s.token === token) {
+          newValue = !s.autoAllow
+          return { ...s, autoAllow: newValue }
+        }
+        return s
+      })
     )
-    const settings = deviceSettings.find(s => s.token === token)
-    if (settings) {
-      onToggleAutoAllow(token, !settings.autoAllow)
-    }
+    onToggleAutoAllow(token, newValue)
   }
 
   const getAutoAllow = (token: string) => {
@@ -107,43 +116,40 @@ export function SettingsPage({
           </button>
         </div>
 
-        {/* Auto-allow Section */}
+        {/* Device List with Auto-allow Toggle */}
         <div className="mb-6">
-          <div className="text-[#a3a3a3] text-xs mb-2">权限设置</div>
-          {devices.map(token => (
-            <div key={token} className="flex items-center justify-between py-3 border-b border-[#262626]">
-              <div>
-                <div className="text-[#f5f5f5] text-sm">{token.slice(0, 8)}...</div>
-                <div className="text-[#737373] text-xs">自动允许所有权限</div>
+          <div className="text-[#a3a3a3] text-xs mb-2">设备管理 ({devices.length})</div>
+          {devices.map(token => {
+            const autoAllow = getAutoAllow(token)
+            return (
+              <div key={token} className="flex items-center justify-between py-3 border-b border-[#262626]">
+                <div className="flex items-center gap-3 flex-1">
+                  <span className="text-[#f5f5f5] text-sm">{token.slice(0, 8)}...</span>
+                  <div className="text-[#737373] text-xs">自动允许</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleAutoAllow(token)}
+                    role="switch"
+                    aria-checked={autoAllow}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${
+                      autoAllow ? 'bg-[#22c55e]' : 'bg-[#262626]'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                      autoAllow ? 'translate-x-6' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                  <button
+                    onClick={() => onDeleteDevice(token)}
+                    className="text-[#ef4444] text-xs"
+                  >
+                    删除
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => toggleAutoAllow(token)}
-                className={`w-12 h-6 rounded-full relative transition-colors ${
-                  getAutoAllow(token) ? 'bg-[#22c55e]' : 'bg-[#262626]'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                  getAutoAllow(token) ? 'translate-x-6' : 'translate-x-0.5'
-                }`} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Device List */}
-        <div>
-          <div className="text-[#a3a3a3] text-xs mb-2">已添加设备 ({devices.length})</div>
-          {devices.map(token => (
-            <div key={token} className="flex items-center justify-between py-3 border-b border-[#262626]">
-              <span className="text-[#f5f5f5] text-sm">{token.slice(0, 8)}...</span>
-              <button
-                onClick={() => onDeleteDevice(token)}
-                className="text-[#ef4444] text-xs"
-              >
-                删除
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

@@ -8,8 +8,12 @@ import { SettingsPage } from './components/SettingsPage';
 
 function App() {
   const [devices, setDevices] = useState<string[]>(() => {
-    const saved = localStorage.getItem('cc-cloud-devices');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cc-cloud-devices');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [serverUrl, setServerUrl] = useState<string>(() => {
