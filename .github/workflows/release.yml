@@ -13,7 +13,164 @@ on:
         type: string
 
 jobs:
-  build:
+  # ===== Cloud Server Build =====
+  build-cloud-server:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: 'x86_64-unknown-linux-gnu'
+            name: 'Linux x86_64'
+            platform: 'ubuntu-22.04'
+          - target: 'aarch64-unknown-linux-gnu'
+            name: 'Linux ARM64'
+            platform: 'ubuntu-22.04'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: ${{ matrix.target }}
+          workspaces: 'cloud-server -> cloud-server/target'
+
+      - name: Install cross-compilation tools (ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Build cloud server
+        run: |
+          cd cloud-server
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+            cargo build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Prepare binary
+        run: |
+          mkdir -p cloud-server-dist
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            cp cloud-server/target/aarch64-unknown-linux-gnu/release/cc-island-cloud cloud-server-dist/
+          else
+            cp cloud-server/target/release/cc-island-cloud cloud-server-dist/
+          fi
+          # Copy migrations
+          cp -r cloud-server/migrations cloud-server-dist/
+          # Copy docker-compose.yml
+          cp cloud-server/docker-compose.yml cloud-server-dist/
+          # Create .env.example
+          echo "DATABASE_URL=postgres://ccisland:password@localhost:5432/ccisland" > cloud-server-dist/.env.example
+          echo "WS_PORT=17528" >> cloud-server-dist/.env.example
+          echo "CLEANUP_INTERVAL_SECS=3600" >> cloud-server-dist/.env.example
+          echo "MAX_DEVICE_AGE_SECS=86400" >> cloud-server-dist/.env.example
+          # Create README
+          echo "# CC-Island Cloud Server" > cloud-server-dist/README.md
+          echo "" >> cloud-server-dist/README.md
+          echo "## Quick Start" >> cloud-server-dist/README.md
+          echo "" >> cloud-server-dist/README.md
+          echo "1. Start PostgreSQL: docker-compose up -d" >> cloud-server-dist/README.md
+          echo "2. Set DATABASE_URL in .env file" >> cloud-server-dist/README.md
+          echo "3. Run: ./cc-island-cloud" >> cloud-server-dist/README.md
+          # Create archive
+          cd cloud-server-dist
+          tar -czvf cc-island-cloud-${{ matrix.target }}.tar.gz *
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-cloud_${{ matrix.target }}
+          path: cloud-server-dist/cc-island-cloud-${{ matrix.target }}.tar.gz
+          retention-days: 7
+
+  # ===== Mobile App Build (Android) =====
+  build-mobile-android:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install mobile dependencies
+        run: |
+          cd mobile-app
+          pnpm install
+
+      - name: Build web app
+        run: |
+          cd mobile-app
+          pnpm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd mobile-app
+          npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          cd mobile-app/android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-mobile-android_${{ steps.version.outputs.VERSION }}
+          path: mobile-app/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 7
+
+  # ===== Desktop App Build =====
+  build-desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -171,7 +328,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: build
+    needs: [build-cloud-server, build-desktop, build-mobile-android]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 
@@ -205,7 +362,7 @@ jobs:
           path: artifacts
 
       - name: List artifacts
-        run: ls -la artifacts/
+        run: ls -laR artifacts/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -214,7 +371,9 @@ jobs:
           body: |
             ## Downloads
 
-            ### macOS
+            ### Desktop App
+
+            #### macOS
             - DMG for Apple Silicon (M1/M2/M3) and Intel Mac
 
             **注意：macOS 用户安装后如果提示"文件已损坏"，请运行以下命令：**
@@ -223,11 +382,31 @@ jobs:
             ```
             或前往 系统设置 > 隐私与安全 > 安全性，点击"仍要打开"。
 
-            ### Windows
+            #### Windows
             - MSI installer and portable EXE
 
-            ### Linux
+            #### Linux
             - DEB for Debian/Ubuntu and AppImage for universal Linux
+
+            ### Cloud Server
+
+            - `cc-island-cloud_x86_64-unknown-linux-gnu.tar.gz` - Linux x86_64 服务器
+            - `cc-island-cloud_aarch64-unknown-linux-gnu.tar.gz` - Linux ARM64 服务器 (如 AWS Graviton)
+
+            **部署步骤：**
+            1. 解压: `tar -xzf cc-island-cloud_*.tar.gz`
+            2. 启动 PostgreSQL: `docker-compose up -d`
+            3. 配置 `.env` 文件 (参考 `.env.example`)
+            4. 运行: `./cc-island-cloud`
+
+            ### Mobile App (Android)
+
+            - `cc-island-mobile-android_*.apk` - Android APK (unsigned, 需自行签名或使用 debug 安装)
+
+            **安装步骤：**
+            1. 下载 APK 到手机
+            2. 允许安装未知来源应用
+            3. 安装 APK
 
             ---
 
