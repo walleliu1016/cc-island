@@ -91,6 +91,9 @@ export interface CloudMessage {
   sessions?: SessionState[]
   popups?: PopupState[]
   popup?: PopupState
+  // Chat history
+  session_id?: string
+  messages?: ChatMessageData[]
 }
 
 export interface SessionState {
@@ -108,4 +111,14 @@ export interface PopupState {
   popup_type: string
   data: any
   status: string
+}
+
+// Chat message data
+export interface ChatMessageData {
+  id: string
+  sessionId: string
+  messageType: 'user' | 'assistant' | 'toolCall' | 'toolResult' | 'thinking' | 'interrupted'
+  content: string
+  toolName?: string
+  timestamp: number  // milliseconds
 }

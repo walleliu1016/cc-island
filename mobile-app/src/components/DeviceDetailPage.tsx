@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useCloudWebSocket } from '../hooks/useCloudWebSocket';
 import { PopupState, SessionState } from '../types';
+import { ChatView } from './ChatView';
 
 interface DeviceDetailPageProps {
   deviceToken: string;
@@ -7,10 +9,27 @@ interface DeviceDetailPageProps {
 }
 
 export function DeviceDetailPage({ deviceToken, onBack }: DeviceDetailPageProps) {
-  const { state, respondPopup } = useCloudWebSocket(deviceToken);
+  const { state, respondPopup, requestChatHistory } = useCloudWebSocket(deviceToken);
+  const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null);
 
   const pendingPopups = state.popups.filter(p => p.status === 'pending');
   const activeSessions = state.sessions.filter(s => s.status !== 'ended');
+
+  const handleViewChat = (sessionId: string, projectName: string) => {
+    requestChatHistory(sessionId);
+    setChatSession({ sessionId, projectName });
+  };
+
+  // If viewing chat, show ChatView
+  if (chatSession) {
+    return (
+      <ChatView
+        projectName={chatSession.projectName}
+        onClose={() => setChatSession(null)}
+        messages={state.chatMessages[chatSession.sessionId] || []}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-black">
@@ -38,7 +57,11 @@ export function DeviceDetailPage({ deviceToken, onBack }: DeviceDetailPageProps)
             <div className="text-white/30 text-sm">暂无活跃会话</div>
           ) : (
             activeSessions.map(session => (
-              <SessionCard key={session.session_id} session={session} />
+              <SessionCard
+                key={session.session_id}
+                session={session}
+                onViewChat={() => handleViewChat(session.session_id, session.project_name || '未知项目')}
+              />
             ))
           )}
         </div>
@@ -63,7 +86,7 @@ export function DeviceDetailPage({ deviceToken, onBack }: DeviceDetailPageProps)
   );
 }
 
-function SessionCard({ session }: { session: SessionState }) {
+function SessionCard({ session, onViewChat }: { session: SessionState; onViewChat: () => void }) {
   return (
     <div className="p-3 rounded-lg bg-white/[0.05] mb-2">
       <div className="text-white text-sm">{session.project_name || '未知项目'}</div>
@@ -71,6 +94,12 @@ function SessionCard({ session }: { session: SessionState }) {
       {session.current_tool && (
         <div className="text-amber-400 text-xs mt-1">工具: {session.current_tool}</div>
       )}
+      <button
+        onClick={onViewChat}
+        className="mt-2 px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-xs transition-colors"
+      >
+        查看对话
+      </button>
     </div>
   );
 }

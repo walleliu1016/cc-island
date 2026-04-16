@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CloudMessage, SessionState, PopupState } from '../types'
+import { CloudMessage, SessionState, PopupState, ChatMessageData } from '../types'
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -7,6 +7,7 @@ interface CloudState {
   status: ConnectionStatus
   sessions: SessionState[]
   popups: PopupState[]
+  chatMessages: Record<string, ChatMessageData[]>  // keyed by session_id
 }
 
 export function useCloudWebSocket(deviceToken: string) {
@@ -16,6 +17,7 @@ export function useCloudWebSocket(deviceToken: string) {
     status: 'disconnected',
     sessions: [],
     popups: [],
+    chatMessages: {},
   })
 
   const getServerUrl = useCallback(() => {
@@ -79,6 +81,39 @@ export function useCloudWebSocket(deviceToken: string) {
             // Show notification if permitted
             showNotification(msg.popup!)
             break
+
+          case 'chat_history': {
+            const sessionId = msg.session_id
+            const messages = msg.messages
+            if (sessionId && messages) {
+              setState(s => ({
+                ...s,
+                chatMessages: {
+                  ...s.chatMessages,
+                  [sessionId]: messages,
+                },
+              }))
+            }
+            break
+          }
+
+          case 'new_chat': {
+            const sessionId = msg.session_id
+            const messages = msg.messages
+            if (sessionId && messages) {
+              setState(s => {
+                const existing = s.chatMessages[sessionId] || []
+                return {
+                  ...s,
+                  chatMessages: {
+                    ...s.chatMessages,
+                    [sessionId]: [...existing, ...messages],
+                  },
+                }
+              })
+            }
+            break
+          }
         }
       } catch (err) {
         console.warn('Failed to parse cloud message:', err)
@@ -130,12 +165,29 @@ export function useCloudWebSocket(deviceToken: string) {
     }))
   }, [deviceToken])
 
+  const requestChatHistory = useCallback((sessionId: string, limit?: number) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.warn('Cannot request chat history: not connected')
+      return
+    }
+
+    const msg: { type: string; device_token: string; session_id: string; limit?: number } = {
+      type: 'request_chat_history',
+      device_token: deviceToken,
+      session_id: sessionId,
+    }
+    if (limit !== undefined) {
+      msg.limit = limit
+    }
+    wsRef.current.send(JSON.stringify(msg))
+  }, [deviceToken])
+
   useEffect(() => {
     connect()
     return () => disconnect()
   }, [connect, disconnect])
 
-  return { state, respondPopup, connect, disconnect }
+  return { state, respondPopup, requestChatHistory, connect, disconnect }
 }
 
 function showNotification(popup: PopupState) {
