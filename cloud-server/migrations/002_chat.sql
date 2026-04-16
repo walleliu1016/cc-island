@@ -3,7 +3,7 @@
 
 CREATE TABLE chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_token TEXT NOT NULL,
+    device_token TEXT NOT NULL REFERENCES devices(device_token),
     session_id TEXT NOT NULL,
     message_id TEXT NOT NULL,  -- Original UUID from desktop
     message_type TEXT NOT NULL, -- user/assistant/toolCall/toolResult/thinking
