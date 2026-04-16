@@ -169,6 +169,92 @@ jobs:
           path: mobile-app/android/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 7
 
+  # ===== Mobile App Build (iOS - TestFlight) =====
+  build-mobile-ios:
+    runs-on: macos-latest
+    # Only run when secrets are configured
+    if: ${{ secrets.FASTLANE_APPLE_ID != '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: mobile-app/ios/App
+
+      - name: Install mobile dependencies
+        run: |
+          cd mobile-app
+          pnpm install
+
+      - name: Build web app
+        run: |
+          cd mobile-app
+          pnpm run build
+
+      - name: Sync Capacitor
+        run: |
+          cd mobile-app
+          npx cap sync ios
+
+      - name: Install fastlane
+        run: |
+          cd mobile-app/ios/App
+          bundle install
+
+      - name: Setup Apple credentials
+        env:
+          FASTLANE_APPLE_ID: ${{ secrets.FASTLANE_APPLE_ID }}
+          FASTLANE_APPLE_PASSWORD: ${{ secrets.FASTLANE_APPLE_PASSWORD }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+        run: |
+          # Create .env file for fastlane
+          cd mobile-app/ios/App
+          echo "FASTLANE_APPLE_ID=${FASTLANE_APPLE_ID}" > .env
+          echo "FASTLANE_PASSWORD=${FASTLANE_APPLE_PASSWORD}" >> .env
+          echo "FASTLANE_TEAM_ID=${FASTLANE_TEAM_ID}" >> .env
+
+      - name: Build and upload to TestFlight
+        env:
+          FASTLANE_APPLE_ID: ${{ secrets.FASTLANE_APPLE_ID }}
+          FASTLANE_PASSWORD: ${{ secrets.FASTLANE_APPLE_PASSWORD }}
+          FASTLANE_TEAM_ID: ${{ secrets.FASTLANE_TEAM_ID }}
+        run: |
+          cd mobile-app/ios/App
+          bundle exec fastlane ios beta
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Upload TestFlight info
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-mobile-ios_testflight_${{ steps.version.outputs.VERSION }}
+          path: mobile-app/ios/App/build/App.ipa
+          retention-days: 7
+        continue-on-error: true  # IPA may not exist if upload failed
+
   # ===== Desktop App Build =====
   build-desktop:
     strategy:
@@ -328,7 +414,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: [build-cloud-server, build-desktop, build-mobile-android]
+    needs: [build-cloud-server, build-desktop, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 
@@ -399,14 +485,22 @@ jobs:
             3. 配置 `.env` 文件 (参考 `.env.example`)
             4. 运行: `./cc-island-cloud`
 
-            ### Mobile App (Android)
+            ### Mobile App
 
-            - `cc-island-mobile-android_*.apk` - Android APK (unsigned, 需自行签名或使用 debug 安装)
+            #### Android
+            - `cc-island-mobile-android_*.apk` - Android APK (unsigned)
+            - **安装步骤：**
+              1. 下载 APK 到手机
+              2. 允许安装未知来源应用
+              3. 安装 APK
 
-            **安装步骤：**
-            1. 下载 APK 到手机
-            2. 允许安装未知来源应用
-            3. 安装 APK
+            #### iOS (TestFlight)
+            - iOS 版本通过 TestFlight 内部分发
+            - **获取步骤：**
+              1. 确保你的 Apple ID 已加入测试团队
+              2. 在 iPhone 上安装 TestFlight app
+              3. 通过邀请链接或邮件加入测试
+              4. 安装 CC-Island Remote
 
             ---
 

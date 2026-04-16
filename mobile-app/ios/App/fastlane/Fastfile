@@ -1,0 +1,46 @@
+# Fastfile for iOS builds
+# This file defines the lanes (actions) for building and deploying iOS app
+
+default_platform(:ios)
+
+platform :ios do
+  # Build and upload to TestFlight (internal testing)
+  desc "Build and upload to TestFlight for internal testing"
+  lane :beta do
+    # Ensure we're in the correct directory
+    Dir.chdir("..") do
+      # Build the app
+      gym(
+        workspace: "App.xcworkspace",
+        scheme: "App",
+        configuration: "Release",
+        export_method: "app-store",
+        output_directory: "./build",
+        output_name: "App.ipa",
+        silent: true
+      )
+    end
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      notify_external_teams: false
+    )
+  end
+
+  # Build only (for CI artifacts)
+  desc "Build IPA without uploading"
+  lane :build_only do
+    Dir.chdir("..") do
+      gym(
+        workspace: "App.xcworkspace",
+        scheme: "App",
+        configuration: "Release",
+        export_method: "app-store",
+        output_directory: "./build",
+        output_name: "App.ipa",
+        silent: true
+      )
+    end
+  end
+end

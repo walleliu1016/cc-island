@@ -1,0 +1,14 @@
+# Appfile - App-specific configuration for fastlane
+# These values can be overridden by environment variables
+
+app_identifier("com.ccisland.remote")  # Bundle ID
+apple_id(ENV["FASTLANE_APPLE_ID"])     # Your Apple ID email
+
+# Team ID (can be found in Apple Developer portal)
+team_id(ENV["FASTLANE_TEAM_ID"])
+
+# For TestFlight internal testing
+itc_team_id(ENV["FASTLANE_ITC_TEAM_ID"])  # App Store Connect Team ID (optional)
+
+# iTunes Connect (App Store Connect) configuration
+json_key_file(ENV["APP_STORE_CONNECT_API_KEY_PATH"])  # API Key path (optional, for automated uploads)
