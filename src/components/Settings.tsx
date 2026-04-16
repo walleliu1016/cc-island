@@ -41,6 +41,8 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showRequired, setShowRequired] = useState(false);
   const [deviceToken, setDeviceToken] = useState<string>('');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrCodeSvg, setQRCodeSvg] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -55,6 +57,17 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
       invoke<string>('get_device_token').then(setDeviceToken).catch(() => setDeviceToken(''));
     }
   }, [settings?.cloud_mode]);
+
+  const generateQRCode = async () => {
+    try {
+      const serverUrl = settings?.cloud_server_url || '';
+      const svg = await invoke<string>('generate_device_qrcode', { serverUrl });
+      setQRCodeSvg(svg);
+      setShowQRModal(true);
+    } catch (e) {
+      console.error('Failed to generate QR code:', e);
+    }
+  };
 
   const loadHooksStatus = async () => {
     try {
@@ -499,6 +512,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                           >
                             复制
                           </button>
+                          <button
+                            onClick={generateQRCode}
+                            className="text-white/50 hover:text-white px-2 py-1 text-xs"
+                          >
+                            二维码
+                          </button>
                         </div>
                       </div>
 
@@ -529,6 +548,42 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           )}
         </AnimatePresence>
       </div>
+
+      {/* QR Code Modal */}
+      <AnimatePresence>
+        {showQRModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/80"
+            onClick={() => setShowQRModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-black/90 rounded-lg p-4 max-w-sm"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-white text-sm mb-2">扫描二维码连接设备</div>
+              <div className="bg-white p-4 rounded-lg">
+                <img
+                  src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(qrCodeSvg)))}`}
+                  alt="QR Code"
+                  className="w-[200px] h-[200px]"
+                />
+              </div>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="mt-3 w-full py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm"
+              >
+                关闭
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

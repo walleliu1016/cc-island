@@ -381,6 +381,31 @@ fn get_device_token() -> String {
 }
 
 #[tauri::command]
+fn generate_device_qrcode(server_url: String) -> Result<String, String> {
+    let device_token = machine_id::get_machine_token();
+
+    let payload = serde_json::json!({
+        "device_token": device_token,
+        "server_url": server_url,
+    }).to_string();
+
+    use qrcode::QrCode;
+    use qrcode::render::svg;
+
+    let code = QrCode::new(payload)
+        .map_err(|e| format!("QR generation failed: {}", e))?;
+
+    let svg = code
+        .render()
+        .min_dimensions(200, 200)
+        .dark_color(svg::Color("#ffffff"))
+        .light_color(svg::Color("#000000"))
+        .build();
+
+    Ok(svg)
+}
+
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Get old WebSocket config to check if restart needed
     let old_ws_config = {
@@ -448,7 +473,8 @@ pub fn run() {
                 get_settings,
                 update_settings,
                 get_product_name,
-                get_device_token
+                get_device_token,
+                generate_device_qrcode
             ])
             .setup(|app| {
                 // Initialize logging flag from saved settings
