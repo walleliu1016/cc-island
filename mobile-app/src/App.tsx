@@ -7,11 +7,14 @@ import { AddDeviceModal } from './components/AddDeviceModal';
 import { SettingsPage } from './components/SettingsPage';
 import { Toast } from './components/Toast';
 import { useToast } from './hooks/useToast';
+import { useServerConnection } from './hooks/useServerConnection';
 
 type View = 'devices' | 'detail' | 'settings';
 
 function App() {
   const { toast, showSuccess, showError, showWarning } = useToast()
+  const { status: serverConfigStatus } = useServerConnection()
+  const serverConnected = serverConfigStatus === 'configured'
 
   const [devices, setDevices] = useState<string[]>(() => {
     try {
@@ -29,7 +32,6 @@ function App() {
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [view, setView] = useState<View>('devices');
-  const [serverConnected, _setServerConnected] = useState(false);
 
   // Save devices to localStorage
   useEffect(() => {
