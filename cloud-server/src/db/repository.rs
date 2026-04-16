@@ -1,6 +1,7 @@
 use sqlx::PgPool;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
+use tracing::warn;
 use super::models::{ChatMessage, Device, Session, Popup};
 use crate::messages::{ChatMessageData, MessageType};
 
@@ -215,7 +216,10 @@ impl Repository {
                     "toolResult" => MessageType::ToolResult,
                     "thinking" => MessageType::Thinking,
                     "interrupted" => MessageType::Interrupted,
-                    _ => MessageType::User, // Default fallback
+                    other => {
+                        warn!("Unknown message_type '{}' in message {}, defaulting to User", other, msg.message_id);
+                        MessageType::User
+                    }
                 };
 
                 // Convert DateTime<Utc> to milliseconds timestamp
