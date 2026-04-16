@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { DeviceListPage } from './components/DeviceListPage';
 import { DeviceDetailPage } from './components/DeviceDetailPage';
 import { AddDeviceModal } from './components/AddDeviceModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsPage } from './components/SettingsPage';
 
 function App() {
   const [devices, setDevices] = useState<string[]>(() => {
@@ -32,10 +32,18 @@ function App() {
     }
   };
 
-  const handleSaveSettings = (url: string) => {
+  const handleSaveServer = (url: string) => {
     localStorage.setItem('cloud-server-url', url);
     setServerUrl(url);
-    setShowSettings(false);
+  };
+
+  const handleDeleteDevice = (token: string) => {
+    setDevices(devices.filter(d => d !== token));
+  };
+
+  const handleToggleAutoAllow = (token: string, enabled: boolean) => {
+    console.log(`Toggle auto-allow for ${token}: ${enabled}`);
+    // TODO: Send to cloud server via WebSocket
   };
 
   return (
@@ -63,10 +71,14 @@ function App() {
       )}
 
       {showSettings && (
-        <SettingsModal
-          initialServerUrl={serverUrl}
-          onSave={handleSaveSettings}
-          onClose={() => setShowSettings(false)}
+        <SettingsPage
+          serverUrl={serverUrl}
+          serverConnected={serverConnected}
+          devices={devices}
+          onSaveServer={handleSaveServer}
+          onDeleteDevice={handleDeleteDevice}
+          onToggleAutoAllow={handleToggleAutoAllow}
+          onBack={() => setShowSettings(false)}
         />
       )}
     </div>
