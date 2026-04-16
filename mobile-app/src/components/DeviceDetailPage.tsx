@@ -11,12 +11,13 @@ import { PopupCard } from './PopupCard'
 interface DeviceDetailPageProps {
   deviceToken: string
   deviceName: string
+  serverUrl: string
   onBack: () => void
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void
 }
 
-export function DeviceDetailPage({ deviceToken, deviceName, onBack, showToast }: DeviceDetailPageProps) {
-  const { state, respondPopup, requestChatHistory } = useCloudWebSocket(deviceToken)
+export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, showToast }: DeviceDetailPageProps) {
+  const { state, respondPopup, requestChatHistory } = useCloudWebSocket({ deviceToken, serverUrl })
   const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null)
   const [dismissingPopups, setDismissingPopups] = useState<string[]>([])
   const dismissTimeoutRef = useRef<number | null>(null)

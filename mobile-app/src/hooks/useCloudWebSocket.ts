@@ -12,7 +12,16 @@ interface CloudState {
   chatMessages: Record<string, ChatMessageData[]>  // keyed by session_id
 }
 
-export function useCloudWebSocket(deviceToken: string) {
+interface UseCloudWebSocketOptions {
+  deviceToken: string
+  serverUrl?: string  // Optional: if provided, use this instead of localStorage
+}
+
+export function useCloudWebSocket(options: UseCloudWebSocketOptions | string) {
+  // Support both old API (just deviceToken string) and new API (options object)
+  const deviceToken = typeof options === 'string' ? options : options.deviceToken
+  const providedServerUrl = typeof options === 'string' ? undefined : options.serverUrl
+
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
   const [state, setState] = useState<CloudState>({
@@ -23,15 +32,27 @@ export function useCloudWebSocket(deviceToken: string) {
   })
 
   const getServerUrl = useCallback(() => {
-    return localStorage.getItem('cloud-server-url') || 'ws://localhost:17528'
-  }, [])
+    if (providedServerUrl) return providedServerUrl
+    return localStorage.getItem('cloud-server-url') || ''
+  }, [providedServerUrl])
 
   const connect = useCallback(() => {
     if (!deviceToken) return
 
     const serverUrl = getServerUrl()
+    if (!serverUrl) {
+      console.log('No server URL configured, skipping connection')
+      setState(s => ({ ...s, status: 'disconnected' }))
+      return
+    }
 
     setState(s => ({ ...s, status: 'connecting' }))
+
+    // Clear existing connection first
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
 
     const ws = new WebSocket(serverUrl)
     wsRef.current = ws
@@ -128,10 +149,13 @@ export function useCloudWebSocket(deviceToken: string) {
       if (reconnectTimeoutRef.current) {
         window.clearTimeout(reconnectTimeoutRef.current)
       }
-      // Attempt reconnect after delay
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect()
-      }, 5000)
+      // Attempt reconnect after delay (only if we still have a valid config)
+      const currentUrl = getServerUrl()
+      if (currentUrl && deviceToken) {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          connect()
+        }, 5000)
+      }
     }
 
     ws.onerror = () => {
@@ -143,6 +167,7 @@ export function useCloudWebSocket(deviceToken: string) {
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       window.clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
     }
     wsRef.current?.close()
     wsRef.current = null
@@ -188,6 +213,7 @@ export function useCloudWebSocket(deviceToken: string) {
     wsRef.current.send(JSON.stringify(msg))
   }, [deviceToken])
 
+  // Connect when deviceToken or serverUrl changes
   useEffect(() => {
     connect()
     return () => disconnect()
