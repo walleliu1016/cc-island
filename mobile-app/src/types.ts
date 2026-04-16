@@ -108,7 +108,7 @@ export interface PopupState {
   id: string
   session_id?: string
   project_name?: string
-  popup_type: string
+  type: string  // "permission", "ask", or "question" - matches cloud server's #[serde(rename = "type")]
   data: PermissionData | AskData | NotificationData | Record<string, unknown>
   status: string
 }

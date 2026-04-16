@@ -199,7 +199,7 @@ function showNotification(popup: PopupState) {
     const permData = popup.data as PermissionData;
     const askData = popup.data as AskData;
     new Notification(`${popup.project_name || 'CC-Island'} 需要审批`, {
-      body: popup.popup_type === 'permission'
+      body: popup.type === 'permission'
         ? `工具: ${permData?.tool_name || '未知'}`
         : `问题: ${askData?.questions?.[0]?.question || '未知'}`,
       tag: popup.id,

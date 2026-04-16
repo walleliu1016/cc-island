@@ -105,7 +105,7 @@ function SessionCard({ session, onViewChat }: { session: SessionState; onViewCha
 }
 
 function PopupCard({ popup, onRespond }: { popup: PopupState; onRespond: (d: string | null, a?: string[][]) => void }) {
-  if (popup.popup_type === 'permission') {
+  if (popup.type === 'permission') {
     const permData = popup.data as PermissionData;
     return (
       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-2">
