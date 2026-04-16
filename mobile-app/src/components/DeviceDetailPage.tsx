@@ -1,7 +1,7 @@
 // mobile-app/src/components/DeviceDetailPage.tsx
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useCloudWebSocket } from '../hooks/useCloudWebSocket'
 import { SessionState } from '../types'
@@ -19,6 +19,16 @@ export function DeviceDetailPage({ deviceToken, deviceName, onBack, showToast }:
   const { state, respondPopup, requestChatHistory } = useCloudWebSocket(deviceToken)
   const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null)
   const [dismissingPopups, setDismissingPopups] = useState<string[]>([])
+  const dismissTimeoutRef = useRef<number | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dismissTimeoutRef.current) {
+        clearTimeout(dismissTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const pendingPopups = state.popups.filter(p => p.status === 'pending' && !dismissingPopups.includes(p.id))
   const activeSessions = state.sessions.filter(s => s.status !== 'ended')
@@ -42,7 +52,7 @@ export function DeviceDetailPage({ deviceToken, deviceName, onBack, showToast }:
     }
 
     // Actually respond after animation starts
-    setTimeout(() => {
+    dismissTimeoutRef.current = window.setTimeout(() => {
       respondPopup(popupId, decision ?? null, answers)
       setDismissingPopups(prev => prev.filter(id => id !== popupId))
     }, 200)
