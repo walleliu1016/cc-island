@@ -188,6 +188,33 @@ impl CloudClient {
             }
         }
     }
+
+    /// Push chat message to cloud
+    pub fn push_chat_message(&self, session_id: &str, message: &crate::chat_messages::ChatMessage) {
+        if !self.is_connected() {
+            return;
+        }
+
+        if let Some(tx) = &self.out_tx {
+            // Convert ChatMessage to ChatMessageData format (camelCase for frontend)
+            let msg = serde_json::json!({
+                "type": "chat_messages",
+                "device_token": self.device_token,
+                "session_id": session_id,
+                "messages": [{
+                    "id": message.id,
+                    "sessionId": message.session_id,
+                    "messageType": message.message_type,
+                    "content": message.content,
+                    "toolName": message.tool_name,
+                    "timestamp": message.timestamp,
+                }],
+            });
+            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
+                tracing::warn!("Failed to push chat message: {}", e);
+            }
+        }
+    }
 }
 
 fn handle_popup_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {

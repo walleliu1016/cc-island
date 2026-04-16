@@ -233,6 +233,9 @@ async fn handle_hook(
         }
     } else {
         // Non-blocking event - process immediately
+        // Collect chat messages to push to cloud after write lock is released
+        let mut chat_messages_to_push: Vec<(String, ChatMessage)> = Vec::new();
+
         let should_push_to_cloud = {
             let mut state_guard = state.write();
 
@@ -339,14 +342,16 @@ async fn handle_hook(
                         .unwrap()
                         .as_millis() as u64;
 
-                    state_guard.chat_history.add_message(ChatMessage {
+                    let message = ChatMessage {
                         id: uuid::Uuid::new_v4().to_string(),
                         session_id: input.session_id.clone(),
                         message_type: MessageType::Assistant,
                         content: "Response complete".to_string(),
                         tool_name: None,
                         timestamp: now_ms,
-                    });
+                    };
+                    state_guard.chat_history.add_message(message.clone());
+                    chat_messages_to_push.push((input.session_id.clone(), message));
 
                     false
                 }
@@ -417,14 +422,16 @@ async fn handle_hook(
                             .unwrap()
                             .as_millis() as u64;
 
-                        state_guard.chat_history.add_message(ChatMessage {
+                        let message = ChatMessage {
                             id: uuid::Uuid::new_v4().to_string(),
                             session_id: input.session_id.clone(),
                             message_type: MessageType::ToolCall,
                             content: tool_content,
                             tool_name: Some(tool_name),
                             timestamp: now_ms,
-                        });
+                        };
+                        state_guard.chat_history.add_message(message.clone());
+                        chat_messages_to_push.push((input.session_id.clone(), message));
                     }
 
                     false
@@ -450,14 +457,16 @@ async fn handle_hook(
                         .unwrap()
                         .as_millis() as u64;
 
-                    state_guard.chat_history.add_message(ChatMessage {
+                    let message = ChatMessage {
                         id: uuid::Uuid::new_v4().to_string(),
                         session_id: input.session_id.clone(),
                         message_type: MessageType::ToolResult,
                         content: result_content,
                         tool_name: Some(tool_name),
                         timestamp: now_ms,
-                    });
+                    };
+                    state_guard.chat_history.add_message(message.clone());
+                    chat_messages_to_push.push((input.session_id.clone(), message));
 
                     false
                 }
@@ -509,7 +518,8 @@ async fn handle_hook(
                             tool_name: None,
                             timestamp: now_ms,
                         };
-                        state_guard.chat_history.add_message(message);
+                        state_guard.chat_history.add_message(message.clone());
+                        chat_messages_to_push.push((input.session_id.clone(), message));
                     }
 
                     false
@@ -529,6 +539,11 @@ async fn handle_hook(
         // Push state to cloud after SessionStart/SessionEnd
         if should_push_to_cloud {
             push_state_to_cloud(&state);
+        }
+
+        // Push chat messages to cloud
+        for (session_id, message) in chat_messages_to_push {
+            push_chat_message_to_cloud(&state, &session_id, &message);
         }
 
         Ok(Json(HookOutput {
@@ -1255,6 +1270,19 @@ fn push_new_popup_to_cloud(state: &Arc<RwLock<AppState>>, popup: &PopupItem) {
                     status: popup.status.to_string(),
                 };
                 client.push_new_popup(popup_state);
+            }
+        }
+    }
+}
+
+/// Push chat message to cloud client if enabled and connected
+fn push_chat_message_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, message: &ChatMessage) {
+    let state_guard = state.read();
+    if let Some(ref cloud_client) = state_guard.cloud_client {
+        // Try to get read lock on async RwLock (non-blocking)
+        if let Ok(client) = cloud_client.try_read() {
+            if client.is_connected() {
+                client.push_chat_message(session_id, message);
             }
         }
     }
