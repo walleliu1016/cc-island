@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { useState } from 'react';
 import { useCloudWebSocket } from '../hooks/useCloudWebSocket';
 import { PopupState, SessionState, PermissionData, AskData } from '../types';

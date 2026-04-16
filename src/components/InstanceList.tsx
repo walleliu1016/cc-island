@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';

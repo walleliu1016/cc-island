@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

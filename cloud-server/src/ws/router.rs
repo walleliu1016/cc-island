@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::RwLock;
@@ -72,11 +74,15 @@ impl ConnectionRouter {
     pub fn broadcast_to_mobiles(&self, device_token: &str, msg: Message) {
         let inner = self.inner.read();
         if let Some(mobiles) = inner.mobile_connections.get(device_token) {
+            let count = mobiles.len();
             for tx in mobiles {
                 if let Err(e) = tx.try_send(msg.clone()) {
                     tracing::warn!("Failed to send to mobile: {}", e);
                 }
             }
+            tracing::debug!("Broadcasted to {} mobile(s) for device: {}", count, device_token);
+        } else {
+            tracing::debug!("No mobiles connected for device: {}", device_token);
         }
     }
 
@@ -88,8 +94,10 @@ impl ConnectionRouter {
                 tracing::warn!("Failed to send to desktop: {}", e);
                 return false;
             }
+            tracing::debug!("Sent message to desktop for device: {}", device_token);
             return true;
         }
+        tracing::debug!("No desktop connected for device: {}", device_token);
         false
     }
 

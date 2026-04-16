@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { useEffect, useRef } from 'react'
 import { ChatMessageData } from '../types'
 

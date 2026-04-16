@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use std::sync::Arc;
 use parking_lot::RwLock;
 use tokio::net::TcpListener;

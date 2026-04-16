@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use sqlx::PgPool;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};

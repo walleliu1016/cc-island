@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use crate::messages::CloudMessage;
@@ -22,6 +24,8 @@ impl MessageHandler {
         match msg {
             // Desktop -> Cloud messages
             CloudMessage::StateUpdate { device_token, sessions, popups } => {
+                tracing::info!("StateUpdate from desktop: {} sessions, {} popups", sessions.len(), popups.len());
+
                 // Update database
                 if let Err(e) = self.repo.upsert_sessions(&device_token, &sessions).await {
                     tracing::error!("Failed to upsert sessions: {}", e);
@@ -34,9 +38,12 @@ impl MessageHandler {
                 let update_msg = CloudMessage::InitialState { sessions, popups };
                 let json = serde_json::to_string(&update_msg).unwrap();
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                tracing::debug!("Broadcasted state update to mobiles for device: {}", device_token);
             }
 
             CloudMessage::NewPopup { device_token, popup } => {
+                tracing::info!("NewPopup from desktop: popup_id={}, type={}", popup.id, popup.popup_type);
+
                 // Save to database
                 if let Err(e) = self.repo.upsert_popup(&device_token, &popup).await {
                     tracing::error!("Failed to upsert popup: {}", e);
@@ -49,9 +56,13 @@ impl MessageHandler {
                 let popup_msg = CloudMessage::NewPopupFromDevice { popup };
                 let json = serde_json::to_string(&popup_msg).unwrap();
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                tracing::debug!("Broadcasted new popup to mobiles for device: {}", device_token);
             }
 
             CloudMessage::ChatMessages { device_token, session_id, messages } => {
+                tracing::info!("ChatMessages from desktop: device={}, session={}, {} messages",
+                    device_token, session_id, messages.len());
+
                 // Save messages to database
                 if let Err(e) = self.repo.upsert_chat_messages(&device_token, &session_id, &messages).await {
                     tracing::error!("Failed to upsert chat messages: {}", e);
@@ -61,6 +72,7 @@ impl MessageHandler {
                 let new_chat_msg = CloudMessage::NewChat { session_id, messages };
                 let json = serde_json::to_string(&new_chat_msg).unwrap();
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                tracing::debug!("Broadcasted chat messages to mobiles for device: {}", device_token);
             }
 
             CloudMessage::Ping => {
@@ -73,6 +85,9 @@ impl MessageHandler {
 
             // Mobile -> Cloud messages
             CloudMessage::RespondPopup { device_token, popup_id, decision, answers } => {
+                tracing::info!("RespondPopup from mobile: popup_id={}, decision={:?}",
+                    popup_id, decision);
+
                 // Mark as resolved in database
                 if let Err(e) = self.repo.resolve_popup(&popup_id).await {
                     tracing::error!("Failed to resolve popup: {}", e);
@@ -89,12 +104,18 @@ impl MessageHandler {
                 };
                 let json = serde_json::to_string(&response_msg).unwrap();
                 self.router.send_to_desktop(&device_token, Message::text(json));
+                tracing::debug!("Sent popup response to desktop for device: {}", device_token);
             }
 
             CloudMessage::RequestChatHistory { device_token, session_id, limit } => {
+                tracing::info!("RequestChatHistory from mobile: device={}, session={}, limit={:?}",
+                    device_token, session_id, limit);
+
                 // Query chat history from database
                 match self.repo.get_chat_history(&device_token, &session_id, limit).await {
                     Ok(messages) => {
+                        tracing::info!("ChatHistory response: {} messages for session {}", messages.len(), session_id);
+
                         // Send ChatHistory response back to the requesting client
                         let history_msg = CloudMessage::ChatHistory { session_id, messages };
                         let json = serde_json::to_string(&history_msg).unwrap();

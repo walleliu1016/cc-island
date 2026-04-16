@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { useState, useEffect } from 'react';
 import { DeviceListPage } from './components/DeviceListPage';
 import { DeviceDetailPage } from './components/DeviceDetailPage';

@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { useState, useEffect } from 'react';
 
 // Terminal-style colors (matching Claude Island)

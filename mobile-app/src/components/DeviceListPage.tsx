@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 interface DeviceListPageProps {
   devices: string[];
   onSelectDevice: (token: string) => void;

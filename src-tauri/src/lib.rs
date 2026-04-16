@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 pub mod http_server;
 pub mod instance_manager;
 pub mod popup_queue;

@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { create } from 'zustand';
 import { ClaudeInstance, PopupItem, ToolActivity } from '../types';
 

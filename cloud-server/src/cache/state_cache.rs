@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;

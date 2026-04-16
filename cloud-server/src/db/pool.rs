@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use anyhow::Result;

@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { ClaudeInstance, PopupItem } from '../types';
 
 const API_BASE = 'http://localhost:17527';

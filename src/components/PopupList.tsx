@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PopupItem, AskQuestion } from '../types';

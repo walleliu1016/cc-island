@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use tokio::net::TcpStream;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::protocol::Message;

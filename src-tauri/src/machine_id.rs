@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use twox_hash::XxHash64;

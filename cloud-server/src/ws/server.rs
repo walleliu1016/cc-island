@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use crate::db::repository::Repository;
