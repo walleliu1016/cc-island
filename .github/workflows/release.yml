@@ -143,7 +143,7 @@ jobs:
       - name: Build Android APK
         run: |
           cd mobile-app/android
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleDebug --no-daemon
 
       - name: Get version
         id: version
@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cc-island-mobile-android_${{ steps.version.outputs.VERSION }}
-          path: mobile-app/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
   # ===== Mobile App Build (iOS - TestFlight) =====
