@@ -32,7 +32,11 @@ function App() {
   const [view, setView] = useState<View>('devices');
 
   // Aggregate WebSocket for all devices
-  const { state: wsState, respondPopup } = useAllDevicesWebSocket(devices, serverUrl)
+  const { state: wsState, respondPopup } = useAllDevicesWebSocket({
+    devices,
+    serverUrl,
+    showToast: showWarning,  // Only show warning for desktop-resolved popups
+  })
 
   // Save devices to localStorage
   useEffect(() => {

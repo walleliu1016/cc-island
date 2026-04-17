@@ -207,6 +207,9 @@ function SessionRow({
   const projectName = session.project_name || '未知项目'
   const deviceConnected = deviceState?.status === 'connected'
 
+  // Parse status JSON
+  const statusInfo = parseSessionStatus(session.status, session.current_tool)
+
   return (
     <div
       onClick={onClick}
@@ -214,14 +217,14 @@ function SessionRow({
     >
       {/* Status indicator */}
       <div className="w-4 flex items-center justify-center">
-        <div className={`w-2 h-2 rounded-full ${session.current_tool ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
+        <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <span className="text-[#f5f5f5] text-sm font-medium truncate">{projectName}</span>
         <div className="text-[#a3a3a3] text-xs truncate">
-          {session.current_tool ? `工具: ${session.current_tool}` : session.status}
+          {statusInfo.text}
         </div>
       </div>
 
@@ -229,4 +232,36 @@ function SessionRow({
       <div className={`w-2 h-2 rounded-full ${deviceConnected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
     </div>
   )
+}
+
+// Parse status JSON and return display info
+function parseSessionStatus(statusJson: string, currentTool?: string): { text: string; color: string } {
+  try {
+    const status = JSON.parse(statusJson) as { type: string; data?: string }
+
+    switch (status.type) {
+      case 'idle':
+        return { text: '空闲', color: 'bg-[#737373]' }
+      case 'thinking':
+        return { text: '思考中...', color: 'bg-[#22c55e]' }
+      case 'working':
+        const toolName = status.data || currentTool || '工具'
+        return { text: `执行: ${toolName}`, color: 'bg-[#22c55e]' }
+      case 'waiting':
+        return { text: '等待继续', color: 'bg-[#3b82f6]' }
+      case 'waitingForApproval':
+        return { text: '需要授权', color: 'bg-[#f59e0b]' }
+      case 'error':
+        return { text: '错误', color: 'bg-[#ef4444]' }
+      case 'compacting':
+        return { text: '压缩上下文', color: 'bg-[#8b5cf6]' }
+      case 'ended':
+        return { text: '已结束', color: 'bg-[#737373]' }
+      default:
+        return { text: currentTool || statusJson, color: 'bg-[#737373]' }
+    }
+  } catch {
+    // Fallback for non-JSON status (legacy format)
+    return { text: currentTool || statusJson, color: 'bg-[#737373]' }
+  }
 }

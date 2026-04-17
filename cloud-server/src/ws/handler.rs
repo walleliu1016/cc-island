@@ -53,7 +53,10 @@ impl MessageHandler {
                 self.cache.add_popup(&device_token, popup.clone());
 
                 // Broadcast to mobiles
-                let popup_msg = CloudMessage::NewPopupFromDevice { popup };
+                let popup_msg = CloudMessage::NewPopupFromDevice {
+                    device_token: device_token.clone(),
+                    popup,
+                };
                 let json = serde_json::to_string(&popup_msg).unwrap();
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
                 tracing::debug!("Broadcasted new popup to mobiles for device: {}", device_token);
@@ -96,6 +99,18 @@ impl MessageHandler {
                 // Remove from cache
                 self.cache.remove_popup(&device_token, &popup_id);
 
+                // Broadcast PopupResolved to all mobiles (including the sender for confirmation)
+                let resolved_msg = CloudMessage::PopupResolved {
+                    device_token: device_token.clone(),
+                    popup_id: popup_id.clone(),
+                    source: "mobile".to_string(),
+                    decision: decision.clone(),
+                    answers: answers.clone(),
+                };
+                let json = serde_json::to_string(&resolved_msg).unwrap();
+                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                tracing::debug!("Broadcasted popup_resolved to mobiles for device: {}", device_token);
+
                 // Send to desktop
                 let response_msg = CloudMessage::PopupResponse {
                     popup_id,
@@ -129,6 +144,30 @@ impl MessageHandler {
                 }
             }
 
+            // Desktop -> Cloud: popup resolved notification (when desktop locally handles)
+            CloudMessage::PopupResolved { device_token, popup_id, source, decision, answers } => {
+                // Only handle if source is "desktop" (mobile sends RespondPopup instead)
+                if source == "desktop" {
+                    tracing::info!("PopupResolved from desktop: popup_id={}, decision={:?}",
+                        popup_id, decision);
+
+                    // Remove from cache
+                    self.cache.remove_popup(&device_token, &popup_id);
+
+                    // Broadcast to all mobiles subscribed to this device
+                    let resolved_msg = CloudMessage::PopupResolved {
+                        device_token: device_token.clone(),
+                        popup_id: popup_id.clone(),
+                        source: source.clone(),
+                        decision: decision.clone(),
+                        answers: answers.clone(),
+                    };
+                    let json = serde_json::to_string(&resolved_msg).unwrap();
+                    self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                    tracing::debug!("Broadcasted popup_resolved to mobiles for device: {}", device_token);
+                }
+            }
+
             // Auth messages are handled separately in connection handler
             CloudMessage::DeviceRegister { .. } |
             CloudMessage::MobileAuth { .. } |
@@ -142,6 +181,8 @@ impl MessageHandler {
             CloudMessage::NewPopupFromDevice { .. } |
             CloudMessage::NewChat { .. } |
             CloudMessage::ChatHistory { .. } |
+            CloudMessage::DeviceList { .. } |
+            CloudMessage::DeviceOffline { .. } |
 
             // Cloud -> Desktop messages (should not be received from clients)
             CloudMessage::PopupResponse { .. } |

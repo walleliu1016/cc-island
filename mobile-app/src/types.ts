@@ -97,6 +97,14 @@ export interface CloudMessage {
   sessions?: SessionState[]
   popups?: PopupState[]
   popup?: PopupState
+  // Device list
+  devices?: string[]
+  device_token?: string
+  // Popup resolved
+  popup_id?: string
+  source?: string
+  decision?: string
+  answers?: string[][]  // For AskUserQuestion: array of selected options per question
   // Chat history
   session_id?: string
   messages?: ChatMessageData[]

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
+use uuid::Uuid;
 
 /// Connection type identifier
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -23,8 +24,11 @@ struct RouterInner {
     /// device_token -> desktop connection
     desktop_connections: HashMap<String, Sender<Message>>,
 
-    /// device_token -> list of mobile connections
-    mobile_connections: HashMap<String, Vec<Sender<Message>>>,
+    /// device_token -> (connection_id, sender) pairs for mobile connections
+    mobile_connections: HashMap<String, Vec<(Uuid, Sender<Message>)>>,
+
+    /// Reverse index: connection_id -> list of device_tokens it subscribes to
+    mobile_subscriptions: HashMap<Uuid, Vec<String>>,
 }
 
 impl ConnectionRouter {
@@ -33,6 +37,7 @@ impl ConnectionRouter {
             inner: Arc::new(RwLock::new(RouterInner {
                 desktop_connections: HashMap::new(),
                 mobile_connections: HashMap::new(),
+                mobile_subscriptions: HashMap::new(),
             })),
         }
     }
@@ -44,14 +49,24 @@ impl ConnectionRouter {
         tracing::info!("Desktop registered: {}", device_token);
     }
 
-    /// Register mobile connection for a device
-    pub fn register_mobile(&self, device_token: &str, tx: Sender<Message>) {
+    /// Register mobile connection for multiple devices
+    /// Returns the connection_id for later cleanup
+    pub fn register_mobile(&self, device_tokens: &[String], tx: Sender<Message>) -> Uuid {
         let mut inner = self.inner.write();
-        inner.mobile_connections
-            .entry(device_token.to_string())
-            .or_insert_with(Vec::new)
-            .push(tx);
-        tracing::info!("Mobile registered for device: {}", device_token);
+        let conn_id = Uuid::new_v4();
+
+        // Store reverse index for cleanup
+        inner.mobile_subscriptions.insert(conn_id, device_tokens.to_vec());
+
+        // Add this connection to each device's mobile list
+        for token in device_tokens {
+            inner.mobile_connections
+                .entry(token.clone())
+                .or_insert_with(Vec::new)
+                .push((conn_id, tx.clone()));
+        }
+        tracing::info!("Mobile registered for {} devices (conn_id: {})", device_tokens.len(), conn_id);
+        conn_id
     }
 
     /// Unregister desktop connection
@@ -61,13 +76,25 @@ impl ConnectionRouter {
         tracing::info!("Desktop unregistered: {}", device_token);
     }
 
-    /// Unregister a specific mobile connection by finding matching sender
-    /// Note: Since Sender doesn't implement PartialEq, we use weak references
-    /// to detect closed channels. Simplified: remove all connections for device.
-    pub fn unregister_mobile(&self, device_token: &str) {
+    /// Unregister a mobile connection by connection_id
+    pub fn unregister_mobile(&self, conn_id: Uuid) {
         let mut inner = self.inner.write();
-        inner.mobile_connections.remove(device_token);
-        tracing::info!("All mobile connections removed for device: {}", device_token);
+
+        // Get all devices this connection subscribed to
+        if let Some(device_tokens) = inner.mobile_subscriptions.remove(&conn_id) {
+            let count = device_tokens.len();
+            // Remove from each device's mobile list
+            for token in &device_tokens {
+                if let Some(mobiles) = inner.mobile_connections.get_mut(token) {
+                    mobiles.retain(|(id, _)| *id != conn_id);
+                }
+                // Clean up empty lists
+                if inner.mobile_connections.get(token).map(|v| v.is_empty()).unwrap_or(false) {
+                    inner.mobile_connections.remove(token);
+                }
+            }
+            tracing::info!("Mobile connection unregistered from {} devices", count);
+        }
     }
 
     /// Broadcast to all mobile clients subscribed to a device
@@ -75,7 +102,7 @@ impl ConnectionRouter {
         let inner = self.inner.read();
         if let Some(mobiles) = inner.mobile_connections.get(device_token) {
             let count = mobiles.len();
-            for tx in mobiles {
+            for (_, tx) in mobiles {
                 if let Err(e) = tx.try_send(msg.clone()) {
                     tracing::warn!("Failed to send to mobile: {}", e);
                 }
@@ -114,6 +141,12 @@ impl ConnectionRouter {
     pub fn is_desktop_online(&self, device_token: &str) -> bool {
         let inner = self.inner.read();
         inner.desktop_connections.contains_key(device_token)
+    }
+
+    /// Get all online device tokens (desktops that are connected)
+    pub fn get_online_devices(&self) -> Vec<String> {
+        let inner = self.inner.read();
+        inner.desktop_connections.keys().cloned().collect()
     }
 }
 

@@ -335,7 +335,7 @@ async fn handle_hook(
                     state_guard.chat_history.add_message(message.clone());
                     chat_messages_to_push.push((input.session_id.clone(), message));
 
-                    false
+                    true // Push state to cloud - status changed to Idle
                 }
                 "PreToolUse" => {
                     // First, update instance and extract data
@@ -416,7 +416,7 @@ async fn handle_hook(
                         chat_messages_to_push.push((input.session_id.clone(), message));
                     }
 
-                    false
+                    true // Push state to cloud - tool execution started
                 }
                 "PostToolUse" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -450,7 +450,7 @@ async fn handle_hook(
                     state_guard.chat_history.add_message(message.clone());
                     chat_messages_to_push.push((input.session_id.clone(), message));
 
-                    false
+                    true // Push state to cloud - tool execution completed
                 }
                 "PostToolUseFailure" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -459,21 +459,21 @@ async fn handle_hook(
                         instance.tool_input = None;
                     }
 
-                    false
+                    true // Push state to cloud - tool execution failed
                 }
                 "PreCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Compacting);
                     }
 
-                    false
+                    true // Push state to cloud - compacting started
                 }
                 "PostCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Idle);
                     }
 
-                    false
+                    true // Push state to cloud - compacting completed
                 }
                 "UserPromptSubmit" => {
                     // User submitted a prompt → AI is thinking
@@ -504,7 +504,7 @@ async fn handle_hook(
                         chat_messages_to_push.push((input.session_id.clone(), message));
                     }
 
-                    false
+                    true // Push state to cloud - user submitted prompt, status changed to Thinking
                 }
                 "SubagentStart" | "SubagentStop" => {
                     // Just update activity
@@ -512,7 +512,7 @@ async fn handle_hook(
                         instance.update_activity();
                     }
 
-                    false
+                    false // Subagent events don't need cloud push (internal state only)
                 }
                 _ => false
             }
@@ -546,9 +546,41 @@ async fn handle_response(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     tracing::info!("Received response for popup: {}", response.popup_id);
 
-    let mut state_guard = state.write();
+    // Get popup info before resolving (need session_id for instance update and popup type for cloud push)
+    let popup_session_id = {
+        let state_guard = state.read();
+        state_guard.popups.get(&response.popup_id).map(|p| p.session_id.clone())
+    };
 
-    if state_guard.popups.resolve(response.clone()) {
+    // Resolve the popup
+    let resolved = {
+        let mut state_guard = state.write();
+        state_guard.popups.resolve(response.clone())
+    };
+
+    if resolved {
+        // Clear WaitingForApproval status for the instance
+        if let Some(session_id) = popup_session_id {
+            let mut state_guard = state.write();
+            if let Some(instance) = state_guard.instances.get_instance_mut(&session_id) {
+                if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                    instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                    instance.current_tool = None;
+                    instance.tool_input = None;
+                }
+            }
+        }
+
+        // Push popup_resolved to cloud if connected
+        // For permission: decision is "allow" or "deny"
+        // For ask: decision is null, answers contains user selections
+        push_popup_resolved_to_cloud(
+            &state,
+            &response.popup_id,
+            response.decision.as_deref(),
+            response.answers.as_ref(),
+        );
+
         Ok(Json(serde_json::json!({ "success": true })))
     } else {
         Ok(Json(serde_json::json!({ "success": false, "error": "popup not found or already resolved" })))
@@ -1265,6 +1297,24 @@ fn push_chat_message_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, m
         if let Ok(client) = cloud_client.try_read() {
             if client.is_connected() {
                 client.push_chat_message(session_id, message);
+            }
+        }
+    }
+}
+
+/// Push popup resolved notification to cloud client if enabled and connected
+fn push_popup_resolved_to_cloud(
+    state: &Arc<RwLock<AppState>>,
+    popup_id: &str,
+    decision: Option<&str>,
+    answers: Option<&Vec<Vec<String>>>,
+) {
+    let state_guard = state.read();
+    if let Some(ref cloud_client) = state_guard.cloud_client {
+        // Try to get read lock on async RwLock (non-blocking)
+        if let Ok(client) = cloud_client.try_read() {
+            if client.is_connected() {
+                client.push_popup_resolved(popup_id, decision, answers);
             }
         }
     }

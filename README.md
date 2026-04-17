@@ -9,13 +9,15 @@
 </p>
 
 <p align="center">
-  跨平台桌面应用，实时监控和管理多个 Claude Code 终端实例
+  跨平台桌面应用 + 手机远程监控，实时监控和管理多个 Claude Code 终端实例
 </p>
 
 <p align="center">
   <a href="#安装">安装</a> •
   <a href="#快速开始">快速开始</a> •
   <a href="#功能特性">功能特性</a> •
+  <a href="#cloud-relay">Cloud Relay</a> •
+  <a href="#mobile-app">Mobile App</a> •
   <a href="#编译">编译</a>
 </p>
 
@@ -31,6 +33,8 @@
 - **实例跳转** - 一键激活对应的终端窗口（Jump 功能）
 - **状态通知** - 实例状态变化时显示通知
 - **Session 启停提示** - SessionStart/SessionEnd 时显示项目启动/停止提示（收起状态）
+- **Cloud Relay** - 通过云服务器远程监控和响应权限请求
+- **Mobile Remote** - 手机端实时查看状态、远程审批权限
 
 ### 界面特点
 
@@ -43,17 +47,7 @@
 - **内联权限** - 在实例行内直接显示 Allow/Deny 按钮
 - **聊天视图** - 点击查看实例的完整消息历史
 - **可定制产品名** - 展开空闲状态显示可配置的产品名称（如 Ease-Island）
-
-### 界面特点
-
-- **灵动岛设计** - 类似 iOS 灵动岛的弧形胶囊 UI，底部大圆角设计
-- **点击展开** - 点击灵动岛展开实例列表（不再是悬停展开）
-- **自动展开** - 收到权限请求时自动展开
-- **像素风格图标** - Claude 螃蟹图标和状态指示器
-- **流畅动画** - iOS 风格的弹性动画效果
-- **Tab 设置页** - Hooks 配置和通用设置通过 Tab 切换
-- **内联权限** - 在实例行内直接显示 Allow/Deny 按钮
-- **聊天视图** - 点击查看实例的完整消息历史
+- **Cloud 连接状态** - 显示与云服务器的连接状态（☁ 已连接/连接中/未配置）
 
 ### 状态显示
 
@@ -84,6 +78,127 @@
 - **停止**：`项目名已停止`（如 `demo已停止`）
 
 显示持续 **3 秒** 后自动消失。展开状态下不显示此提示，而是显示产品名称。
+
+---
+
+## Cloud Relay
+
+CC-Island 支持通过云服务器进行远程监控和权限审批，实现桌面端与手机端的实时同步。
+
+### 架构概览
+
+```
+┌─────────────────┐                    ┌─────────────────┐
+│   Desktop App   │◄──── WebSocket ───►│   Cloud Server  │
+│  (Tauri/Rust)   │                    │    (Rust/Axum)  │
+│                 │                    │                 │
+│ - HTTP Hooks    │                    │ - Router        │
+│ - CloudClient   │                    │ - StateCache    │
+│ - PopupQueue    │                    │ - Repository    │
+└─────────────────┘                    └─────────────────┘
+                                               │
+                               ┌───────────────┴───────────────┐
+                               │                               │
+                        ┌──────┴──────┐                 ┌──────┴──────┐
+                        │  Mobile 1   │                 │  Mobile 2   │
+                        │  (React)    │                 │  (React)    │
+                        │             │                 │             │
+                        │ - Subscribe │                 │ - Subscribe │
+                        │   [A, B]    │                 │   [A]       │
+                        └─────────────┘                 └─────────────┘
+```
+
+### 核心特性
+
+- **实时状态同步** - Desktop 所有 Hook 事件触发状态推送
+- **多设备订阅** - Mobile 单连接订阅多个 Desktop
+- **远程权限审批** - Permission 和 AskUserQuestion 远程响应
+- **设备上下线通知** - Desktop 断开时 Mobile 自动更新
+- **弹窗同步机制** - PopupResolved 广播防止 UI 状态不一致
+
+### 消息类型
+
+| 类型 | 方向 | 说明 |
+|------|------|------|
+| `device_register` | Desktop → Cloud | 注册设备 |
+| `mobile_auth` | Mobile → Cloud | 订阅多设备（数组） |
+| `state_update` | Desktop → Cloud → Mobile | 状态同步 |
+| `new_popup` | Desktop → Cloud | 新弹窗 |
+| `respond_popup` | Mobile → Cloud | 响应弹窗 |
+| `popup_resolved` | Cloud → Mobile | 弹窗已处理通知 |
+| `device_offline` | Cloud → Mobile | 设备下线 |
+
+### 详细文档
+
+参见 [docs/cloud-relay-protocol.md](docs/cloud-relay-protocol.md) 完整协议文档。
+
+---
+
+## Mobile App
+
+手机端应用支持远程监控和审批，基于 Capacitor 构建。
+
+### 功能
+
+- **设备列表** - 显示订阅的所有 Desktop 设备
+- **状态监控** - 实时查看 Claude 执行状态（思考中/执行工具/需要授权）
+- **权限审批** - 远程 Allow/Deny 权限请求
+- **Ask 回答** - 远程回答 AskUserQuestion 问题
+- **Toast 提示** - Desktop 处理弹窗时显示通知
+- **云连接状态** - 显示与云服务器连接状态
+
+### 界面设计
+
+采用双色调设计：
+- **深色背景** (#0f0f0f) - 整体背景、会话列表
+- **亮色卡片** (#ffffff) - 待处理弹窗
+
+```
+┌──────────────────────────────────────┐
+│ ☁ 已连接                      ⚙  +  │  ← Header
+├──────────────────────────────────────┤
+│ 待处理 (1)                           │
+│ ┌────────────────────────────────┐   │
+│ │ ⚠ Bash              展开/收起 │   │  ← Popup Card (白底)
+│ │ npm test                       │   │
+│ │ [拒绝]           [允许]        │   │
+│ └────────────────────────────────┘   │
+├──────────────────────────────────────┤
+│ 会话 (2)                             │
+│ ● demo                               │  ← Session Row
+│   执行: Bash                         │
+│ ● api-server                         │
+│   空闲                               │
+└──────────────────────────────────────┘
+```
+
+### 状态解析
+
+| Desktop 状态 | JSON | Mobile 显示 | 颜色 |
+|--------------|------|-------------|------|
+| Idle | `{"type":"idle"}` | 空闲 | 灰色 |
+| Thinking | `{"type":"thinking"}` | 思考中... | 绿色 |
+| Working | `{"type":"working","data":"Bash"}` | 执行: Bash | 绿色 |
+| WaitingForApproval | `{"type":"waitingForApproval","data":"Bash"}` | 需要授权 | 黄色 |
+| Error | `{"type":"error"}` | 错误 | 红色 |
+| Compacting | `{"type":"compacting"}` | 压缩上下文 | 紫色 |
+
+### 编译
+
+```bash
+cd mobile-app
+pnpm install
+pnpm build
+
+# Android APK (debug)
+npx cap sync android
+cd android
+./gradlew assembleDebug
+
+# iOS (需要 macOS)
+npx cap sync ios
+# 用 Xcode 打开 ios/App 并编译
+```
 
 ---
 
@@ -392,45 +507,74 @@ pnpm tauri build --debug
 
 ```
 cc-island/
-├── src/                        # React 前端
+├── src/                        # React 前端（桌面）
 │   ├── components/
 │   │   ├── InstanceList.tsx    # 实例列表组件
 │   │   ├── ChatView.tsx        # 聊天视图组件
 │   │   ├── Settings.tsx        # 设置组件（Tab 切换）
-│   │   ├── StatusIcons.tsx     # 状态图标组件（螃蟹、旋转器等）
+│   │   ├── StatusIcons.tsx     # 状态图标组件
 │   │   └── NotchShape.tsx      # 灵动岛形状生成
 │   ├── stores/
 │   │   └── appStore.ts         # Zustand 状态管理
-│   ├── types/
-│   │   └── index.ts            # TypeScript 类型定义
 │   └── App.tsx                 # 主应用组件
 │
 ├── src-tauri/                  # Rust 后端
 │   └── src/
 │       ├── lib.rs              # 主入口
-│       ├── http_server.rs      # HTTP API 服务
+│       ├── http_server.rs      # HTTP API + Hook 处理
+│       ├── cloud_client.rs     # WebSocket 云客户端
 │       ├── chat_messages.rs    # 聊天消息管理
-│       ├── instance_manager.rs # 实例管理
+│       ├── instance_manager.rs # 实例管理 + InstanceStatus
 │       ├── popup_queue.rs      # 弹窗队列
 │       ├── hook_handler.rs     # Hook 数据结构
 │       └── platform/           # 平台特定实现
-│           ├── mod.rs
-│           └── macos.rs        # macOS Jump 实现
+│
+├── mobile-app/                 # 手机端应用
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DeviceListPage.tsx   # 设备列表页面
+│   │   │   ├── DeviceDetailPage.tsx # 设备详情页面
+│   │   │   ├── PopupCard.tsx        # 弹窗卡片
+│   │   │   ├── ChatView.tsx         # 聊天视图
+│   │   │   └── SettingsPage.tsx     # 设置页面
+│   │   ├── hooks/
+│   │   │   ├── useAllDevicesWebSocket.ts  # 多设备 WebSocket
+│   │   │   ├── useCloudWebSocket.ts       # 单设备 WebSocket
+│   │   │   └── useToast.ts                # Toast 提示
+│   │   └── App.tsx                  # 主应用
+│   ├── android/                # Android 原生
+│   ├── ios/                    # iOS 原生
+│   └── capacitor.config.ts     # Capacitor 配置
+│
+├── cloud-server/               # 云服务器
+│   └── src/
+│       ├── main.rs             # 入口
+│       ├── messages.rs         # WebSocket 消息类型
+│       ├── ws/
+│       │   ├── connection.rs   # 连接处理
+│       │   ├── handler.rs      # 消息处理器
+│       │   └── router.rs       # 连接路由
+│       ├── db/
+│       │   └ repository.rs     # 数据库操作
+│       └── cache/
+│       │   └ state_cache.rs    # 内存缓存
 │
 ├── hooks/
 │   ├── hooks.json              # Claude Code Hook 配置（参考）
-│   └── cc-island-session-start.sh  # SessionStart 脚本（参考）
-│   # 注：实际配置由应用自动生成到 ~/.cc-island/
+│   └── cc-island-session-start.sh  # SessionStart 脚本
 │
 └── docs/
     ├── HOOKS.md                # Hooks 配置文档
     ├── hook-reference.md       # Hook 请求/响应参考
-    └── hooks-claude.md         # Claude Code Hooks 官方文档
+    ├── hooks-claude.md         # Claude Code Hooks 官方文档
+    └── cloud-relay-protocol.md # Cloud Relay 协议文档
 ```
 
 ---
 
 ## 技术栈
+
+### Desktop App
 
 | 层级 | 技术 |
 |------|------|
@@ -441,6 +585,27 @@ cc-island/
 | 桌面框架 | Tauri 2.x |
 | 后端 | Rust + Axum |
 | HTTP 服务 | Axum (端口 17527) |
+| WebSocket | tokio-tungstenite |
+
+### Mobile App
+
+| 层级 | 技术 |
+|------|------|
+| 前端框架 | React 18 + TypeScript |
+| 样式 | Tailwind CSS |
+| 动画 | Framer Motion |
+| 跨平台 | Capacitor |
+| Android | Gradle + Kotlin |
+| iOS | Xcode + Swift |
+
+### Cloud Server
+
+| 层级 | 技术 |
+|------|------|
+| 运行时 | Rust + Tokio |
+| HTTP/WebSocket | Axum + tokio-tungstenite |
+| 数据库 | PostgreSQL + SQLx |
+| 缓存 | 内存 HashMap |
 
 ---
 
@@ -544,6 +709,25 @@ macOS 需要：
 1. 本地编译：修改 `src-tauri/tauri.conf.json` 的 `productName`
 2. GitHub Release：Actions → Run workflow 时输入自定义产品名
 3. Fork：直接修改配置后发布
+
+### Q: Cloud Relay 如何配置？
+
+1. 启动云服务器：`cd cloud-server && cargo run`
+2. Desktop 设置：在 Settings → Cloud 填写服务器地址
+3. Mobile 设置：添加服务器地址 + 设备 Token（从 Desktop 设置获取）
+
+### Q: Mobile App 如何添加设备？
+
+1. Desktop Settings → Cloud → 点击"复制 Token"
+2. Mobile Settings → 点击"+" → 输入 Token
+3. 可添加多个设备，Mobile 会订阅所有设备的状态
+
+### Q: Desktop 和 Mobile 同时处理弹窗会冲突吗？
+
+不会冲突：
+- 任何一端处理都会广播 `PopupResolved` 到另一端
+- Mobile 收到 Desktop 处理通知会显示 Toast 并移除弹窗
+- Desktop 收到 Mobile 响应会解除阻塞并继续执行
 
 ---
 

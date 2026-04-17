@@ -217,6 +217,33 @@ impl CloudClient {
             }
         }
     }
+
+    /// Push popup resolved notification to cloud
+    /// Called when desktop locally resolves a popup (user clicked Allow/Deny or answered questions)
+    pub fn push_popup_resolved(
+        &self,
+        popup_id: &str,
+        decision: Option<&str>,
+        answers: Option<&Vec<Vec<String>>>,
+    ) {
+        if !self.is_connected() {
+            return;
+        }
+
+        if let Some(tx) = &self.out_tx {
+            let msg = serde_json::json!({
+                "type": "popup_resolved",
+                "device_token": self.device_token,
+                "popup_id": popup_id,
+                "source": "desktop",
+                "decision": decision,
+                "answers": answers,
+            });
+            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
+                tracing::warn!("Failed to push popup resolved: {}", e);
+            }
+        }
+    }
 }
 
 fn handle_popup_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {

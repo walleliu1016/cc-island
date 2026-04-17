@@ -54,10 +54,10 @@ pub async fn handle_connection(
     };
 
     match auth_result {
-        Ok((conn_type, device_token)) => {
-            // Send auth success
+        Ok((conn_type, device_tokens)) => {
+            // Send auth success (use first token as device_id for response)
             let auth_success = CloudMessage::AuthSuccess {
-                device_id: device_token.clone(),
+                device_id: device_tokens.first().cloned().unwrap_or_default(),
                 device_name: None,
             };
             let json = serde_json::to_string(&auth_success).unwrap();
@@ -66,18 +66,45 @@ pub async fn handle_connection(
                 return;
             }
 
-            // Register connection
-            match conn_type {
-                ConnectionType::Desktop => router.register_desktop(&device_token, out_tx.clone()),
-                ConnectionType::Mobile => router.register_mobile(&device_token, out_tx.clone()),
-            }
+            // Register connection and track mobile connection_id for cleanup
+            let mobile_conn_id = match conn_type {
+                ConnectionType::Desktop => {
+                    let device_token = device_tokens.first().unwrap();
+                    router.register_desktop(device_token, out_tx.clone());
+                    None
+                },
+                ConnectionType::Mobile => {
+                    Some(router.register_mobile(&device_tokens, out_tx.clone()))
+                }
+            };
 
-            // For mobile: send initial state from cache
+            // For mobile: send aggregated initial state from cache
             if conn_type == ConnectionType::Mobile {
-                if let Some(state) = cache.get_state(&device_token) {
+                // Send device list (all online desktops)
+                let online_devices = router.get_online_devices();
+                let device_list_msg = CloudMessage::DeviceList {
+                    devices: online_devices.clone(),
+                };
+                let json = serde_json::to_string(&device_list_msg).unwrap();
+                if let Err(e) = out_tx.try_send(Message::text(json)) {
+                    tracing::warn!("Failed to send device list: {}", e);
+                }
+
+                // Send aggregated initial state from cache
+                let mut all_sessions = Vec::new();
+                let mut all_popups = Vec::new();
+
+                for token in &device_tokens {
+                    if let Some(state) = cache.get_state(token) {
+                        all_sessions.extend(state.sessions);
+                        all_popups.extend(state.popups);
+                    }
+                }
+
+                if !all_sessions.is_empty() || !all_popups.is_empty() {
                     let init_msg = CloudMessage::InitialState {
-                        sessions: state.sessions,
-                        popups: state.popups,
+                        sessions: all_sessions,
+                        popups: all_popups,
                     };
                     let json = serde_json::to_string(&init_msg).unwrap();
                     if let Err(e) = out_tx.try_send(Message::text(json)) {
@@ -88,6 +115,9 @@ pub async fn handle_connection(
 
             // Create message handler
             let handler = MessageHandler::new(router.clone(), cache.clone(), repo.clone());
+
+            // Store device_tokens for use in handler
+            let device_token_ref = device_tokens.first().cloned().unwrap_or_default();
 
             // Spawn send task (forward outgoing messages to WebSocket)
             let send_task = async {
@@ -104,7 +134,7 @@ pub async fn handle_connection(
                     match msg_result {
                         Ok(Message::Text(text)) => {
                             if let Ok(cloud_msg) = serde_json::from_str::<CloudMessage>(&text) {
-                                handler.handle(cloud_msg, &out_tx, &device_token).await;
+                                handler.handle(cloud_msg, &out_tx, &device_token_ref).await;
                             }
                         },
                         Ok(Message::Ping(data)) => {
@@ -136,13 +166,26 @@ pub async fn handle_connection(
             // Cleanup on disconnect
             match conn_type {
                 ConnectionType::Desktop => {
-                    router.unregister_desktop(&device_token);
-                    if let Err(e) = repo.set_device_offline(&device_token).await {
+                    let device_token = device_tokens.first().unwrap();
+
+                    // Notify mobiles subscribed to this device
+                    let offline_msg = CloudMessage::DeviceOffline {
+                        device_token: device_token.clone(),
+                    };
+                    let json = serde_json::to_string(&offline_msg).unwrap();
+                    router.broadcast_to_mobiles(device_token, Message::text(json));
+
+                    router.unregister_desktop(device_token);
+                    if let Err(e) = repo.set_device_offline(device_token).await {
                         tracing::error!("Failed to set device offline: {}", e);
                     }
-                    cache.remove_device(&device_token);
+                    cache.remove_device(device_token);
                 },
-                ConnectionType::Mobile => router.unregister_mobile(&device_token),
+                ConnectionType::Mobile => {
+                    if let Some(conn_id) = mobile_conn_id {
+                        router.unregister_mobile(conn_id);
+                    }
+                }
             }
         },
         Err(reason) => {
@@ -156,7 +199,7 @@ pub async fn handle_connection(
 }
 
 /// Parse and handle authentication message
-async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, String), String> {
+async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, Vec<String>), String> {
     let msg: CloudMessage = serde_json::from_str(text)
         .map_err(|e| format!("Invalid JSON: {}", e))?;
 
@@ -166,11 +209,14 @@ async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(Connect
             if let Err(e) = repo.upsert_device(&device_token, device_name.as_deref()).await {
                 tracing::error!("Failed to register device: {}", e);
             }
-            Ok((ConnectionType::Desktop, device_token))
+            Ok((ConnectionType::Desktop, vec![device_token]))
         },
-        CloudMessage::MobileAuth { device_token } => {
-            // Mobile doesn't need database registration
-            Ok((ConnectionType::Mobile, device_token))
+        CloudMessage::MobileAuth { device_tokens } => {
+            // Mobile subscribes to multiple devices
+            if device_tokens.is_empty() {
+                return Err("device_tokens cannot be empty".to_string());
+            }
+            Ok((ConnectionType::Mobile, device_tokens))
         },
         _ => Err("Expected device_register or mobile_auth as first message".to_string()),
     }

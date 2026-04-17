@@ -50,11 +50,12 @@ pub enum CloudMessage {
         device_name: Option<String>,
     },
 
-    /// Mobile client authentication. Sent when mobile connects to subscribe to a device.
+    /// Mobile client authentication. Sent when mobile connects to subscribe to devices.
     #[serde(rename = "mobile_auth")]
     MobileAuth {
-        /// Device token to subscribe to (received from desktop via QR code)
-        device_token: String,
+        /// Device tokens to subscribe to (received from desktop via QR code)
+        /// Can subscribe to multiple devices in a single connection
+        device_tokens: Vec<String>,
     },
 
     /// Authentication success response. Sent to client after successful auth.
@@ -64,6 +65,22 @@ pub enum CloudMessage {
         device_id: String,
         /// Device name (if provided during registration)
         device_name: Option<String>,
+    },
+
+    /// Device list sent to mobile after authentication.
+    /// Contains all online devices (desktops that are currently connected).
+    #[serde(rename = "device_list")]
+    DeviceList {
+        /// List of online device tokens
+        devices: Vec<String>,
+    },
+
+    /// Notification that a device has gone offline.
+    /// Sent to mobile clients when their subscribed desktop disconnects.
+    #[serde(rename = "device_offline")]
+    DeviceOffline {
+        /// Device token that went offline
+        device_token: String,
     },
 
     /// Authentication failure response. Sent when auth fails.
@@ -126,8 +143,26 @@ pub enum CloudMessage {
     /// Sent when desktop reports a new popup.
     #[serde(rename = "new_popup_from_device")]
     NewPopupFromDevice {
+        /// Device token that created this popup
+        device_token: String,
         /// The popup that was created on the desktop
         popup: PopupState,
+    },
+
+    /// Notification that a popup has been resolved.
+    /// Broadcast to all mobiles when any client (desktop or mobile) responds to a popup.
+    #[serde(rename = "popup_resolved")]
+    PopupResolved {
+        /// Device token this popup belongs to
+        device_token: String,
+        /// Unique identifier of the resolved popup
+        popup_id: String,
+        /// Which client resolved this popup: "desktop" or "mobile"
+        source: String,
+        /// The decision made for permission popups (e.g., "allow" or "deny")
+        decision: Option<String>,
+        /// User's answers for AskUserQuestion popups (array of selected options per question)
+        answers: Option<Vec<Vec<String>>>,
     },
 
     /// New chat messages broadcast to mobile clients.
