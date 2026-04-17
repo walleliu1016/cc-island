@@ -45,6 +45,50 @@ function ProcessingSpinner({ size = 12 }: { size?: number }) {
   );
 }
 
+// Simple markdown-like renderer for code blocks and formatting
+function renderContent(content: string): React.ReactNode {
+  // Parse code blocks
+  const parts = content.split(/```(\w*)\n?/g);
+  if (parts.length > 1) {
+    const result: React.ReactNode[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 3 === 0) {
+        // Regular text before code block
+        if (parts[i]) {
+          result.push(<span key={i}>{renderInlineFormatting(parts[i])}</span>);
+        }
+      } else if (i % 3 === 1) {
+        // Language specifier (skip, we don't need it for display)
+      } else {
+        // Code content
+        const code = parts[i].replace(/```$/, '').trim();
+        result.push(
+          <pre key={i} className="bg-black/40 rounded px-2 py-1.5 my-1 font-mono text-xs text-green-400/90 whitespace-pre-wrap overflow-x-auto">
+            {code}
+          </pre>
+        );
+      }
+    }
+    return result;
+  }
+  return renderInlineFormatting(content);
+}
+
+// Render inline formatting (bold, italic, code)
+function renderInlineFormatting(text: string): React.ReactNode {
+  // Handle inline code `code`
+  const parts = text.split(/`([^`]+)`/g);
+  if (parts.length > 1) {
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <code key={i} className="bg-black/30 px-1 rounded font-mono text-xs text-green-400/80">{part}</code>;
+      }
+      return part;
+    });
+  }
+  return text;
+}
+
 // Ask question types
 interface AskOption {
   label: string
@@ -299,14 +343,14 @@ function formatToolContent(toolName: string | undefined, content: string): React
       case 'Grep':
         return formatGrepTool(parsed);
       default:
-        return JSON.stringify(parsed, null, 2);
+        return <pre className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-white/70 whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>;
     }
   } catch {
     return content;
   }
 }
 
-// Bash: Show command with description
+// Bash: Show command with description in code block style
 function formatBashTool(input: { command?: string; description?: string; timeout?: number }): React.ReactNode {
   return (
     <div className="space-y-2">
@@ -314,9 +358,9 @@ function formatBashTool(input: { command?: string; description?: string; timeout
         <div className="text-xs text-white/50">{input.description}</div>
       )}
       {input.command && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-green-400/90 whitespace-pre-wrap">
+        <pre className="bg-black/40 rounded-lg px-3 py-2 font-mono text-xs text-green-400 whitespace-pre-wrap">
           {input.command}
-        </div>
+        </pre>
       )}
     </div>
   );
@@ -330,7 +374,7 @@ function formatReadTool(input: { file_path?: string; offset?: number; limit?: nu
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
           <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
         </svg>
-        <span className="text-white/70">{input.file_path}</span>
+        <code className="text-white/70">{input.file_path}</code>
       </div>
       {(input.offset || input.limit) && (
         <div className="text-xs text-white/40">
@@ -351,18 +395,18 @@ function formatWriteTool(input: { file_path?: string; content?: string }): React
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
           <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
         </svg>
-        <span className="text-white/70">{input.file_path}</span>
+        <code className="text-white/70">{input.file_path}</code>
       </div>
       {preview && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-white/60 whitespace-pre-wrap">
+        <pre className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-white/60 whitespace-pre-wrap">
           {preview}{hasMore && '...'}
-        </div>
+        </pre>
       )}
     </div>
   );
 }
 
-// Edit: Show file path and change summary
+// Edit: Show file path and change summary with diff style
 function formatEditTool(input: { file_path?: string; old_string?: string; new_string?: string; replace_all?: boolean }): React.ReactNode {
   return (
     <div className="space-y-2">
@@ -370,13 +414,13 @@ function formatEditTool(input: { file_path?: string; old_string?: string; new_st
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
           <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
         </svg>
-        <span className="text-white/70">{input.file_path}</span>
-        {input.replace_all && <span className="text-amber-400/80">(replace all)</span>}
+        <code className="text-white/70">{input.file_path}</code>
+        {input.replace_all && <span className="text-amber-400/80 text-xs">(replace all)</span>}
       </div>
       {input.old_string && (
-        <div className="space-y-1">
-          <div className="text-xs text-red-400/70">− {input.old_string.slice(0, 50)}{input.old_string.length > 50 && '...'}</div>
-          <div className="text-xs text-green-400/70">+ {input.new_string?.slice(0, 50)}{input.new_string && input.new_string.length > 50 && '...'}</div>
+        <div className="space-y-1 font-mono text-xs">
+          <pre className="bg-red-500/10 text-red-400/80 px-2 py-1 rounded">− {input.old_string.slice(0, 100)}{input.old_string.length > 100 && '...'}</pre>
+          <pre className="bg-green-500/10 text-green-400/80 px-2 py-1 rounded">+ {input.new_string?.slice(0, 100)}{input.new_string && input.new_string.length > 100 && '...'}</pre>
         </div>
       )}
     </div>
@@ -387,11 +431,12 @@ function formatEditTool(input: { file_path?: string; old_string?: string; new_st
 function formatWebFetchTool(input: { url?: string; prompt?: string }): React.ReactNode {
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2 text-xs text-blue-400/80">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-          <path d="M6 0a6 6 0 0 1 6 6 6 6 0 0 1-6 6 6 6 0 0 1-6-6 6 6 0 0 1 6-6zm0 1a5 5 0 0 0-5 5 5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-5-5zm0 2a3 3 0 0 1 3 3 3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1 3-3z"/>
+      <div className="flex items-center gap-2 text-xs">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-blue-400">
+          <path d="M10.5 1.5a1.5 1.5 0 0 1 0 3h-1v1h1a2.5 2.5 0 0 0 0-5h-1v1h1zm-8 0a1.5 1.5 0 0 0 0 3h1v1h-1a2.5 2.5 0 0 1 0-5h1v1h-1z"/>
+          <path d="M5 4.5h2v1H5zm0 2h2v1H5z"/>
         </svg>
-        <span className="truncate">{input.url}</span>
+        <a href={input.url} target="_blank" rel="noopener" className="text-blue-400/80 underline truncate">{input.url}</a>
       </div>
       {input.prompt && <div className="text-xs text-white/40">{input.prompt}</div>}
     </div>
@@ -402,7 +447,7 @@ function formatWebFetchTool(input: { url?: string; prompt?: string }): React.Rea
 function formatWebSearchTool(input: { query?: string }): React.ReactNode {
   return (
     <div className="text-xs">
-      <span className="text-white/40">Search:</span>{' '}
+      <span className="text-white/40">Search: </span>
       <span className="text-white/70">{input.query}</span>
     </div>
   );
@@ -412,8 +457,8 @@ function formatWebSearchTool(input: { query?: string }): React.ReactNode {
 function formatGlobTool(input: { pattern?: string; path?: string }): React.ReactNode {
   return (
     <div className="text-xs">
-      <span className="text-white/40">Pattern:</span>{' '}
-      <span className="text-white/70">{input.path}/{input.pattern}</span>
+      <span className="text-white/40">Pattern: </span>
+      <code className="text-white/70">{input.path}/{input.pattern}</code>
     </div>
   );
 }
@@ -423,10 +468,10 @@ function formatGrepTool(input: { pattern?: string; path?: string; output_mode?: 
   return (
     <div className="space-y-1">
       <div className="text-xs">
-        <span className="text-white/40">Pattern:</span>{' '}
-        <span className="text-amber-400/80">{input.pattern}</span>
+        <span className="text-white/40">Pattern: </span>
+        <code className="text-amber-400/80">{input.pattern}</code>
       </div>
-      <div className="text-xs text-white/50">in {input.path}</div>
+      <div className="text-xs text-white/50">in <code>{input.path}</code></div>
     </div>
   );
 }
@@ -441,7 +486,7 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [askAnswers, setAskAnswers] = useState<string[][]>([])
 
-  // Detect processing state - check for recent thinking or toolCall messages
+  // Detect processing state
   const isProcessing = messages.some(m =>
     (m.messageType === 'thinking' || m.messageType === 'toolCall') &&
     m.timestamp > Date.now() - 3000
@@ -484,10 +529,10 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex items-center gap-2 py-2"
+            className="flex items-center justify-center gap-2 py-3"
           >
-            <ProcessingSpinner size={10} />
-            <span className="text-white/40 text-xs">Processing...</span>
+            <ProcessingSpinner size={12} />
+            <span className="text-white/40 text-sm">Processing...</span>
           </motion.div>
         )}
 
@@ -520,19 +565,19 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                     key={msg.id}
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-3 bg-white/5 rounded-lg overflow-hidden"
+                    className="mb-4 bg-white/5 rounded-lg overflow-hidden mx-2"
                   >
                     <QuestionWizard
                       questions={askQuestions}
                       selectedAnswers={askAnswers}
                       onChange={setAskAnswers}
-                      readOnly={true}  // Mobile is read-only for now (respond via PopupCard)
+                      readOnly={true}
                     />
                   </motion.div>
                 );
               }
 
-              // User message
+              // User message - RIGHT aligned
               if (msg.messageType === 'user') {
                 // Check if this is an AskUserQuestion answer
                 if (msg.toolName === 'AskUserQuestionAnswer') {
@@ -541,20 +586,21 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                     return (
                       <motion.div
                         key={msg.id}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-3"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="mb-3 flex justify-end"
                       >
-                        <div className="py-1">
-                          <div className="text-xs text-white/40 mb-1">你的回答</div>
+                        <div className="max-w-[80%] bg-[#d97857]/20 rounded-lg px-3 py-2">
+                          <div className="text-xs text-white/50 mb-1">你的回答</div>
                           <div className="space-y-1">
                             {answerData.map((answer, idx) => (
-                              <div key={idx} className="text-sm text-white/80">
-                                <span className="text-white/50">Q{idx + 1}:</span>{' '}
+                              <div key={idx} className="text-sm text-white/90">
+                                <span className="text-white/50">Q{idx + 1}: </span>
                                 {answer.join(', ')}
                               </div>
                             ))}
                           </div>
+                          <div className="text-xs text-white/30 mt-1 text-right">{time}</div>
                         </div>
                       </motion.div>
                     );
@@ -564,34 +610,35 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-3 flex justify-end"
                   >
-                    <div className="py-1">
-                      <div className="text-xs text-white/40 mb-1">你</div>
-                      <div className="text-sm text-white/90">{msg.content}</div>
+                    <div className="max-w-[80%] bg-[#d97857]/20 rounded-lg px-3 py-2">
+                      <div className="text-sm text-white/90">{renderContent(msg.content)}</div>
+                      <div className="text-xs text-white/30 mt-1 text-right">{time}</div>
                     </div>
                   </motion.div>
                 );
               }
 
-              // Tool call
+              // Tool call - LEFT aligned, styled as assistant message
               if (msg.messageType === 'toolCall') {
                 const formatted = formatToolContent(msg.toolName, msg.content);
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-3 flex justify-start"
                   >
-                    <div className="py-1">
-                      <div className="flex items-center gap-2">
+                    <div className="max-w-[90%] bg-white/5 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
                           {msg.toolName}
                         </span>
-                        <span className="text-xs text-white/40">Waiting for approval...</span>
+                        <span className="text-xs text-white/40">执行中</span>
+                        <span className="text-xs text-white/30">{time}</span>
                       </div>
                       <div className="mt-1.5">
                         {formatted}
@@ -601,59 +648,59 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                 );
               }
 
-              // Tool result - matches Desktop style
+              // Tool result - LEFT aligned
               if (msg.messageType === 'toolResult') {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-3 flex justify-start"
                   >
-                    <div className="py-1">
-                      <div className="text-xs text-white/40 mb-1">Result</div>
-                      <div className="text-sm text-white/70">{msg.content}</div>
+                    <div className="max-w-[90%] bg-[#66c075]/10 rounded-lg px-3 py-2">
+                      <div className="text-xs text-[#66c075]/70 mb-1">Result · {time}</div>
+                      <div className="text-sm text-white/70">{renderContent(msg.content)}</div>
                     </div>
                   </motion.div>
                 );
               }
 
-              // Thinking
+              // Thinking - LEFT aligned
               if (msg.messageType === 'thinking') {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-3 flex justify-start"
                   >
-                    <div className="py-1">
+                    <div className="max-w-[90%] bg-[#ffb700]/10 rounded-lg px-3 py-2">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium" style={{ color: Colors.thinking }}>
                           思考中
                         </span>
-                        <span className="text-xs text-white/40">{time}</span>
+                        <span className="text-xs text-white/30">{time}</span>
                       </div>
                       <div className="text-xs text-white/50 italic">
-                        {msg.content.slice(0, 100)}{msg.content.length > 100 && '...'}
+                        {msg.content.slice(0, 150)}{msg.content.length > 150 && '...'}
                       </div>
                     </div>
                   </motion.div>
                 );
               }
 
-              // Assistant
+              // Assistant - LEFT aligned
               if (msg.messageType === 'assistant') {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="mb-3 flex justify-start"
                   >
-                    <div className="py-1">
-                      <div className="text-xs text-white/40 mb-1">Claude</div>
-                      <div className="text-sm text-white/90">{msg.content}</div>
+                    <div className="max-w-[90%] bg-[#66c075]/10 rounded-lg px-3 py-2">
+                      <div className="text-xs text-[#66c075]/70 mb-1">Claude · {time}</div>
+                      <div className="text-sm text-white/90">{renderContent(msg.content)}</div>
                     </div>
                   </motion.div>
                 );
@@ -664,14 +711,12 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mb-3 flex justify-center"
                   >
-                    <div className="py-1">
-                      <div className="text-xs font-medium" style={{ color: Colors.interrupted }}>
-                        已中断
-                      </div>
+                    <div className="text-xs font-medium text-[#ff4d4d]/80 bg-[#ff4d4d]/10 rounded px-3 py-1">
+                      已中断
                     </div>
                   </motion.div>
                 );

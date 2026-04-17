@@ -269,6 +269,15 @@ impl PopupQueue {
 
         cancelled_ids
     }
+
+    /// Find pending popup by session_id
+    pub fn find_popup_by_session(&self, session_id: &str) -> Option<String> {
+        self.queue
+            .iter()
+            .filter(|p| p.session_id == session_id && p.status == PopupStatus::Pending)
+            .map(|p| p.id.clone())
+            .next()
+    }
 }
 
 impl Default for PopupQueue {

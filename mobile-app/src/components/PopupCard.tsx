@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { PopupState, PermissionData, AskData } from '../types'
+import { PopupState, PermissionData, AskData, AskOption } from '../types'
 
 interface PopupCardProps {
   popup: PopupState
@@ -147,7 +147,7 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
           {currentQ.header}: {currentQ.question}
         </div>
         <div className="space-y-2">
-          {currentQ.options.map((opt, idx) => {
+          {currentQ.options.map((opt: AskOption, idx: number) => {
             const isSelected = selectedAnswers[currentQuestion]?.includes(opt.label)
             return (
               <button

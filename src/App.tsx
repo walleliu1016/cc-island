@@ -36,7 +36,7 @@ function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [productName, setProductName] = useState<string>('');
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
-  const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean }>({ connected: false, connecting: false });
+  const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
 
   // Drag state for horizontal dragging
   const [isDragging, setIsDragging] = useState(false);
@@ -162,9 +162,36 @@ function App() {
         }
 
         // Update cloud connection status
-        const isConnected = cloudStatusRaw === 'Connected';
-        const isConnecting = cloudStatusRaw === 'Connecting';
-        setCloudStatus({ connected: isConnected, connecting: isConnecting });
+        let isConnected = false;
+        let isConnecting = false;
+        let isFailed = false;
+        let failedReason = '';
+
+        if (typeof cloudStatusRaw === 'string') {
+          isConnected = cloudStatusRaw === 'Connected';
+          isConnecting = cloudStatusRaw === 'Connecting';
+          // Failed status might come as JSON string like '{"Failed":"error"}' or plain 'Disconnected'
+          if (cloudStatusRaw.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(cloudStatusRaw);
+              if (parsed.Failed) {
+                isFailed = true;
+                failedReason = parsed.Failed;
+              }
+            } catch {}
+          } else if (cloudStatusRaw === 'Disconnected') {
+            // Not configured - show gray cloud without error
+            isFailed = false;
+          }
+        } else if (cloudStatusRaw && typeof cloudStatusRaw === 'object') {
+          // Failed status returned as { Failed: "error message" }
+          if ((cloudStatusRaw as Record<string, string>).Failed) {
+            isFailed = true;
+            failedReason = (cloudStatusRaw as Record<string, string>).Failed;
+          }
+        }
+
+        setCloudStatus({ connected: isConnected, connecting: isConnecting, failed: isFailed, failedReason });
 
         // Update display states with minimum display time
         updateDisplays(instancesData);
@@ -399,7 +426,7 @@ function App() {
                 {/* Cloud connection indicator */}
                 <div
                   className="flex items-center justify-center"
-                  title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : '未连接'}
+                  title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : cloudStatus.failed ? `连接失败: ${cloudStatus.failedReason}` : '未连接'}
                 >
                   {cloudStatus.connected ? (
                     <span className="text-green-400 text-xs">☁</span>

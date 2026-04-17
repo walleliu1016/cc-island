@@ -4,8 +4,8 @@ use sqlx::PgPool;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use tracing::warn;
-use super::models::{ChatMessage, Device, Session, Popup};
-use crate::messages::{ChatMessageData, MessageType};
+use super::models::{ChatMessage, Device, SessionInfo};
+use crate::messages::{ChatMessageData, MessageType, DeviceInfo};
 
 /// Repository for database operations
 #[derive(Clone)]
@@ -21,18 +21,23 @@ impl Repository {
     // ===== Device operations =====
 
     /// Upsert device (register or update online status)
-    pub async fn upsert_device(&self, device_token: &str, name: Option<&str>) -> Result<Device> {
+    pub async fn upsert_device(&self, device_token: &str, hostname: Option<&str>, name: Option<&str>) -> Result<Device> {
         let now = Utc::now();
         let device = sqlx::query_as::<_, Device>(
             r#"
-            INSERT INTO devices (device_token, name, status, last_seen_at)
-            VALUES ($1, $2, 'online', $3)
+            INSERT INTO devices (device_token, hostname, name, status, last_seen_at, registered_at)
+            VALUES ($1, $2, $3, 'online', $4, $4)
             ON CONFLICT (device_token)
-            DO UPDATE SET status = 'online', last_seen_at = $3, name = COALESCE($2, devices.name)
+            DO UPDATE SET
+                status = 'online',
+                last_seen_at = $4,
+                hostname = COALESCE($2, devices.hostname),
+                name = COALESCE($3, devices.name)
             RETURNING *
             "#,
         )
         .bind(device_token)
+        .bind(hostname)
         .bind(name)
         .bind(now)
         .fetch_one(&self.pool)
@@ -53,88 +58,120 @@ impl Repository {
         Ok(())
     }
 
-    // ===== Session operations =====
-
-    /// Upsert multiple sessions for a device (with transaction)
-    pub async fn upsert_sessions(&self, device_token: &str, sessions: &[crate::messages::SessionState]) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-
-        for session in sessions {
-            sqlx::query(
-                r#"
-                INSERT INTO sessions (device_token, session_id, project_name, status, current_tool, tool_input, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ON CONFLICT (device_token, session_id)
-                DO UPDATE SET status = $4, current_tool = $5, tool_input = $6, project_name = $3, updated_at = NOW()
-                "#,
-            )
-            .bind(device_token)
-            .bind(&session.session_id)
-            .bind(&session.project_name)
-            .bind(&session.status)
-            .bind(&session.current_tool)
-            .bind(&session.tool_input)
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        tx.commit().await?;
-        Ok(())
-    }
-
-    /// Get all sessions for a device
-    pub async fn get_sessions(&self, device_token: &str) -> Result<Vec<Session>> {
-        let sessions = sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions WHERE device_token = $1 ORDER BY updated_at DESC",
+    /// Get all online devices
+    pub async fn get_online_devices(&self) -> Result<Vec<DeviceInfo>> {
+        let devices = sqlx::query_as::<_, Device>(
+            "SELECT * FROM devices WHERE status = 'online' ORDER BY last_seen_at DESC",
         )
-        .bind(device_token)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(sessions)
+        let result: Vec<DeviceInfo> = devices
+            .into_iter()
+            .map(|d| DeviceInfo {
+                token: d.device_token,
+                hostname: d.hostname,
+                registered_at: d.registered_at.map(|t| t.to_rfc3339()),
+                online: true,
+            })
+            .collect();
+
+        Ok(result)
     }
 
-    // ===== Popup operations =====
-
-    /// Upsert a popup for a device
-    pub async fn upsert_popup(&self, device_token: &str, popup: &crate::messages::PopupState) -> Result<()> {
-        sqlx::query(
-            r#"
-            INSERT INTO popups (id, device_token, session_id, project_name, popup_type, data, status)
-            VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-            ON CONFLICT (id) DO UPDATE SET data = $6, status = 'pending'
-            "#,
+    /// Get subscribed devices info (filter by tokens)
+    pub async fn get_devices_info(&self, device_tokens: &[String]) -> Result<Vec<DeviceInfo>> {
+        let devices = sqlx::query_as::<_, Device>(
+            "SELECT * FROM devices WHERE device_token = ANY($1)",
         )
-        .bind(&popup.id)
-        .bind(device_token)
-        .bind(&popup.session_id)
-        .bind(&popup.project_name)
-        .bind(&popup.popup_type)
-        .bind(&popup.data)
+        .bind(device_tokens)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let result: Vec<DeviceInfo> = devices
+            .into_iter()
+            .map(|d| DeviceInfo {
+                token: d.device_token,
+                hostname: d.hostname,
+                registered_at: d.registered_at.map(|t| t.to_rfc3339()),
+                online: d.status == "online",
+            })
+            .collect();
+
+        Ok(result)
+    }
+
+    // ===== Session operations =====
+
+    /// Upsert session (create or update)
+    pub async fn upsert_session(
+        &self,
+        device_token: &str,
+        session_id: &str,
+        project_name: Option<&str>,
+        status: &str,
+        current_tool: Option<&str>,
+    ) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query!(
+            r#"
+            INSERT INTO sessions (device_token, session_id, project_name, status, current_tool, started_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $6)
+            ON CONFLICT (device_token, session_id)
+            DO UPDATE SET
+                project_name = COALESCE($3, sessions.project_name),
+                status = $4,
+                current_tool = $5,
+                updated_at = $6
+            "#,
+            device_token,
+            session_id,
+            project_name,
+            status,
+            current_tool,
+            now,
+        )
         .execute(&self.pool)
         .await?;
 
         Ok(())
     }
 
-    /// Get pending popups for a device
-    pub async fn get_pending_popups(&self, device_token: &str) -> Result<Vec<Popup>> {
-        let popups = sqlx::query_as::<_, Popup>(
-            "SELECT * FROM popups WHERE device_token = $1 AND status = 'pending' ORDER BY created_at DESC",
+    /// Get active sessions for devices (not ended)
+    pub async fn get_active_sessions(&self, device_tokens: &[String]) -> Result<Vec<SessionInfo>> {
+        // Filter out ended sessions (handles both 'ended' and '{"type":"ended"}' formats)
+        let sessions = sqlx::query_as::<_, SessionInfo>(
+            r#"
+            SELECT device_token, session_id, project_name, status, current_tool, started_at, updated_at
+            FROM sessions
+            WHERE device_token = ANY($1)
+            AND status NOT LIKE '%ended%'
+            AND status NOT LIKE '%test%'
+            AND session_id NOT LIKE 'test-%'
+            ORDER BY updated_at DESC
+            LIMIT 20
+            "#,
         )
-        .bind(device_token)
+        .bind(device_tokens)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(popups)
+        Ok(sessions)
     }
 
-    /// Mark popup as resolved
-    pub async fn resolve_popup(&self, popup_id: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE popups SET status = 'resolved', resolved_at = NOW() WHERE id = $1",
+    /// End session (mark as ended)
+    pub async fn end_session(&self, device_token: &str, session_id: &str) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query!(
+            r#"
+            UPDATE sessions
+            SET status = 'ended', updated_at = $3
+            WHERE device_token = $1 AND session_id = $2
+            "#,
+            device_token,
+            session_id,
+            now,
         )
-        .bind(popup_id)
         .execute(&self.pool)
         .await?;
 
@@ -239,18 +276,5 @@ impl Repository {
             .collect();
 
         Ok(result)
-    }
-
-    /// Delete chat history for a session (on session end)
-    pub async fn delete_chat_history(&self, device_token: &str, session_id: &str) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM chat_messages WHERE device_token = $1 AND session_id = $2",
-        )
-        .bind(device_token)
-        .bind(session_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
     }
 }

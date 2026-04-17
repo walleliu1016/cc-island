@@ -17,7 +17,6 @@ use crate::instance_manager::{ClaudeInstance, ClaudeInstanceDisplay, InstanceSta
 use crate::popup_queue::{PopupItem, PopupResponse, PopupType, PopupStatus, AskData, AskQuestion};
 use crate::hook_handler::{HookInput, HookOutput, HookSpecificOutput, PermissionData, ElicitationQuestion, DecisionOutput};
 use crate::chat_messages::{ChatMessage, MessageType};
-use crate::cloud_client::{SessionState, PopupState};
 
 /// HTTP Server for receiving Claude Code hooks
 pub struct HttpServer {
@@ -39,6 +38,7 @@ impl HttpServer {
             .route("/chat/:session_id", get(get_chat_messages_http))
             .route("/instance/:id", get(get_instance).delete(delete_instance))
             .route("/settings", get(get_settings).put(update_settings))
+            .route("/device_token", get(get_device_token_http))
             .route("/position", put(update_position))
             .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any))
             .with_state(SHARED_STATE.clone());
@@ -133,7 +133,7 @@ async fn handle_hook(
         let timeout_secs = if hook_event == "PermissionRequest" { 300 } else { 120 };
 
         // Store context for building response
-        let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input, popup_for_cloud) = {
+        let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input, _popup_for_cloud) = {
             let mut state_guard = state.write();
 
             // Create popup item
@@ -196,8 +196,9 @@ async fn handle_hook(
             (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input, popup_for_broadcast)
         };
 
-        // Push new popup to cloud client if enabled
-        push_new_popup_to_cloud(&state, &popup_for_cloud);
+        // Push HookMessage to cloud for PermissionRequest/Elicitation/Ask
+        let hook_body = build_hook_body_from_input(&input);
+        push_hook_to_cloud(&state, &input.session_id, &input.hook_event_name, hook_body);
 
         // Wait for response (with timeout handled in popup_queue)
         match rx.await {
@@ -234,7 +235,7 @@ async fn handle_hook(
         // Collect chat messages to push to cloud after write lock is released
         let mut chat_messages_to_push: Vec<(String, ChatMessage)> = Vec::new();
 
-        let should_push_to_cloud = {
+        {
             let mut state_guard = state.write();
 
             match hook_event {
@@ -275,8 +276,6 @@ async fn handle_hook(
                         timestamp: now,
                     };
                     state_guard.set_session_notification(notification.clone());
-
-                    true // Push state to cloud after SessionStart
                 }
                 "SessionEnd" => {
                     // Get project name before removing
@@ -308,8 +307,6 @@ async fn handle_hook(
                         timestamp: now,
                     };
                     state_guard.set_session_notification(notification.clone());
-
-                    true // Push state to cloud after SessionEnd
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -334,8 +331,6 @@ async fn handle_hook(
                     };
                     state_guard.chat_history.add_message(message.clone());
                     chat_messages_to_push.push((input.session_id.clone(), message));
-
-                    true // Push state to cloud - status changed to Idle
                 }
                 "PreToolUse" => {
                     // First, update instance and extract data
@@ -415,8 +410,6 @@ async fn handle_hook(
                         state_guard.chat_history.add_message(message.clone());
                         chat_messages_to_push.push((input.session_id.clone(), message));
                     }
-
-                    true // Push state to cloud - tool execution started
                 }
                 "PostToolUse" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -449,8 +442,6 @@ async fn handle_hook(
                     };
                     state_guard.chat_history.add_message(message.clone());
                     chat_messages_to_push.push((input.session_id.clone(), message));
-
-                    true // Push state to cloud - tool execution completed
                 }
                 "PostToolUseFailure" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
@@ -458,24 +449,21 @@ async fn handle_hook(
                         instance.current_tool = None;
                         instance.tool_input = None;
                     }
-
-                    true // Push state to cloud - tool execution failed
                 }
                 "PreCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Compacting);
                     }
-
-                    true // Push state to cloud - compacting started
                 }
                 "PostCompact" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Idle);
                     }
-
-                    true // Push state to cloud - compacting completed
                 }
                 "UserPromptSubmit" => {
+                    tracing::info!("UserPromptSubmit hook received: session_id={}, tool_input={:?}",
+                        input.session_id, input.tool_input);
+
                     // User submitted a prompt → AI is thinking
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.set_status(InstanceStatus::Thinking);
@@ -483,10 +471,14 @@ async fn handle_hook(
                     }
 
                     // Extract user message from hook data
-                    if let Some(prompt) = input.tool_input.as_ref()
+                    // The prompt is in tool_input.prompt field
+                    let prompt = input.tool_input.as_ref()
                         .and_then(|ti| ti.get("prompt"))
-                        .and_then(|p| p.as_str())
-                    {
+                        .and_then(|p| p.as_str());
+
+                    tracing::info!("UserPromptSubmit: extracted prompt: {:?}", prompt);
+
+                    if let Some(prompt_text) = prompt {
                         let now_ms = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
@@ -496,36 +488,44 @@ async fn handle_hook(
                             id: uuid::Uuid::new_v4().to_string(),
                             session_id: input.session_id.clone(),
                             message_type: MessageType::User,
-                            content: prompt.to_string(),
+                            content: prompt_text.to_string(),
                             tool_name: None,
                             timestamp: now_ms,
                         };
                         state_guard.chat_history.add_message(message.clone());
                         chat_messages_to_push.push((input.session_id.clone(), message));
+                        tracing::info!("UserPromptSubmit: added user message, content length: {}", prompt_text.len());
+                    } else {
+                        tracing::warn!("UserPromptSubmit: no prompt found in tool_input");
                     }
-
-                    true // Push state to cloud - user submitted prompt, status changed to Thinking
                 }
                 "SubagentStart" | "SubagentStop" => {
                     // Just update activity
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         instance.update_activity();
                     }
-
-                    false // Subagent events don't need cloud push (internal state only)
                 }
-                _ => false
+                "Notification" => {
+                    // Non-blocking notification (not ask)
+                    // Just update activity
+                    if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                        instance.update_activity();
+                    }
+                }
+                _ => {}
             }
         };
 
-        // Push state to cloud after SessionStart/SessionEnd
-        if should_push_to_cloud {
-            push_state_to_cloud(&state);
-        }
+        // Push HookMessage to cloud for all hooks
+        let hook_body = build_hook_body_from_input(&input);
+        push_hook_to_cloud(&state, &input.session_id, hook_event, hook_body);
 
-        // Push chat messages to cloud
+        // Push chat messages to cloud as ChatHistory
         for (session_id, message) in chat_messages_to_push {
-            push_chat_message_to_cloud(&state, &session_id, &message);
+            tracing::info!("Pushing chat message to cloud: session={}, type={:?}, content_preview={}",
+                session_id, message.message_type,
+                if message.content.len() > 50 { &message.content[..50] } else { &message.content });
+            push_chat_history_to_cloud(&state, &session_id, vec![message]);
         }
 
         Ok(Json(HookOutput {
@@ -546,7 +546,7 @@ async fn handle_response(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     tracing::info!("Received response for popup: {}", response.popup_id);
 
-    // Get popup info before resolving (need session_id for instance update and popup type for cloud push)
+    // Get popup info before resolving (need session_id for instance update)
     let popup_session_id = {
         let state_guard = state.read();
         state_guard.popups.get(&response.popup_id).map(|p| p.session_id.clone())
@@ -560,7 +560,7 @@ async fn handle_response(
 
     if resolved {
         // Clear WaitingForApproval status for the instance
-        if let Some(session_id) = popup_session_id {
+        if let Some(session_id) = popup_session_id.clone() {
             let mut state_guard = state.write();
             if let Some(instance) = state_guard.instances.get_instance_mut(&session_id) {
                 if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
@@ -569,17 +569,10 @@ async fn handle_response(
                     instance.tool_input = None;
                 }
             }
-        }
 
-        // Push popup_resolved to cloud if connected
-        // For permission: decision is "allow" or "deny"
-        // For ask: decision is null, answers contains user selections
-        push_popup_resolved_to_cloud(
-            &state,
-            &response.popup_id,
-            response.decision.as_deref(),
-            response.answers.as_ref(),
-        );
+            // Push HookMessage with hook_type "popup_resolved" (conceptually)
+            // This is a local resolution, mobile will be notified via HookMessage if needed
+        }
 
         Ok(Json(serde_json::json!({ "success": true })))
     } else {
@@ -653,6 +646,11 @@ async fn get_settings(
 ) -> Json<config::AppSettings> {
     let state_guard = state.read();
     Json(state_guard.settings.clone())
+}
+
+/// Get device token for mobile app registration
+async fn get_device_token_http() -> Json<String> {
+    Json(crate::machine_id::get_machine_token())
 }
 
 /// Update settings and save to settings.json
@@ -1215,107 +1213,71 @@ async fn forward_hook(url: &str, input: HookInput) {
     }
 }
 
-/// Push state update to cloud client if enabled and connected
-fn push_state_to_cloud(state: &Arc<RwLock<AppState>>) {
+/// Push hook message to cloud client if enabled and connected
+fn push_hook_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, hook_type: &str, hook_body: serde_json::Value) {
+    let state_guard = state.read();
+    if let Some(ref cloud_client) = state_guard.cloud_client {
+        // Try to get read lock on async RwLock (non-blocking)
+        if let Ok(client) = cloud_client.try_read() {
+            let connected = client.is_connected();
+            tracing::info!("push_hook_to_cloud: session={}, hook={}, connected={}", session_id, hook_type, connected);
+            if connected {
+                // Convert hook_type from PascalCase to snake_case for Cloud Server
+                let hook_type_snake = hook_type_to_snake_case(hook_type);
+                client.push_hook_message(session_id, &hook_type_snake, hook_body);
+                tracing::info!("Hook message pushed to cloud: {} (converted to {})", hook_type, hook_type_snake);
+            } else {
+                tracing::warn!("Cloud client not connected, skipping hook push: {}", hook_type);
+            }
+        } else {
+            tracing::warn!("Cannot get read lock on cloud_client for hook push: {}", hook_type);
+        }
+    } else {
+        tracing::warn!("Cloud client not initialized for hook push: {}", hook_type);
+    }
+}
+
+/// Convert PascalCase hook type to snake_case for Cloud Server
+fn hook_type_to_snake_case(hook_type: &str) -> String {
+    // Known hook type mappings
+    match hook_type {
+        "SessionStart" => "session_start".to_string(),
+        "SessionEnd" => "session_end".to_string(),
+        "PreToolUse" => "pre_tool_use".to_string(),
+        "PostToolUse" => "post_tool_use".to_string(),
+        "PermissionRequest" => "permission_request".to_string(),
+        "Notification" => "notification".to_string(),
+        "Stop" => "stop".to_string(),
+        "UserPromptSubmit" => "user_prompt_submit".to_string(),
+        "StatusUpdate" => "status_update".to_string(),
+        _ => hook_type.to_lowercase(),  // Fallback
+    }
+}
+
+/// Push chat history to cloud client if enabled and connected
+fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, messages: Vec<ChatMessage>) {
     let state_guard = state.read();
     if let Some(ref cloud_client) = state_guard.cloud_client {
         // Try to get read lock on async RwLock (non-blocking)
         if let Ok(client) = cloud_client.try_read() {
             if client.is_connected() {
-                // Convert instances to cloud SessionState
-                let sessions: Vec<SessionState> = state_guard.instances
-                    .get_all_instances_display()
-                    .iter()
-                    .map(|inst| SessionState {
-                        session_id: inst.session_id.clone(),
-                        project_name: Some(inst.project_name.clone()),
-                        status: serde_json::to_string(&inst.status).unwrap_or_else(|_| "idle".to_string()),
-                        current_tool: inst.current_tool.clone(),
-                        tool_input: inst.tool_input.clone().map(|ti| {
-                            serde_json::json!({
-                                "action": ti.action,
-                                "details": ti.details,
-                            })
-                        }),
-                    })
-                    .collect();
-
-                // Convert popups to cloud PopupState
-                let popups: Vec<PopupState> = state_guard.popups
-                    .get_all()
-                    .iter()
-                    .map(|p| PopupState {
-                        id: p.id.clone(),
-                        session_id: Some(p.session_id.clone()),
-                        project_name: Some(p.project_name.clone()),
-                        popup_type: p.popup_type.to_string(),
-                        data: serde_json::json!({
-                            "permission_data": p.permission_data,
-                            "ask_data": p.ask_data,
-                            "notification_data": p.notification_data,
-                        }),
-                        status: p.status.to_string(),
-                    })
-                    .collect();
-
-                client.push_state(sessions, popups);
+                client.push_chat_history(session_id, messages);
             }
         }
     }
 }
 
-/// Push new popup to cloud client if enabled and connected
-fn push_new_popup_to_cloud(state: &Arc<RwLock<AppState>>, popup: &PopupItem) {
-    let state_guard = state.read();
-    if let Some(ref cloud_client) = state_guard.cloud_client {
-        // Try to get read lock on async RwLock (non-blocking)
-        if let Ok(client) = cloud_client.try_read() {
-            if client.is_connected() {
-                let popup_state = PopupState {
-                    id: popup.id.clone(),
-                    session_id: Some(popup.session_id.clone()),
-                    project_name: Some(popup.project_name.clone()),
-                    popup_type: popup.popup_type.to_string(),
-                    data: serde_json::json!({
-                        "permission_data": popup.permission_data,
-                        "ask_data": popup.ask_data,
-                        "notification_data": popup.notification_data,
-                    }),
-                    status: popup.status.to_string(),
-                };
-                client.push_new_popup(popup_state);
-            }
-        }
-    }
-}
-
-/// Push chat message to cloud client if enabled and connected
-fn push_chat_message_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, message: &ChatMessage) {
-    let state_guard = state.read();
-    if let Some(ref cloud_client) = state_guard.cloud_client {
-        // Try to get read lock on async RwLock (non-blocking)
-        if let Ok(client) = cloud_client.try_read() {
-            if client.is_connected() {
-                client.push_chat_message(session_id, message);
-            }
-        }
-    }
-}
-
-/// Push popup resolved notification to cloud client if enabled and connected
-fn push_popup_resolved_to_cloud(
-    state: &Arc<RwLock<AppState>>,
-    popup_id: &str,
-    decision: Option<&str>,
-    answers: Option<&Vec<Vec<String>>>,
-) {
-    let state_guard = state.read();
-    if let Some(ref cloud_client) = state_guard.cloud_client {
-        // Try to get read lock on async RwLock (non-blocking)
-        if let Ok(client) = cloud_client.try_read() {
-            if client.is_connected() {
-                client.push_popup_resolved(popup_id, decision, answers);
-            }
-        }
-    }
+/// Build hook_body from HookInput for transparent forwarding
+fn build_hook_body_from_input(input: &HookInput) -> serde_json::Value {
+    serde_json::json!({
+        "hook_event_name": input.hook_event_name,
+        "session_id": input.session_id,
+        "cwd": input.cwd,
+        "tool_name": input.tool_name,
+        "tool_input": input.tool_input,
+        "tool_response": input.tool_response,
+        "permission_data": input.permission_data,
+        "notification_data": input.notification_data,
+        "questions": input.questions,
+    })
 }

@@ -28,10 +28,46 @@ pub struct ChatMessageData {
     pub timestamp: u64,
 }
 
+/// Device information for display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    pub token: String,
+    pub hostname: Option<String>,
+    pub registered_at: Option<String>,  // ISO datetime string
+    pub online: bool,
+}
+
+/// Claude session information for display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeSession {
+    pub session_id: String,
+    pub project_name: String,
+    pub status: String,
+    pub current_tool: Option<String>,
+    pub created_at: Option<u64>,  // milliseconds
+}
+
+/// Hook types that can be transmitted
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum HookType {
+    SessionStart,
+    SessionEnd,
+    PreToolUse,
+    PostToolUse,
+    PermissionRequest,
+    Notification,
+    Stop,
+    UserPromptSubmit,
+    StatusUpdate,
+}
+
 /// WebSocket message types for CC-Island cloud relay protocol.
 ///
 /// Messages flow between three parties:
-/// - Desktop clients (CC-Island app) connect and push state updates
+/// - Desktop clients (CC-Island app) connect and push hook messages
 /// - Mobile clients subscribe to device tokens and receive updates
 /// - Cloud server routes messages between them
 ///
@@ -39,13 +75,15 @@ pub struct ChatMessageData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum CloudMessage {
-    // ===== Authentication =====
+    // ===== Connection Management =====
 
     /// Desktop device registration. Sent when desktop connects to cloud.
     #[serde(rename = "device_register")]
     DeviceRegister {
-        /// Unique device identifier (derived from machine hardware)
+        /// Unique device identifier
         device_token: String,
+        /// System hostname
+        hostname: Option<String>,
         /// User-defined device name (optional)
         device_name: Option<String>,
     },
@@ -53,219 +91,115 @@ pub enum CloudMessage {
     /// Mobile client authentication. Sent when mobile connects to subscribe to devices.
     #[serde(rename = "mobile_auth")]
     MobileAuth {
-        /// Device tokens to subscribe to (received from desktop via QR code)
-        /// Can subscribe to multiple devices in a single connection
+        /// Device tokens to subscribe to
         device_tokens: Vec<String>,
     },
 
-    /// Authentication success response. Sent to client after successful auth.
+    /// Authentication success response.
     #[serde(rename = "auth_success")]
     AuthSuccess {
-        /// Assigned device ID for this connection
+        /// Device ID for this connection
         device_id: String,
-        /// Device name (if provided during registration)
-        device_name: Option<String>,
+        /// Hostname (for display)
+        hostname: Option<String>,
     },
 
-    /// Device list sent to mobile after authentication.
-    /// Contains all online devices (desktops that are currently connected).
+    /// Authentication failure response.
+    #[serde(rename = "auth_failed")]
+    AuthFailed {
+        /// Human-readable reason
+        reason: String,
+    },
+
+    /// Device list with full info sent to mobile after authentication.
     #[serde(rename = "device_list")]
     DeviceList {
-        /// List of online device tokens
-        devices: Vec<String>,
+        /// List of devices with details
+        devices: Vec<DeviceInfo>,
+    },
+
+    /// Notification that a device has come online.
+    #[serde(rename = "device_online")]
+    DeviceOnline {
+        /// Device info
+        device: DeviceInfo,
     },
 
     /// Notification that a device has gone offline.
-    /// Sent to mobile clients when their subscribed desktop disconnects.
     #[serde(rename = "device_offline")]
     DeviceOffline {
         /// Device token that went offline
         device_token: String,
     },
 
-    /// Authentication failure response. Sent when auth fails.
-    #[serde(rename = "auth_failed")]
-    AuthFailed {
-        /// Human-readable reason for authentication failure
-        reason: String,
-    },
-
-    // ===== Desktop → Cloud =====
-
-    /// Full state sync from desktop. Sent periodically or on significant changes.
-    #[serde(rename = "state_update")]
-    StateUpdate {
-        /// Device token identifying the source desktop
+    /// Session list sent to mobile after subscription.
+    #[serde(rename = "session_list")]
+    SessionList {
+        /// Device token
         device_token: String,
-        /// All active Claude sessions on this desktop
-        sessions: Vec<SessionState>,
-        /// All pending popups requiring user action
-        popups: Vec<PopupState>,
+        /// Active sessions
+        sessions: Vec<ClaudeSession>,
     },
 
-    /// New popup notification from desktop. Sent when a popup is created.
-    #[serde(rename = "new_popup")]
-    NewPopup {
-        /// Device token identifying the source desktop
-        device_token: String,
-        /// The newly created popup requiring user action
-        popup: PopupState,
-    },
-
-    /// Chat messages from desktop. Sent when new messages are added to a session.
-    #[serde(rename = "chat_messages")]
-    ChatMessages {
-        /// Device token identifying the source desktop
-        device_token: String,
-        /// Session ID these messages belong to
-        session_id: String,
-        /// Chat messages to sync
-        messages: Vec<ChatMessageData>,
-    },
-
-    /// Keepalive ping from desktop.
+    /// Keepalive ping.
     #[serde(rename = "ping")]
     Ping,
 
-    // ===== Cloud → Mobile =====
+    /// Keepalive pong.
+    #[serde(rename = "pong")]
+    Pong,
 
-    /// Initial state sent to mobile after successful authentication.
-    /// Contains all current sessions and popups for the subscribed device.
-    #[serde(rename = "initial_state")]
-    InitialState {
-        /// All active Claude sessions on the subscribed desktop
-        sessions: Vec<SessionState>,
-        /// All pending popups requiring user action
-        popups: Vec<PopupState>,
-    },
+    // ===== Hook Message (Desktop → Cloud → Mobile) =====
 
-    /// New popup notification forwarded to mobile client.
-    /// Sent when desktop reports a new popup.
-    #[serde(rename = "new_popup_from_device")]
-    NewPopupFromDevice {
-        /// Device token that created this popup
+    /// Hook message transparent transmission from desktop.
+    #[serde(rename = "hook_message")]
+    HookMessage {
+        /// Device token identifying the source
         device_token: String,
-        /// The popup that was created on the desktop
-        popup: PopupState,
-    },
-
-    /// Notification that a popup has been resolved.
-    /// Broadcast to all mobiles when any client (desktop or mobile) responds to a popup.
-    #[serde(rename = "popup_resolved")]
-    PopupResolved {
-        /// Device token this popup belongs to
-        device_token: String,
-        /// Unique identifier of the resolved popup
-        popup_id: String,
-        /// Which client resolved this popup: "desktop" or "mobile"
-        source: String,
-        /// The decision made for permission popups (e.g., "allow" or "deny")
-        decision: Option<String>,
-        /// User's answers for AskUserQuestion popups (array of selected options per question)
-        answers: Option<Vec<Vec<String>>>,
-    },
-
-    /// New chat messages broadcast to mobile clients.
-    /// Sent when desktop pushes new chat messages for a session.
-    #[serde(rename = "new_chat")]
-    NewChat {
-        /// Session ID these messages belong to
+        /// Claude session ID
         session_id: String,
-        /// Chat messages to deliver
-        messages: Vec<ChatMessageData>,
+        /// Hook type
+        hook_type: HookType,
+        /// Raw hook data
+        hook_body: serde_json::Value,
     },
 
-    /// Chat history response sent to mobile client.
-    /// Sent in response to RequestChatHistory.
+    // ===== Chat History (Desktop → Cloud → Mobile) =====
+
+    /// Chat history sync from desktop.
     #[serde(rename = "chat_history")]
     ChatHistory {
-        /// Session ID these messages belong to
+        /// Device token
+        device_token: String,
+        /// Session ID
         session_id: String,
-        /// Chat messages (limited by request)
+        /// Chat messages
         messages: Vec<ChatMessageData>,
     },
 
-    // ===== Mobile → Cloud =====
-
-    /// Popup response from mobile client. Sent when user responds to a popup.
-    #[serde(rename = "respond_popup")]
-    RespondPopup {
-        /// Device token identifying the target desktop
-        device_token: String,
-        /// Unique identifier of the popup being responded to
-        popup_id: String,
-        /// User's decision (e.g., "allow" or "deny" for permission requests)
-        decision: Option<String>,
-        /// User's answers for AskUserQuestion popups (array per question)
-        answers: Option<Vec<Vec<String>>>,
-    },
-
-    /// Request chat history from mobile client. Sent when mobile needs to load past messages.
+    /// Request chat history from mobile.
     #[serde(rename = "request_chat_history")]
     RequestChatHistory {
-        /// Device token identifying the target desktop
+        /// Device token
         device_token: String,
-        /// Session ID to request history for
+        /// Session ID
         session_id: String,
-        /// Maximum number of messages to retrieve (most recent first)
+        /// Max messages to retrieve
         limit: Option<u32>,
     },
 
-    // ===== Cloud → Desktop =====
+    // ===== Hook Response (Mobile → Cloud → Desktop) =====
 
-    /// Popup response forwarded to desktop. Contains user's decision or answers.
-    #[serde(rename = "popup_response")]
-    PopupResponse {
-        /// Unique identifier of the popup being responded to
-        popup_id: String,
+    /// Hook response from mobile client (for blocking hooks like PermissionRequest).
+    #[serde(rename = "hook_response")]
+    HookResponse {
+        /// Device token
+        device_token: String,
+        /// Session ID
+        session_id: String,
         /// User's decision (e.g., "allow" or "deny")
         decision: Option<String>,
-        /// User's answers for AskUserQuestion popups
+        /// User's answers for AskUserQuestion
         answers: Option<Vec<Vec<String>>>,
     },
-
-    /// Keepalive pong to desktop.
-    #[serde(rename = "pong")]
-    Pong,
-}
-
-/// Represents a Claude Code session running on a desktop.
-///
-/// A session corresponds to a single Claude Code terminal instance,
-/// tracking its current state and activity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionState {
-    /// Unique identifier for this Claude session
-    pub session_id: String,
-    /// Human-readable project name (derived from working directory)
-    pub project_name: Option<String>,
-    /// Current session status (e.g., "idle", "processing", "waiting")
-    pub status: String,
-    /// Name of the currently executing tool, if any
-    pub current_tool: Option<String>,
-    /// JSON input for the current tool, if any
-    pub tool_input: Option<serde_json::Value>,
-}
-
-/// Represents a pending popup requiring user interaction.
-///
-/// Popups are created when Claude Code needs user input:
-/// - Permission requests (tool execution approval)
-/// - AskUserQuestion (user prompts with options)
-/// - Ask notifications (free-form user questions)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PopupState {
-    /// Unique identifier for this popup
-    pub id: String,
-    /// Associated Claude session ID, if applicable
-    pub session_id: Option<String>,
-    /// Project name for display purposes
-    pub project_name: Option<String>,
-    /// Popup type: "permission", "ask", or "question"
-    #[serde(rename = "type")]
-    pub popup_type: String,
-    /// Type-specific data (permission details, question options, etc.)
-    pub data: serde_json::Value,
-    /// Current status: "pending", "responded", or "timeout"
-    pub status: String,
 }

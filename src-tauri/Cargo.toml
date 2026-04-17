@@ -36,6 +36,7 @@ tokio-tungstenite = "0.26"
 futures-util = "0.3"
 twox-hash = "1.6"
 qrcode = "0.14"
+hostname = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

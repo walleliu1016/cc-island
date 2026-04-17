@@ -4,69 +4,47 @@
 // Connection status type
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
-// WebSocket message types
-export interface WsMessage {
-  type: string
-  // State update
-  instances?: ClaudeInstance[]
-  popups?: PopupItem[]
-  // New popup
-  popup?: PopupItem
-  // Session notification
-  notification?: SessionNotification
-  // Respond popup
-  popup_id?: string
-  decision?: string
-  answers?: string[][]
+// Device info for display
+export interface DeviceInfo {
+  token: string
+  hostname?: string
+  registered_at?: string  // ISO datetime string
+  online: boolean
 }
 
-// Claude instance display
-export interface ClaudeInstance {
+// Hook types
+export type HookType =
+  | 'SessionStart'
+  | 'SessionEnd'
+  | 'PreToolUse'
+  | 'PostToolUse'
+  | 'PermissionRequest'
+  | 'Notification'
+  | 'Stop'
+  | 'UserPromptSubmit'
+  | 'StatusUpdate'
+
+// Claude session state (matches Cloud Server ClaudeSession with camelCase)
+export interface ClaudeSession {
+  sessionId: string      // camelCase from server
+  projectName: string    // camelCase from server
+  status: string         // 'idle' | 'thinking' | 'working' | 'waiting' | 'waitingForApproval' | 'error' | 'ended' | 'compacting'
+  currentTool?: string   // camelCase from server
+  createdAt?: number     // camelCase from server, milliseconds
+}
+
+// Hook hint for display on device list
+export interface HookHint {
   session_id: string
-  project_name: string
-  status: InstanceStatus
-  current_tool?: string
-  tool_input?: ToolInput
-  created_at: number
-  last_activity?: number
-}
-
-export interface InstanceStatus {
-  type: 'idle' | 'thinking' | 'working' | 'waiting' | 'waitingForApproval' | 'error' | 'ended' | 'compacting'
-  tool?: string
-}
-
-export interface ToolInput {
-  tool_name: string
+  hook_type: HookType
+  urgent: boolean  // True for PermissionRequest/Ask
+  tool_name?: string
   action?: string
-  details?: string
-  command?: string
-  file_path?: string
+  questions?: AskQuestion[]
+  timestamp: number
 }
 
-// Popup item
-export interface PopupItem {
-  id: string
-  session_id: string
-  project_name: string
-  type: 'permission' | 'ask' | 'notification'
-  permission_data?: PermissionData
-  ask_data?: AskData
-  notification_data?: NotificationData
-  status: 'pending' | 'processing' | 'resolved' | 'autoClose'
-  created_at: number
-}
-
-export interface PermissionData {
-  tool_name: string
-  action: string
-  details?: string
-}
-
-export interface AskData {
-  questions: AskQuestion[]
-}
-
+// Ask question types
 export interface AskQuestion {
   header: string
   question: string
@@ -79,52 +57,62 @@ export interface AskOption {
   description?: string
 }
 
+// Permission data
+export interface PermissionData {
+  tool_name: string
+  action?: string
+  details?: string
+}
+
+// Notification data
 export interface NotificationData {
   message: string
-  options?: string[]
+  type?: string  // 'ask' for blocking questions
+  questions?: AskQuestion[]
 }
 
-// Session notification
-export interface SessionNotification {
-  project_name: string
-  notification_type: 'started' | 'ended'
-  timestamp: number
+// Hook body (raw hook data)
+export interface HookBody {
+  hook_event_name: string
+  session_id: string
+  cwd?: string
+  project_name?: string
+  tool_name?: string
+  tool_input?: Record<string, unknown>
+  tool_response?: Record<string, unknown>
+  permission_data?: PermissionData
+  notification_data?: NotificationData
+  questions?: AskQuestion[]
 }
 
-// Cloud-specific message types
+// Cloud message types
 export interface CloudMessage {
   type: string
-  sessions?: SessionState[]
-  popups?: PopupState[]
-  popup?: PopupState
-  // Device list
-  devices?: string[]
+
+  // Connection
+  device_id?: string
+  hostname?: string
+  reason?: string
+
+  // Device info
+  device?: DeviceInfo
+  devices?: DeviceInfo[]
   device_token?: string
-  // Popup resolved
-  popup_id?: string
-  source?: string
-  decision?: string
-  answers?: string[][]  // For AskUserQuestion: array of selected options per question
+
+  // Session info
+  sessions?: ClaudeSession[]
+
+  // Hook message
+  session_id?: string
+  hook_type?: HookType
+  hook_body?: HookBody
+
   // Chat history
-  session_id?: string
   messages?: ChatMessageData[]
-}
 
-export interface SessionState {
-  session_id: string
-  project_name?: string
-  status: string
-  current_tool?: string
-  tool_input?: Record<string, unknown>
-}
-
-export interface PopupState {
-  id: string
-  session_id?: string
-  project_name?: string
-  type: string  // "permission", "ask", or "question" - matches cloud server's #[serde(rename = "type")]
-  data: PermissionData | AskData | NotificationData | Record<string, unknown>
-  status: string
+  // Hook response
+  decision?: string
+  answers?: string[][]
 }
 
 // Chat message data
@@ -135,4 +123,40 @@ export interface ChatMessageData {
   content: string
   toolName?: string
   timestamp: number  // milliseconds
+}
+
+// Legacy types for backward compatibility with existing components
+export interface PopupState {
+  id: string
+  session_id?: string
+  project_name?: string
+  type: string
+  data: PermissionData | AskData | NotificationData | Record<string, unknown>
+  ask_data?: AskData
+  permission_data?: PermissionData
+  status: string
+  created_at?: number
+}
+
+export interface SessionState {
+  session_id: string
+  project_name?: string
+  status: string
+  current_tool?: string
+}
+
+export interface AskData {
+  questions: AskQuestion[]
+}
+
+export interface PermissionData {
+  tool_name: string
+  action?: string
+  details?: string
+}
+
+export interface NotificationData {
+  message: string
+  type?: string
+  questions?: AskQuestion[]
 }

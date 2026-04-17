@@ -7,7 +7,6 @@ use futures_util::{StreamExt, SinkExt};
 use tokio::sync::mpsc::{Sender, Receiver, channel};
 use crate::messages::CloudMessage;
 use crate::db::repository::Repository;
-use crate::cache::state_cache::StateCache;
 use super::router::{ConnectionRouter, ConnectionType};
 use super::handler::MessageHandler;
 
@@ -15,7 +14,6 @@ use super::handler::MessageHandler;
 pub async fn handle_connection(
     stream: TcpStream,
     router: ConnectionRouter,
-    cache: StateCache,
     repo: Repository,
 ) {
     // Accept WebSocket connection
@@ -54,11 +52,11 @@ pub async fn handle_connection(
     };
 
     match auth_result {
-        Ok((conn_type, device_tokens)) => {
-            // Send auth success (use first token as device_id for response)
+        Ok((conn_type, device_token, hostname)) => {
+            // Send auth success
             let auth_success = CloudMessage::AuthSuccess {
-                device_id: device_tokens.first().cloned().unwrap_or_default(),
-                device_name: None,
+                device_id: device_token.clone(),
+                hostname: hostname.clone(),
             };
             let json = serde_json::to_string(&auth_success).unwrap();
             if let Err(e) = ws_tx.send(Message::text(json)).await {
@@ -69,94 +67,96 @@ pub async fn handle_connection(
             // Register connection and track mobile connection_id for cleanup
             let mobile_conn_id = match conn_type {
                 ConnectionType::Desktop => {
-                    let device_token = device_tokens.first().unwrap();
-                    router.register_desktop(device_token, out_tx.clone());
+                    router.register_desktop(&device_token, hostname.clone(), out_tx.clone());
+                    // Notify mobiles subscribed to this device
+                    let device_info = crate::messages::DeviceInfo {
+                        token: device_token.clone(),
+                        hostname: hostname.clone(),
+                        registered_at: None,  // Will be fetched by mobile if needed
+                        online: true,
+                    };
+                    let online_msg = CloudMessage::DeviceOnline { device: device_info };
+                    let json = serde_json::to_string(&online_msg).unwrap();
+                    router.broadcast_to_mobiles(&device_token, Message::text(json));
                     None
                 },
                 ConnectionType::Mobile => {
-                    Some(router.register_mobile(&device_tokens, out_tx.clone()))
+                    // For mobile, we expect device_tokens in auth, but for now just register
+                    // The handler will process MobileAuth to update subscription
+                    Some(router.register_mobile_empty(out_tx.clone()))
                 }
             };
 
-            // For mobile: send aggregated initial state from cache
+            // For mobile: send device list
             if conn_type == ConnectionType::Mobile {
-                // Send device list (all online desktops)
-                let online_devices = router.get_online_devices();
-                let device_list_msg = CloudMessage::DeviceList {
-                    devices: online_devices.clone(),
-                };
+                let online_devices = router.get_online_devices_info();
+                let device_list_msg = CloudMessage::DeviceList { devices: online_devices };
                 let json = serde_json::to_string(&device_list_msg).unwrap();
                 if let Err(e) = out_tx.try_send(Message::text(json)) {
                     tracing::warn!("Failed to send device list: {}", e);
                 }
-
-                // Send aggregated initial state from cache
-                let mut all_sessions = Vec::new();
-                let mut all_popups = Vec::new();
-
-                for token in &device_tokens {
-                    if let Some(state) = cache.get_state(token) {
-                        all_sessions.extend(state.sessions);
-                        all_popups.extend(state.popups);
-                    }
-                }
-
-                if !all_sessions.is_empty() || !all_popups.is_empty() {
-                    let init_msg = CloudMessage::InitialState {
-                        sessions: all_sessions,
-                        popups: all_popups,
-                    };
-                    let json = serde_json::to_string(&init_msg).unwrap();
-                    if let Err(e) = out_tx.try_send(Message::text(json)) {
-                        tracing::warn!("Failed to send initial state: {}", e);
-                    }
-                }
             }
 
             // Create message handler
-            let handler = MessageHandler::new(router.clone(), cache.clone(), repo.clone());
-
-            // Store device_tokens for use in handler
-            let device_token_ref = device_tokens.first().cloned().unwrap_or_default();
+            let handler = MessageHandler::new(router.clone(), repo.clone(), mobile_conn_id);
 
             // Spawn send task (forward outgoing messages to WebSocket)
             let send_task = async {
+                tracing::debug!("Send task started for connection");
                 while let Some(msg) = out_rx.recv().await {
+                    tracing::debug!("Send task: sending message");
                     if ws_tx.send(msg).await.is_err() {
+                        tracing::warn!("Send task: send failed, breaking");
                         break;
                     }
                 }
+                tracing::info!("Send task ended for connection");
             };
 
             // Spawn receive task (handle incoming messages)
             let recv_task = async {
+                tracing::debug!("Recv task started for connection");
                 while let Some(msg_result) = ws_rx.next().await {
                     match msg_result {
                         Ok(Message::Text(text)) => {
+                            let text_preview = text.chars().take(300).collect::<String>();
+                            tracing::info!("Recv task: received text message: {}", text_preview);
                             if let Ok(cloud_msg) = serde_json::from_str::<CloudMessage>(&text) {
-                                handler.handle(cloud_msg, &out_tx, &device_token_ref).await;
+                                tracing::info!("Recv task: parsed CloudMessage type: {:?}", cloud_msg);
+                                handler.handle(cloud_msg, &out_tx, &device_token).await;
+                            } else {
+                                tracing::warn!("Recv task: failed to parse message as CloudMessage. Full text: {}", text);
                             }
                         },
                         Ok(Message::Ping(data)) => {
+                            tracing::debug!("Recv task: Ping received");
                             if let Err(e) = out_tx.try_send(Message::Pong(data)) {
                                 tracing::warn!("Failed to send pong: {}", e);
                             }
                         },
-                        Ok(Message::Close(_)) => break,
-                        Err(e) => {
-                            tracing::error!("WebSocket error: {}", e);
+                        Ok(Message::Close(_)) => {
+                            tracing::info!("Recv task: received Close from client");
                             break;
                         },
-                        _ => {},
+                        Err(e) => {
+                            tracing::error!("Recv task: WebSocket error: {}", e);
+                            break;
+                        },
+                        Ok(other) => {
+                            tracing::debug!("Recv task: other message: {:?}", other);
+                        },
                     }
                 }
+                tracing::info!("Recv task ended: ws_rx stream ended");
             };
 
             // Run both tasks concurrently
+            tracing::debug!("Starting send/recv tasks with tokio::select!");
             tokio::select! {
-                _ = send_task => {},
-                _ = recv_task => {},
+                _ = send_task => { tracing::info!("select: send_task finished first"); },
+                _ = recv_task => { tracing::info!("select: recv_task finished first"); },
             }
+            tracing::info!("Connection loop ended, starting cleanup");
 
             // Close WebSocket connection gracefully
             if let Err(e) = ws_tx.close().await {
@@ -166,20 +166,17 @@ pub async fn handle_connection(
             // Cleanup on disconnect
             match conn_type {
                 ConnectionType::Desktop => {
-                    let device_token = device_tokens.first().unwrap();
-
                     // Notify mobiles subscribed to this device
                     let offline_msg = CloudMessage::DeviceOffline {
                         device_token: device_token.clone(),
                     };
                     let json = serde_json::to_string(&offline_msg).unwrap();
-                    router.broadcast_to_mobiles(device_token, Message::text(json));
+                    router.broadcast_to_mobiles(&device_token, Message::text(json));
 
-                    router.unregister_desktop(device_token);
-                    if let Err(e) = repo.set_device_offline(device_token).await {
+                    router.unregister_desktop(&device_token);
+                    if let Err(e) = repo.set_device_offline(&device_token).await {
                         tracing::error!("Failed to set device offline: {}", e);
                     }
-                    cache.remove_device(device_token);
                 },
                 ConnectionType::Mobile => {
                     if let Some(conn_id) = mobile_conn_id {
@@ -199,24 +196,23 @@ pub async fn handle_connection(
 }
 
 /// Parse and handle authentication message
-async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, Vec<String>), String> {
+async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, String, Option<String>), String> {
     let msg: CloudMessage = serde_json::from_str(text)
         .map_err(|e| format!("Invalid JSON: {}", e))?;
 
     match msg {
-        CloudMessage::DeviceRegister { device_token, device_name } => {
+        CloudMessage::DeviceRegister { device_token, hostname, device_name } => {
             // Register device in database
-            if let Err(e) = repo.upsert_device(&device_token, device_name.as_deref()).await {
+            if let Err(e) = repo.upsert_device(&device_token, hostname.as_deref(), device_name.as_deref()).await {
                 tracing::error!("Failed to register device: {}", e);
             }
-            Ok((ConnectionType::Desktop, vec![device_token]))
+            Ok((ConnectionType::Desktop, device_token, hostname))
         },
         CloudMessage::MobileAuth { device_tokens } => {
-            // Mobile subscribes to multiple devices
-            if device_tokens.is_empty() {
-                return Err("device_tokens cannot be empty".to_string());
-            }
-            Ok((ConnectionType::Mobile, device_tokens))
+            // Mobile subscribes to devices
+            // Return first token as device_id for auth response
+            let first_token = device_tokens.first().cloned().unwrap_or_default();
+            Ok((ConnectionType::Mobile, first_token, None))
         },
         _ => Err("Expected device_register or mobile_auth as first message".to_string()),
     }

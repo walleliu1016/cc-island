@@ -3,15 +3,12 @@
 mod config;
 mod messages;
 mod db;
-mod cache;
 mod ws;
 
-use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use config::Config;
 use db::pool::create_pool;
 use db::repository::Repository;
-use cache::state_cache::StateCache;
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
 
@@ -35,32 +32,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Create shared components
     let repo = Repository::new(pool);
-    let cache = StateCache::new();
     let router = ConnectionRouter::new();
 
     // Create shutdown token
     let shutdown = CancellationToken::new();
-
-    // Spawn TTL cleanup task for StateCache (with shutdown support)
-    let cleanup_cache = cache.clone();
-    let cleanup_shutdown = shutdown.clone();
-    let cleanup_interval = Duration::from_secs(config.cleanup_interval_secs);
-    let max_age = config.max_device_age_secs;
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(cleanup_interval);
-        loop {
-            tokio::select! {
-                _ = cleanup_shutdown.cancelled() => {
-                    tracing::info!("Cache cleanup task shutting down");
-                    break;
-                }
-                _ = interval.tick() => {
-                    cleanup_cache.cleanup_stale(max_age);
-                    tracing::debug!("Completed stale device cache cleanup");
-                }
-            }
-        }
-    });
 
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
@@ -73,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Run WebSocket server
-    run_server(config.ws_port, router, cache, repo, shutdown).await?;
+    run_server(config.ws_port, router, repo, shutdown).await?;
 
     tracing::info!("Server shutdown complete");
     Ok(())

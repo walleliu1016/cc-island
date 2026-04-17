@@ -3,7 +3,6 @@
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use crate::db::repository::Repository;
-use crate::cache::state_cache::StateCache;
 use super::router::ConnectionRouter;
 use super::connection::handle_connection;
 
@@ -12,7 +11,6 @@ use super::connection::handle_connection;
 /// # Arguments
 /// * `port` - Port to listen on
 /// * `router` - Connection router for message routing
-/// * `cache` - State cache for device data
 /// * `repo` - Database repository for persistence
 /// * `shutdown` - Token to signal graceful shutdown
 ///
@@ -21,7 +19,6 @@ use super::connection::handle_connection;
 pub async fn run_server(
     port: u16,
     router: ConnectionRouter,
-    cache: StateCache,
     repo: Repository,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
@@ -40,12 +37,11 @@ pub async fn run_server(
 
                         // Clone shared state for the connection handler
                         let router_clone = router.clone();
-                        let cache_clone = cache.clone();
                         let repo_clone = repo.clone();
 
                         // Spawn a new task for each connection
                         tokio::spawn(async move {
-                            handle_connection(stream, router_clone, cache_clone, repo_clone).await;
+                            handle_connection(stream, router_clone, repo_clone).await;
                         });
                     },
                     Err(e) => {

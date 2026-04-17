@@ -7,10 +7,22 @@ interface DeviceSettings {
   autoAllow: boolean
 }
 
+// Extended device info with cached hostname
+interface CachedDeviceInfo {
+  token: string
+  hostname?: string
+  cached_hostname?: string
+  registered_at?: string
+  online?: boolean
+}
+
 interface SettingsPageProps {
   serverUrl: string
   serverConnected: boolean
+  serverConnecting: boolean
+  connectionError: string | null
   devices: string[]
+  deviceInfoMap: Record<string, CachedDeviceInfo>
   onSaveServer: (url: string) => void
   onDeleteDevice: (token: string) => void
   onToggleAutoAllow: (token: string, enabled: boolean) => void
@@ -20,7 +32,10 @@ interface SettingsPageProps {
 export function SettingsPage({
   serverUrl,
   serverConnected,
+  serverConnecting,
+  connectionError,
   devices,
+  deviceInfoMap,
   onSaveServer,
   onDeleteDevice,
   onToggleAutoAllow,
@@ -100,10 +115,23 @@ export function SettingsPage({
             className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-[12px] text-[#f5f5f5] text-[14px]"
           />
           <div className="flex items-center gap-2 mt-2">
-            <div className={`w-2 h-2 rounded-full ${serverConnected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
+            <div className={`w-2 h-2 rounded-full ${
+              serverConnected ? 'bg-[#22c55e]' :
+              serverConnecting ? 'bg-[#f59e0b]' : 'bg-[#737373]'
+            }`} />
             <span className="text-[#a3a3a3] text-xs">
-              {serverConnected ? '已连接' : '未连接'}
+              {serverConnected ? '已连接' :
+               serverConnecting ? '连接中...' : '未连接'}
             </span>
+            {connectionError && (
+              <span className="text-[#ef4444] text-xs ml-2">{connectionError}</span>
+            )}
+            {!serverUrl.trim() && !connectionError && (
+              <span className="text-[#737373] text-xs ml-2">请输入服务器地址</span>
+            )}
+            {serverUrl.trim() && devices.length === 0 && !connectionError && (
+              <span className="text-[#f59e0b] text-xs ml-2">请先添加设备</span>
+            )}
           </div>
           {error && (
             <div className="text-[#ef4444] text-xs mt-2">{error}</div>
@@ -121,10 +149,13 @@ export function SettingsPage({
           <div className="text-[#a3a3a3] text-xs mb-2">设备管理 ({devices.length})</div>
           {devices.map(token => {
             const autoAllow = getAutoAllow(token)
+            const info = deviceInfoMap[token]
+            // Use hostname from cache, fallback to '未知设备' (never show token)
+            const displayName = info?.hostname || info?.cached_hostname || '未知设备'
             return (
               <div key={token} className="flex items-center justify-between py-3 border-b border-[#262626]">
-                <div className="flex items-center gap-3 flex-1">
-                  <span className="text-[#f5f5f5] text-sm">{token.slice(0, 8)}...</span>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <span className="text-[#f5f5f5] text-sm truncate">{displayName}</span>
                   <div className="text-[#737373] text-xs">自动允许</div>
                 </div>
                 <div className="flex items-center gap-3">

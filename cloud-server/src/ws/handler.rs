@@ -3,67 +3,210 @@
 use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use crate::messages::CloudMessage;
-use crate::cache::state_cache::StateCache;
 use crate::db::repository::Repository;
 use super::router::ConnectionRouter;
+use uuid::Uuid;
 
 /// Handles incoming WebSocket messages
 pub struct MessageHandler {
     router: ConnectionRouter,
-    cache: StateCache,
     repo: Repository,
+    mobile_conn_id: Option<uuid::Uuid>,
 }
 
 impl MessageHandler {
-    pub fn new(router: ConnectionRouter, cache: StateCache, repo: Repository) -> Self {
-        Self { router, cache, repo }
+    pub fn new(router: ConnectionRouter, repo: Repository, mobile_conn_id: Option<Uuid>) -> Self {
+        Self { router, repo, mobile_conn_id }
     }
 
     /// Handle an incoming message from a client
     pub async fn handle(&self, msg: CloudMessage, tx: &Sender<Message>, _device_token: &str) {
         match msg {
-            // Desktop -> Cloud messages
-            CloudMessage::StateUpdate { device_token, sessions, popups } => {
-                tracing::info!("StateUpdate from desktop: {} sessions, {} popups", sessions.len(), popups.len());
+            // Mobile -> Cloud: Update subscription
+            CloudMessage::MobileAuth { device_tokens } => {
+                tracing::info!("MobileAuth (update subscription): {} devices: {:?}", device_tokens.len(), device_tokens);
 
-                // Update database
-                if let Err(e) = self.repo.upsert_sessions(&device_token, &sessions).await {
-                    tracing::error!("Failed to upsert sessions: {}", e);
+                // Update mobile subscription in router
+                if let Some(conn_id) = self.mobile_conn_id {
+                    self.router.update_mobile_subscription(conn_id, &device_tokens, tx);
                 }
 
-                // Update cache
-                self.cache.update_state(&device_token, sessions.clone(), popups.clone());
-
-                // Broadcast to mobiles
-                let update_msg = CloudMessage::InitialState { sessions, popups };
-                let json = serde_json::to_string(&update_msg).unwrap();
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
-                tracing::debug!("Broadcasted state update to mobiles for device: {}", device_token);
-            }
-
-            CloudMessage::NewPopup { device_token, popup } => {
-                tracing::info!("NewPopup from desktop: popup_id={}, type={}", popup.id, popup.popup_type);
-
-                // Save to database
-                if let Err(e) = self.repo.upsert_popup(&device_token, &popup).await {
-                    tracing::error!("Failed to upsert popup: {}", e);
-                }
-
-                // Update cache
-                self.cache.add_popup(&device_token, popup.clone());
-
-                // Broadcast to mobiles
-                let popup_msg = CloudMessage::NewPopupFromDevice {
-                    device_token: device_token.clone(),
-                    popup,
+                // Send auth success
+                let auth_success = CloudMessage::AuthSuccess {
+                    device_id: device_tokens.first().cloned().unwrap_or_default(),
+                    hostname: None,
                 };
-                let json = serde_json::to_string(&popup_msg).unwrap();
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
-                tracing::debug!("Broadcasted new popup to mobiles for device: {}", device_token);
+                let json = serde_json::to_string(&auth_success).unwrap();
+                if let Err(e) = tx.try_send(Message::text(json)) {
+                    tracing::warn!("Failed to send auth_success: {}", e);
+                }
+
+                // Send subscribed devices info
+                let devices_info = self.repo.get_devices_info(&device_tokens).await.unwrap_or_default();
+                let device_list_msg = CloudMessage::DeviceList { devices: devices_info };
+                let json = serde_json::to_string(&device_list_msg).unwrap();
+                if let Err(e) = tx.try_send(Message::text(json)) {
+                    tracing::warn!("Failed to send device list: {}", e);
+                }
+
+                // Send active sessions for each subscribed device
+                for device_token in &device_tokens {
+                    match self.repo.get_active_sessions(&[device_token.clone()]).await {
+                        Ok(sessions) => {
+                            // Convert to ClaudeSession format
+                            let claude_sessions: Vec<crate::messages::ClaudeSession> = sessions
+                                .into_iter()
+                                .filter_map(|s| {
+                                    Some(crate::messages::ClaudeSession {
+                                        session_id: s.session_id,
+                                        project_name: s.project_name.unwrap_or_else(|| "未知项目".to_string()),
+                                        status: s.status,
+                                        current_tool: s.current_tool,
+                                        created_at: s.started_at.map(|t| t.timestamp_millis() as u64),
+                                    })
+                                })
+                                .collect();
+
+                            if !claude_sessions.is_empty() {
+                                let session_list_msg = CloudMessage::SessionList {
+                                    device_token: device_token.clone(),
+                                    sessions: claude_sessions,
+                                };
+                                let json = serde_json::to_string(&session_list_msg).unwrap();
+                                if let Err(e) = tx.try_send(Message::text(json)) {
+                                    tracing::warn!("Failed to send session list for {}: {}", device_token, e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to get sessions for {}: {}", device_token, e);
+                        }
+                    }
+                }
             }
 
-            CloudMessage::ChatMessages { device_token, session_id, messages } => {
-                tracing::info!("ChatMessages from desktop: device={}, session={}, {} messages",
+            // Desktop -> Cloud: Hook message (transparent forwarding + persistence)
+            CloudMessage::HookMessage { device_token, session_id, hook_type, hook_body } => {
+                tracing::info!("HookMessage from desktop: device={}, session={}, hook_type={:?}",
+                    device_token, session_id, hook_type);
+
+                // Persist session state
+                let project_name = hook_body.get("project_name")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| {
+                        // Extract project name from cwd path
+                        hook_body.get("cwd").and_then(|cwd| {
+                            cwd.as_str().and_then(|s| {
+                                s.rsplit('/').next()
+                            })
+                        })
+                    });
+
+                match hook_type {
+                    crate::messages::HookType::SessionStart => {
+                        // Create new session
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            project_name,
+                            "idle",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist SessionStart: {}", e);
+                        } else {
+                            tracing::info!("Session persisted: device={}, session={}, project={:?}",
+                                device_token, session_id, project_name);
+                        }
+                    }
+                    crate::messages::HookType::SessionEnd => {
+                        // Mark session as ended
+                        if let Err(e) = self.repo.end_session(&device_token, &session_id).await {
+                            tracing::error!("Failed to persist SessionEnd: {}", e);
+                        } else {
+                            tracing::info!("Session ended: device={}, session={}", device_token, session_id);
+                        }
+                    }
+                    crate::messages::HookType::PreToolUse => {
+                        // Update session to working
+                        let tool_name = hook_body.get("tool_name")
+                            .and_then(|v| v.as_str());
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "working",
+                            tool_name,
+                        ).await {
+                            tracing::error!("Failed to persist PreToolUse: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::PostToolUse => {
+                        // Update session to waiting
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "waiting",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist PostToolUse: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::Stop => {
+                        // Update session to idle
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "idle",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist Stop: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::UserPromptSubmit => {
+                        // Update session to thinking
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "thinking",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist UserPromptSubmit: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::PermissionRequest => {
+                        // Update session to waitingForApproval
+                        let tool_name = hook_body.get("tool_name")
+                            .and_then(|v| v.as_str());
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "waitingForApproval",
+                            tool_name,
+                        ).await {
+                            tracing::error!("Failed to persist PermissionRequest: {}", e);
+                        }
+                    }
+                    _ => {}
+                }
+
+                // Forward to all subscribed mobiles
+                let hook_msg = CloudMessage::HookMessage {
+                    device_token: device_token.clone(),
+                    session_id,
+                    hook_type,
+                    hook_body,
+                };
+                let json = serde_json::to_string(&hook_msg).unwrap();
+                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+            }
+
+            // Desktop -> Cloud: Chat history sync
+            CloudMessage::ChatHistory { device_token, session_id, messages } => {
+                tracing::info!("ChatHistory from desktop: device={}, session={}, {} messages",
                     device_token, session_id, messages.len());
 
                 // Save messages to database
@@ -71,57 +214,17 @@ impl MessageHandler {
                     tracing::error!("Failed to upsert chat messages: {}", e);
                 }
 
-                // Broadcast NewChat to mobiles subscribed to this device_token
-                let new_chat_msg = CloudMessage::NewChat { session_id, messages };
-                let json = serde_json::to_string(&new_chat_msg).unwrap();
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
-                tracing::debug!("Broadcasted chat messages to mobiles for device: {}", device_token);
-            }
-
-            CloudMessage::Ping => {
-                let pong_msg = CloudMessage::Pong;
-                let json = serde_json::to_string(&pong_msg).unwrap();
-                if let Err(e) = tx.try_send(Message::text(json)) {
-                    tracing::warn!("Failed to send pong: {}", e);
-                }
-            }
-
-            // Mobile -> Cloud messages
-            CloudMessage::RespondPopup { device_token, popup_id, decision, answers } => {
-                tracing::info!("RespondPopup from mobile: popup_id={}, decision={:?}",
-                    popup_id, decision);
-
-                // Mark as resolved in database
-                if let Err(e) = self.repo.resolve_popup(&popup_id).await {
-                    tracing::error!("Failed to resolve popup: {}", e);
-                }
-
-                // Remove from cache
-                self.cache.remove_popup(&device_token, &popup_id);
-
-                // Broadcast PopupResolved to all mobiles (including the sender for confirmation)
-                let resolved_msg = CloudMessage::PopupResolved {
+                // Forward to all subscribed mobiles
+                let chat_msg = CloudMessage::ChatHistory {
                     device_token: device_token.clone(),
-                    popup_id: popup_id.clone(),
-                    source: "mobile".to_string(),
-                    decision: decision.clone(),
-                    answers: answers.clone(),
+                    session_id,
+                    messages,
                 };
-                let json = serde_json::to_string(&resolved_msg).unwrap();
+                let json = serde_json::to_string(&chat_msg).unwrap();
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
-                tracing::debug!("Broadcasted popup_resolved to mobiles for device: {}", device_token);
-
-                // Send to desktop
-                let response_msg = CloudMessage::PopupResponse {
-                    popup_id,
-                    decision,
-                    answers,
-                };
-                let json = serde_json::to_string(&response_msg).unwrap();
-                self.router.send_to_desktop(&device_token, Message::text(json));
-                tracing::debug!("Sent popup response to desktop for device: {}", device_token);
             }
 
+            // Mobile -> Cloud: Request chat history
             CloudMessage::RequestChatHistory { device_token, session_id, limit } => {
                 tracing::info!("RequestChatHistory from mobile: device={}, session={}, limit={:?}",
                     device_token, session_id, limit);
@@ -129,10 +232,11 @@ impl MessageHandler {
                 // Query chat history from database
                 match self.repo.get_chat_history(&device_token, &session_id, limit).await {
                     Ok(messages) => {
-                        tracing::info!("ChatHistory response: {} messages for session {}", messages.len(), session_id);
-
-                        // Send ChatHistory response back to the requesting client
-                        let history_msg = CloudMessage::ChatHistory { session_id, messages };
+                        let history_msg = CloudMessage::ChatHistory {
+                            device_token: device_token.clone(),
+                            session_id,
+                            messages,
+                        };
                         let json = serde_json::to_string(&history_msg).unwrap();
                         if let Err(e) = tx.try_send(Message::text(json)) {
                             tracing::warn!("Failed to send chat history: {}", e);
@@ -144,50 +248,41 @@ impl MessageHandler {
                 }
             }
 
-            // Desktop -> Cloud: popup resolved notification (when desktop locally handles)
-            CloudMessage::PopupResolved { device_token, popup_id, source, decision, answers } => {
-                // Only handle if source is "desktop" (mobile sends RespondPopup instead)
-                if source == "desktop" {
-                    tracing::info!("PopupResolved from desktop: popup_id={}, decision={:?}",
-                        popup_id, decision);
+            // Mobile -> Cloud: Hook response (forward to desktop)
+            CloudMessage::HookResponse { device_token, session_id, decision, answers } => {
+                tracing::info!("HookResponse from mobile: device={}, session={}, decision={:?}",
+                    device_token, session_id, decision);
 
-                    // Remove from cache
-                    self.cache.remove_popup(&device_token, &popup_id);
+                // Forward to desktop
+                let response_msg = CloudMessage::HookResponse {
+                    device_token: device_token.clone(),
+                    session_id,
+                    decision,
+                    answers,
+                };
+                let json = serde_json::to_string(&response_msg).unwrap();
+                self.router.send_to_desktop(&device_token, Message::text(json));
+            }
 
-                    // Broadcast to all mobiles subscribed to this device
-                    let resolved_msg = CloudMessage::PopupResolved {
-                        device_token: device_token.clone(),
-                        popup_id: popup_id.clone(),
-                        source: source.clone(),
-                        decision: decision.clone(),
-                        answers: answers.clone(),
-                    };
-                    let json = serde_json::to_string(&resolved_msg).unwrap();
-                    self.router.broadcast_to_mobiles(&device_token, Message::text(json));
-                    tracing::debug!("Broadcasted popup_resolved to mobiles for device: {}", device_token);
+            // Ping/Pong
+            CloudMessage::Ping => {
+                let pong_msg = CloudMessage::Pong;
+                let json = serde_json::to_string(&pong_msg).unwrap();
+                if let Err(e) = tx.try_send(Message::text(json)) {
+                    tracing::warn!("Failed to send pong: {}", e);
                 }
             }
 
-            // Auth messages are handled separately in connection handler
+            // Auth messages are handled in connection handler
             CloudMessage::DeviceRegister { .. } |
-            CloudMessage::MobileAuth { .. } |
             CloudMessage::AuthSuccess { .. } |
-            CloudMessage::AuthFailed { .. } => {
-                tracing::debug!("Auth message should be handled in connection setup");
-            }
-
-            // Cloud -> Mobile messages (should not be received from clients)
-            CloudMessage::InitialState { .. } |
-            CloudMessage::NewPopupFromDevice { .. } |
-            CloudMessage::NewChat { .. } |
-            CloudMessage::ChatHistory { .. } |
+            CloudMessage::AuthFailed { .. } |
             CloudMessage::DeviceList { .. } |
+            CloudMessage::DeviceOnline { .. } |
             CloudMessage::DeviceOffline { .. } |
-
-            // Cloud -> Desktop messages (should not be received from clients)
-            CloudMessage::PopupResponse { .. } |
+            CloudMessage::SessionList { .. } |
             CloudMessage::Pong => {
-                tracing::warn!("Received unexpected message type from client: {:?}", msg);
+                tracing::debug!("Auth/connection message should be handled in connection setup");
             }
         }
     }

@@ -3,21 +3,41 @@
 // SPDX-License-Identifier: MIT
 import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { useCloudWebSocket } from '../hooks/useCloudWebSocket'
-import { SessionState } from '../types'
+import { ClaudeSession, HookHint, ChatMessageData, AskData } from '../types'
 import { ChatView } from './ChatView'
 import { PopupCard } from './PopupCard'
 
+// Extended device info with cached hostname
+interface DeviceInfoExtended {
+  hostname?: string
+  cached_hostname?: string  // Cached hostname for offline display
+  registered_at?: string
+  online?: boolean
+}
+
 interface DeviceDetailPageProps {
-  deviceToken: string
-  deviceName: string
-  serverUrl: string
+  deviceInfo?: DeviceInfoExtended
+  sessions: ClaudeSession[]
+  hookHints: HookHint[]
+  chatMessages: Record<string, ChatMessageData[]>
+  connected: boolean
   onBack: () => void
+  onRespondHook: (sessionId: string, decision: string | null, answers?: string[][]) => void
+  onRequestChatHistory: (sessionId: string) => void
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void
 }
 
-export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, showToast }: DeviceDetailPageProps) {
-  const { state, respondPopup, requestChatHistory } = useCloudWebSocket({ deviceToken, serverUrl })
+export function DeviceDetailPage({
+  deviceInfo,
+  sessions,
+  hookHints,
+  chatMessages,
+  connected,
+  onBack,
+  onRespondHook,
+  onRequestChatHistory,
+  showToast,
+}: DeviceDetailPageProps) {
   const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null)
   const [dismissingPopups, setDismissingPopups] = useState<string[]>([])
   const dismissTimeoutRef = useRef<number | null>(null)
@@ -31,19 +51,22 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
     }
   }, [])
 
-  const pendingPopups = state.popups.filter(p => p.status === 'pending' && !dismissingPopups.includes(p.id))
-  const activeSessions = state.sessions.filter(s => s.status !== 'ended')
+  // Use hostname from: online info > cached info > '未知设备' (never fallback to token)
+  const deviceName = deviceInfo?.hostname || deviceInfo?.cached_hostname || '未知设备'
+  const pendingHints = hookHints.filter(h => h.urgent && !dismissingPopups.includes(h.session_id))
+  // Deduplicate sessions by sessionId (in case of duplicates from server)
+  const activeSessions = sessions.filter(s => s.status !== 'ended').filter((s, i, arr) =>
+    arr.findIndex(x => x.sessionId === s.sessionId) === i
+  )
 
   const handleViewChat = (sessionId: string, projectName: string) => {
-    requestChatHistory(sessionId)
+    onRequestChatHistory(sessionId)
     setChatSession({ sessionId, projectName })
   }
 
-  const handleRespond = (popupId: string, decision?: string | null, answers?: string[][]) => {
-    // Start dismiss animation
-    setDismissingPopups(prev => [...prev, popupId])
+  const handleRespond = (sessionId: string, decision?: string | null, answers?: string[][]) => {
+    setDismissingPopups(prev => [...prev, sessionId])
 
-    // Show toast
     if (decision === 'allow') {
       showToast('已允许', 'success')
     } else if (decision === 'deny') {
@@ -52,10 +75,9 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
       showToast('已提交', 'success')
     }
 
-    // Actually respond after animation starts
     dismissTimeoutRef.current = window.setTimeout(() => {
-      respondPopup(popupId, decision ?? null, answers)
-      setDismissingPopups(prev => prev.filter(id => id !== popupId))
+      onRespondHook(sessionId, decision ?? null, answers)
+      setDismissingPopups(prev => prev.filter(id => id !== sessionId))
     }, 200)
   }
 
@@ -65,7 +87,7 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
       <ChatView
         projectName={chatSession.projectName}
         onClose={() => setChatSession(null)}
-        messages={state.chatMessages[chatSession.sessionId] || []}
+        messages={chatMessages[chatSession.sessionId] || []}
       />
     )
   }
@@ -79,9 +101,9 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
           <span className="text-[#f5f5f5] text-lg font-medium">{deviceName}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${state.status === 'connected' ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
-          <span className={`text-xs ${state.status === 'connected' ? 'text-[#22c55e]' : 'text-[#737373]'}`}>
-            {state.status === 'connected' ? '在线' : '离线'}
+          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
+          <span className={`text-xs ${connected ? 'text-[#22c55e]' : 'text-[#737373]'}`}>
+            {connected ? '在线' : '离线'}
           </span>
         </div>
       </div>
@@ -90,16 +112,17 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
       <div className="flex-1 overflow-y-auto">
         {/* Sessions Section */}
         <div className="px-4 py-3">
-          <div className="text-[#a3a3a3] text-xs mb-2">会话列表</div>
+          <div className="text-[#a3a3a3] text-xs mb-2">会话列表 ({activeSessions.length})</div>
           {activeSessions.length === 0 ? (
             <div className="text-[#737373] text-sm py-4">暂无活跃会话</div>
           ) : (
             <div className="space-y-2">
               {activeSessions.map(session => (
                 <SessionCard
-                  key={session.session_id}
+                  key={session.sessionId}
                   session={session}
-                  onViewChat={() => handleViewChat(session.session_id, session.project_name || '未知项目')}
+                  hasPendingHook={pendingHints.some(h => h.session_id === session.sessionId)}
+                  onViewChat={() => handleViewChat(session.sessionId, session.projectName)}
                 />
               ))}
             </div>
@@ -107,10 +130,10 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
         </div>
 
         {/* Divider */}
-        {pendingPopups.length > 0 && (
+        {pendingHints.length > 0 && (
           <div className="px-4 py-2 border-t border-[#262626]">
-            <div className="text-[#a3a3a3] text-xs">
-              待处理 ({pendingPopups.length})
+            <div className="text-[#f59e0b] text-xs">
+              待处理 ({pendingHints.length})
             </div>
           </div>
         )}
@@ -118,10 +141,11 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
         {/* Popups Section */}
         <div className="px-4 py-3 space-y-3">
           <AnimatePresence>
-            {pendingPopups.map(popup => (
-              <PopupCard
-                key={popup.id}
-                popup={popup}
+            {pendingHints.map(hint => (
+              <HookHintCard
+                key={hint.session_id}
+                hint={hint}
+                session={sessions.find(s => s.sessionId === hint.session_id)}
                 onRespond={handleRespond}
               />
             ))}
@@ -132,15 +156,19 @@ export function DeviceDetailPage({ deviceToken, deviceName, serverUrl, onBack, s
   )
 }
 
-function SessionCard({ session, onViewChat }: { session: SessionState; onViewChat: () => void }) {
-  const projectName = session.project_name || '未知项目'
-  const statusInfo = parseSessionStatus(session.status, session.current_tool)
+function SessionCard({ session, hasPendingHook, onViewChat }: {
+  session: ClaudeSession
+  hasPendingHook: boolean
+  onViewChat: () => void
+}) {
+  const statusInfo = getStatusInfo(session.status, session.currentTool)
 
   return (
     <div className="p-3 rounded-[8px] bg-[#1a1a1a] border border-[#262626]">
       <div className="flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
-        <div className="text-[#f5f5f5] text-sm font-medium">{projectName}</div>
+        <div className="text-[#f5f5f5] text-sm font-medium">{session.projectName}</div>
+        {hasPendingHook && <span className="text-[#f59e0b] text-xs">⚠</span>}
       </div>
       <div className="text-[#a3a3a3] text-xs mt-1">
         {statusInfo.text}
@@ -155,34 +183,80 @@ function SessionCard({ session, onViewChat }: { session: SessionState; onViewCha
   )
 }
 
-// Parse status JSON and return display info
-function parseSessionStatus(statusJson: string, currentTool?: string): { text: string; color: string } {
-  try {
-    const status = JSON.parse(statusJson) as { type: string; data?: string }
+function HookHintCard({ hint, session, onRespond }: {
+  hint: HookHint
+  session?: ClaudeSession
+  onRespond: (sessionId: string, decision: string | null, answers?: string[][]) => void
+}) {
+  const projectName = session?.projectName || '未知项目'
+  const isPermission = hint.hook_type === 'PermissionRequest'
 
-    switch (status.type) {
-      case 'idle':
-        return { text: '空闲', color: 'bg-[#737373]' }
-      case 'thinking':
-        return { text: '思考中...', color: 'bg-[#22c55e]' }
-      case 'working':
-        const toolName = status.data || currentTool || '工具'
-        return { text: `执行: ${toolName}`, color: 'bg-[#22c55e]' }
-      case 'waiting':
-        return { text: '等待继续', color: 'bg-[#3b82f6]' }
-      case 'waitingForApproval':
-        return { text: '需要授权', color: 'bg-[#f59e0b]' }
-      case 'error':
-        return { text: '错误', color: 'bg-[#ef4444]' }
-      case 'compacting':
-        return { text: '压缩上下文', color: 'bg-[#8b5cf6]' }
-      case 'ended':
-        return { text: '已结束', color: 'bg-[#737373]' }
-      default:
-        return { text: currentTool || statusJson, color: 'bg-[#737373]' }
-    }
-  } catch {
-    // Fallback for non-JSON status (legacy format)
-    return { text: currentTool || statusJson, color: 'bg-[#737373]' }
+  if (!isPermission && hint.questions) {
+    // Ask popup - use PopupCard
+    return (
+      <PopupCard
+        popup={{
+          id: hint.session_id,
+          session_id: hint.session_id,
+          project_name: projectName,
+          type: 'ask',
+          data: { questions: hint.questions } as AskData,
+          ask_data: { questions: hint.questions } as AskData,
+          status: 'pending',
+          created_at: hint.timestamp,
+        }}
+        onRespond={(_popupId, decision, answers) => onRespond(hint.session_id, decision ?? null, answers)}
+      />
+    )
+  }
+
+  // Permission popup
+  return (
+    <div className="bg-white rounded-[12px] p-4 shadow-lg">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[#f59e0b]">⚠</span>
+        <span className="text-[#1a1a1a] text-sm font-medium">{projectName}</span>
+      </div>
+      <div className="text-[#737373] text-xs mb-3">
+        {hint.tool_name}: {hint.action || ''}
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={() => onRespond(hint.session_id, 'deny')}
+          className="flex-1 py-2 bg-[#ef4444] text-white rounded-[8px] text-xs font-medium"
+        >
+          拒绝
+        </button>
+        <button
+          onClick={() => onRespond(hint.session_id, 'allow')}
+          className="flex-1 py-2 bg-[#22c55e] text-white rounded-[8px] text-xs font-medium"
+        >
+          允许
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function getStatusInfo(status: string, currentTool?: string): { text: string; color: string } {
+  switch (status) {
+    case 'idle':
+      return { text: '空闲', color: 'bg-[#737373]' }
+    case 'thinking':
+      return { text: '思考中...', color: 'bg-[#22c55e]' }
+    case 'working':
+      return { text: `执行: ${currentTool || '工具'}`, color: 'bg-[#22c55e]' }
+    case 'waiting':
+      return { text: '等待继续', color: 'bg-[#3b82f6]' }
+    case 'waitingForApproval':
+      return { text: '需要授权', color: 'bg-[#f59e0b]' }
+    case 'error':
+      return { text: '错误', color: 'bg-[#ef4444]' }
+    case 'compacting':
+      return { text: '压缩上下文', color: 'bg-[#8b5cf6]' }
+    case 'ended':
+      return { text: '已结束', color: 'bg-[#737373]' }
+    default:
+      return { text: currentTool || status, color: 'bg-[#737373]' }
   }
 }

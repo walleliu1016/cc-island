@@ -19,6 +19,7 @@ pub struct CloudConfig {
 pub struct CloudClient {
     config: CloudConfig,
     device_token: String,
+    hostname: Option<String>,
     app_state: Arc<RwLock<AppState>>,
     out_tx: Option<Sender<Message>>,
     connected: Arc<RwLock<bool>>,
@@ -27,10 +28,14 @@ pub struct CloudClient {
 impl CloudClient {
     pub fn new(app_state: Arc<RwLock<AppState>>, config: CloudConfig) -> Self {
         let device_token = get_machine_token();
+        let hostname = hostname::get()
+            .ok()
+            .and_then(|h| h.into_string().ok());
 
         Self {
             config,
             device_token,
+            hostname,
             app_state,
             out_tx: None,
             connected: Arc::new(RwLock::new(false)),
@@ -42,31 +47,58 @@ impl CloudClient {
         self.device_token.clone()
     }
 
+    /// Get hostname for display
+    pub fn get_hostname(&self) -> Option<String> {
+        self.hostname.clone()
+    }
+
     /// Check if connected to cloud server
     pub fn is_connected(&self) -> bool {
         *self.connected.read()
     }
 
-    /// Connect to cloud server
+    /// Get connected arc for external monitoring
+    pub fn get_connected_arc(&self) -> Arc<RwLock<bool>> {
+        self.connected.clone()
+    }
+
+    /// Get outgoing channel for hook pushing
+    pub fn get_out_tx(&self) -> Option<Sender<Message>> {
+        self.out_tx.clone()
+    }
+
+    /// Connect to cloud server with timeout
     pub async fn connect(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let server_url = self.config.server_url.clone();
         let device_token = self.device_token.clone();
+        let hostname = self.hostname.clone();
         let device_name = self.config.device_name.clone();
 
         tracing::info!("Connecting to cloud server: {}", server_url);
 
-        // Connect WebSocket
-        let (ws_stream, _) = connect_async(&server_url).await?;
+        // Connect WebSocket with 5 second timeout (don't block app startup)
+        let connect_result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            connect_async(&server_url)
+        ).await;
+
+        let (ws_stream, _) = match connect_result {
+            Ok(Ok(stream)) => stream,
+            Ok(Err(e)) => return Err(format!("Connection refused: {}", e).into()),
+            Err(_) => return Err("Connection timeout after 5 seconds".into()),
+        };
+
         let (mut ws_tx, mut ws_rx) = ws_stream.split();
 
         // Create outgoing message channel
         let (out_tx, mut out_rx): (Sender<Message>, Receiver<Message>) = channel(64);
         self.out_tx = Some(out_tx.clone());
 
-        // Send device registration
+        // Send device registration with hostname
         let register_msg = serde_json::json!({
             "type": "device_register",
             "device_token": device_token,
+            "hostname": hostname,
             "device_name": device_name,
         });
         ws_tx.send(Message::text(register_msg.to_string())).await?;
@@ -79,6 +111,37 @@ impl CloudClient {
                     if json["type"] == "auth_success" {
                         tracing::info!("Cloud authentication successful");
                         *self.connected.write() = true;
+
+                        // Send existing sessions to cloud after connection
+                        // This allows mobile to see already-running Claude instances
+                        let app_state = self.app_state.clone();
+                        let device_token = self.device_token.clone();
+                        let out_tx_clone = out_tx.clone();
+                        tokio::spawn(async move {
+                            let state = app_state.read();
+                            let instances = state.instances.get_all_instances_display();
+                            tracing::info!("Sending {} existing sessions to cloud", instances.len());
+
+                            for instance in instances {
+                                // Send SessionStart-like hook message for existing session
+                                let hook_body = serde_json::json!({
+                                    "hook_event_name": "SessionStart",
+                                    "session_id": instance.session_id,
+                                    "cwd": None::<String>,
+                                    "project_name": instance.project_name,
+                                });
+                                let msg = serde_json::json!({
+                                    "type": "hook_message",
+                                    "device_token": device_token,
+                                    "session_id": instance.session_id,
+                                    "hook_type": "session_start",  // snake_case for Cloud Server
+                                    "hook_body": hook_body,
+                                });
+                                if let Err(e) = out_tx_clone.try_send(Message::text(msg.to_string())) {
+                                    tracing::warn!("Failed to send existing session: {}", e);
+                                }
+                            }
+                        });
                     } else if json["type"] == "auth_failed" {
                         let reason = json["reason"].as_str().unwrap_or("unknown");
                         tracing::error!("Cloud authentication failed: {}", reason);
@@ -102,12 +165,16 @@ impl CloudClient {
         }
 
         // Spawn send task
+        let connected = self.connected.clone();
         let send_task = async move {
             while let Some(msg) = out_rx.recv().await {
                 if ws_tx.send(msg).await.is_err() {
+                    tracing::warn!("Send task: WebSocket send failed");
+                    *connected.write() = false;
                     break;
                 }
             }
+            tracing::info!("Send task ended");
         };
 
         // Spawn receive task
@@ -118,18 +185,19 @@ impl CloudClient {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let json: serde_json::Value = match serde_json::from_str(&text) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::warn!("Failed to parse WebSocket message as JSON: {}", e);
-                            serde_json::json!({})
-                        }
-                    };
-                        if json["type"] == "popup_response" {
-                            handle_popup_response(&app_state, &json);
+                            Ok(v) => v,
+                            Err(e) => {
+                                tracing::warn!("Failed to parse WebSocket message as JSON: {}", e);
+                                serde_json::json!({})
+                            }
+                        };
+                        if json["type"] == "hook_response" {
+                            handle_hook_response(&app_state, &json);
                         }
                     },
                     Ok(Message::Pong(_)) => {},
                     Ok(Message::Close(_)) => {
+                        tracing::info!("Receive task: Close frame received");
                         *connected.write() = false;
                         break;
                     },
@@ -141,6 +209,7 @@ impl CloudClient {
                     _ => {}
                 }
             }
+            tracing::info!("Receive task ended");
         };
 
         tokio::spawn(async move {
@@ -154,165 +223,106 @@ impl CloudClient {
         Ok(())
     }
 
-    /// Push state update to cloud
-    pub fn push_state(&self, sessions: Vec<SessionState>, popups: Vec<PopupState>) {
+    /// Push hook message to cloud (transparent forwarding)
+    pub fn push_hook_message(&self, session_id: &str, hook_type: &str, hook_body: serde_json::Value) {
         if !self.is_connected() {
             return;
         }
 
         if let Some(tx) = &self.out_tx {
             let msg = serde_json::json!({
-                "type": "state_update",
+                "type": "hook_message",
                 "device_token": self.device_token,
-                "sessions": sessions,
-                "popups": popups,
+                "session_id": session_id,
+                "hook_type": hook_type,
+                "hook_body": hook_body,
             });
             if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push state: {}", e);
+                tracing::warn!("Failed to push hook message: {}", e);
             }
         }
     }
 
-    /// Push new popup to cloud
-    pub fn push_new_popup(&self, popup: PopupState) {
-        if !self.is_connected() {
-            return;
-        }
-
-        if let Some(tx) = &self.out_tx {
-            let msg = serde_json::json!({
-                "type": "new_popup",
-                "device_token": self.device_token,
-                "popup": popup,
-            });
-            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push popup: {}", e);
-            }
-        }
-    }
-
-    /// Push chat message to cloud
-    pub fn push_chat_message(&self, session_id: &str, message: &crate::chat_messages::ChatMessage) {
+    /// Push chat history to cloud
+    pub fn push_chat_history(&self, session_id: &str, messages: Vec<crate::chat_messages::ChatMessage>) {
         if !self.is_connected() {
             return;
         }
 
         if let Some(tx) = &self.out_tx {
             // Convert ChatMessage to ChatMessageData format (camelCase for frontend)
+            let messages_data: Vec<serde_json::Value> = messages.iter().map(|msg| {
+                serde_json::json!({
+                    "id": msg.id,
+                    "sessionId": msg.session_id,
+                    "messageType": msg.message_type,
+                    "content": msg.content,
+                    "toolName": msg.tool_name,
+                    "timestamp": msg.timestamp,
+                })
+            }).collect();
+
             let msg = serde_json::json!({
-                "type": "chat_messages",
+                "type": "chat_history",
                 "device_token": self.device_token,
                 "session_id": session_id,
-                "messages": [{
-                    "id": message.id,
-                    "sessionId": message.session_id,
-                    "messageType": message.message_type,
-                    "content": message.content,
-                    "toolName": message.tool_name,
-                    "timestamp": message.timestamp,
-                }],
+                "messages": messages_data,
             });
             if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push chat message: {}", e);
-            }
-        }
-    }
-
-    /// Push popup resolved notification to cloud
-    /// Called when desktop locally resolves a popup (user clicked Allow/Deny or answered questions)
-    pub fn push_popup_resolved(
-        &self,
-        popup_id: &str,
-        decision: Option<&str>,
-        answers: Option<&Vec<Vec<String>>>,
-    ) {
-        if !self.is_connected() {
-            return;
-        }
-
-        if let Some(tx) = &self.out_tx {
-            let msg = serde_json::json!({
-                "type": "popup_resolved",
-                "device_token": self.device_token,
-                "popup_id": popup_id,
-                "source": "desktop",
-                "decision": decision,
-                "answers": answers,
-            });
-            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push popup resolved: {}", e);
+                tracing::warn!("Failed to push chat history: {}", e);
             }
         }
     }
 }
 
-fn handle_popup_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {
-    let popup_id = json["popup_id"].as_str().unwrap_or("");
+fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {
+    let session_id = json["session_id"].as_str().unwrap_or("");
     let decision = json["decision"].as_str();
     let answers = json["answers"].as_array();
 
-    tracing::info!("Received popup response from mobile: {} -> {:?}", popup_id, decision);
+    tracing::info!("Received hook response from mobile: session {} -> {:?}", session_id, decision);
 
     // Build PopupResponse and resolve via popup_queue
-    let response = PopupResponse {
-        popup_id: popup_id.to_string(),
-        decision: decision.map(|s| s.to_string()),
-        answer: None,
-        answers: answers.map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_array())
-                .map(|inner| inner.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
-                .collect()
-        }),
-    };
-
-    // Get popup info before resolving (need session_id for instance update)
-    let popup_session_id = {
+    // Need to find popup_id by session_id
+    let popup_id = {
         let state = app_state.read();
-        state.popups.get(popup_id).map(|p| p.session_id.clone())
+        state.popups.find_popup_by_session(session_id)
     };
 
-    // Resolve the popup through popup_queue (needs write lock)
-    let resolved = {
-        let mut state = app_state.write();
-        state.popups.resolve(response.clone())
-    };
+    if let Some(popup_id) = popup_id {
+        let response = PopupResponse {
+            popup_id: popup_id.clone(),
+            decision: decision.map(|s| s.to_string()),
+            answer: None,
+            answers: answers.map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_array())
+                    .map(|inner| inner.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .collect()
+            }),
+        };
 
-    if resolved {
-        // Clear WaitingForApproval status for the instance
-        if let Some(session_id) = popup_session_id {
+        // Resolve the popup through popup_queue
+        let resolved = {
             let mut state = app_state.write();
-            if let Some(instance) = state.instances.get_instance_mut(&session_id) {
+            state.popups.resolve(response.clone())
+        };
+
+        if resolved {
+            // Clear WaitingForApproval status for the instance
+            let mut state = app_state.write();
+            if let Some(instance) = state.instances.get_instance_mut(&session_id.to_string()) {
                 if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
                     instance.set_status(crate::instance_manager::InstanceStatus::Idle);
                     instance.current_tool = None;
                     instance.tool_input = None;
                 }
             }
+            tracing::info!("Popup {} resolved successfully from mobile", popup_id);
+        } else {
+            tracing::warn!("Popup {} not found or already resolved", popup_id);
         }
-        tracing::info!("Popup {} resolved successfully from mobile", popup_id);
     } else {
-        tracing::warn!("Popup {} not found or already resolved", popup_id);
+        tracing::warn!("No pending popup found for session {}", session_id);
     }
-}
-
-// Simplified state types for cloud messages
-#[derive(serde::Serialize)]
-pub struct SessionState {
-    pub session_id: String,
-    pub project_name: Option<String>,
-    pub status: String,
-    pub current_tool: Option<String>,
-    pub tool_input: Option<serde_json::Value>,
-}
-
-#[derive(serde::Serialize)]
-pub struct PopupState {
-    pub id: String,
-    pub session_id: Option<String>,
-    pub project_name: Option<String>,
-    #[serde(rename = "type")]
-    pub popup_type: String,
-    pub data: serde_json::Value,
-    pub status: String,
 }

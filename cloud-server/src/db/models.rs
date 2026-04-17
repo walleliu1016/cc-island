@@ -8,8 +8,10 @@ use sqlx::FromRow;
 pub struct Device {
     pub id: uuid::Uuid,
     pub device_token: String,
+    pub hostname: Option<String>,
     pub name: Option<String>,
     pub status: String,
+    pub registered_at: Option<DateTime<Utc>>,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -27,17 +29,16 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Session info for API response (without internal id)
 #[derive(Debug, FromRow, Serialize, Deserialize)]
-pub struct Popup {
-    pub id: String,
+pub struct SessionInfo {
     pub device_token: String,
-    pub session_id: Option<String>,
+    pub session_id: String,
     pub project_name: Option<String>,
-    pub popup_type: String,
-    pub data: serde_json::Value,
     pub status: String,
-    pub created_at: DateTime<Utc>,
-    pub resolved_at: Option<DateTime<Utc>>,
+    pub current_tool: Option<String>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]

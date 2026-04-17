@@ -64,6 +64,7 @@ pub struct AppState {
     pub session_notification: Option<SessionNotification>,
     pub cloud_client: Option<Arc<AsyncRwLock<CloudClient>>>,
     pub cloud_connection_status: CloudConnectionStatus,
+    pub cloud_stop_signal: Option<tokio::sync::watch::Sender<bool>>,  // Stop signal for reconnect loop
 }
 
 impl AppState {
@@ -77,6 +78,7 @@ impl AppState {
             session_notification: None,
             cloud_client: None,
             cloud_connection_status: CloudConnectionStatus::Disconnected,
+            cloud_stop_signal: None,
         }
     }
 
@@ -464,50 +466,149 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
         || old_cloud_config.1 != settings.cloud_server_url;
 
     if cloud_changed && settings.cloud_mode {
-        // Start/restart Cloud client
+        // Stop existing connection first
+        stop_cloud_client();
+
+        // Start/restart Cloud client with reconnect
         if let Some(ref url) = settings.cloud_server_url {
             let url_clone = url.clone();
             let device_name = settings.device_name.clone();
-            let cloud_config = CloudConfig {
-                server_url: url_clone.clone(),
-                device_name,
-            };
-            let app_state = SHARED_STATE.clone();
 
             tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
-
-            // Set status to Connecting
-            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
-
-            // Initialize cloud client
-            let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
-            let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
-
-            // Store in app state
-            SHARED_STATE.write().cloud_client = Some(cloud_client_arc.clone());
-
-            // Spawn connection task
-            let url_for_async = url_clone.clone();
-            tokio::spawn(async move {
-                let mut client = cloud_client_arc.write().await;
-                tracing::info!("Connecting to cloud server: {}", url_for_async);
-                if let Err(e) = client.connect().await {
-                    tracing::error!("Cloud client connection error: {}", e);
-                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed(e.to_string());
-                } else {
-                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connected;
-                    tracing::info!("Cloud connection established");
-                }
-            });
+            start_cloud_with_reconnect(url_clone, device_name);
         }
     } else if !settings.cloud_mode && old_cloud_config.0 {
-        // Cloud mode disabled - disconnect
-        SHARED_STATE.write().cloud_client = None;
-        SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
+        // Cloud mode disabled - stop connection
+        stop_cloud_client();
         tracing::info!("Cloud mode disabled");
     }
 
     Ok(())
+}
+
+/// Start cloud client with automatic reconnect
+/// Returns stop signal sender
+fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -> tokio::sync::watch::Sender<bool> {
+    use tokio::sync::watch::{channel, Sender, Receiver};
+    use std::time::Duration;
+
+    const RECONNECT_INTERVAL: Duration = Duration::from_secs(5);
+
+    let (stop_tx, stop_rx): (Sender<bool>, Receiver<bool>) = channel(false);
+    let stop_tx_clone = stop_tx.clone();
+
+    let app_state = SHARED_STATE.clone();
+    let cloud_config = CloudConfig {
+        server_url,
+        device_name,
+    };
+
+    // Set status to Connecting (don't wait for success)
+    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
+
+    // Spawn reconnect loop (async, non-blocking)
+    tokio::spawn(async move {
+        let mut attempt = 0u32;
+
+        // Initialize cloud client inside async block
+        let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
+        let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
+        let connected_arc = {
+            let client = cloud_client_arc.read().await;
+            client.get_connected_arc()
+        };
+
+        // Store in app state
+        {
+            let mut state = SHARED_STATE.write();
+            state.cloud_client = Some(cloud_client_arc.clone());
+            state.cloud_stop_signal = Some(stop_tx_clone);
+        }
+
+        tracing::info!("Cloud reconnect loop started, will keep retrying on failure");
+
+        loop {
+            // Check stop signal
+            if *stop_rx.borrow() {
+                tracing::info!("Cloud client stopped by signal");
+                break;
+            }
+
+            // Update connection status
+            if attempt > 0 {
+                SHARED_STATE.write().cloud_connection_status =
+                    CloudConnectionStatus::Failed(format!("连接失败 (尝试 {}), 将重试...", attempt));
+            }
+
+            tracing::info!("Attempting cloud connection (attempt {})", attempt + 1);
+
+            // Try to connect
+            let connect_result = {
+                let mut client = cloud_client_arc.write().await;
+                client.connect().await.map_err(|e| format!("{}", e))
+            };
+
+            if let Err(error_msg) = connect_result {
+                tracing::error!("Cloud connection error: {}", error_msg);
+                *connected_arc.write() = false;
+
+                attempt += 1;
+
+                // Wait before retry (no max limit - keep retrying forever)
+                tokio::time::sleep(RECONNECT_INTERVAL).await;
+                continue;
+            }
+
+            // Connection successful
+            tracing::info!("Cloud connection established");
+            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connected;
+            attempt = 0;
+
+            // Wait for disconnect (monitor connected status)
+            loop {
+                if *stop_rx.borrow() {
+                    tracing::info!("Stop signal received, breaking");
+                    break;
+                }
+
+                if !*connected_arc.read() {
+                    tracing::info!("Connection lost, will reconnect");
+                    break;
+                }
+
+                // Poll every 1 second
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+
+            // Check if we should stop
+            if *stop_rx.borrow() {
+                break;
+            }
+
+            // Update status before reconnect
+            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
+
+            // Wait before reconnect
+            tracing::info!("Will reconnect in {} seconds", RECONNECT_INTERVAL.as_secs());
+            tokio::time::sleep(RECONNECT_INTERVAL).await;
+        }
+
+        // Cleanup
+        *connected_arc.write() = false;
+        SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
+        tracing::info!("Cloud client run loop ended");
+    });
+
+    stop_tx
+}
+
+/// Stop cloud client reconnect loop
+fn stop_cloud_client() {
+    if let Some(stop_tx) = SHARED_STATE.write().cloud_stop_signal.take() {
+        let _ = stop_tx.send(true);
+    }
+    SHARED_STATE.write().cloud_client = None;
+    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -592,44 +693,17 @@ pub fn run() {
                     }
                 });
 
-                // Start Cloud client in background (if enabled)
+                // Start Cloud client in background with reconnect (if enabled)
                 {
                     let state = SHARED_STATE.read();
                     if state.settings.cloud_mode {
                         if let Some(ref url) = state.settings.cloud_server_url {
-                            let url_clone = url.clone(); // Clone to avoid borrow issues
-                            let url_for_log = url_clone.clone();
-                            let cloud_config = CloudConfig {
-                                server_url: url_clone.clone(),
-                                device_name: state.settings.device_name.clone(),
-                            };
-                            let app_state = SHARED_STATE.clone();
-
-                            // Set status to Connecting
+                            let url_clone = url.clone();
+                            let device_name = state.settings.device_name.clone();
                             drop(state);
-                            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
 
-                            tracing::info!("Cloud mode enabled at startup, connecting to {}", url_for_log);
-
-                            // Initialize cloud client
-                            let cloud_client = CloudClient::new(app_state.clone(), cloud_config);
-                            let cloud_client_arc = Arc::new(AsyncRwLock::new(cloud_client));
-
-                            // Store in app state
-                            SHARED_STATE.write().cloud_client = Some(cloud_client_arc.clone());
-
-                            // Spawn connection task
-                            tokio::spawn(async move {
-                                let mut client = cloud_client_arc.write().await;
-                                tracing::info!("Connecting to cloud server: {}", url_clone);
-                                if let Err(e) = client.connect().await {
-                                    tracing::error!("Cloud client connection error: {}", e);
-                                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed(e.to_string());
-                                } else {
-                                    SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connected;
-                                    tracing::info!("Cloud connection established at startup");
-                                }
-                            });
+                            tracing::info!("Cloud mode enabled at startup, connecting to {}", url_clone);
+                            start_cloud_with_reconnect(url_clone, device_name);
                         } else {
                             tracing::warn!("Cloud mode enabled but no server URL configured");
                             SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Failed("未配置云服务器地址".to_string());
