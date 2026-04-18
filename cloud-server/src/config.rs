@@ -5,12 +5,14 @@ use anyhow::Result;
 /// Application configuration from environment variables.
 ///
 /// Required: DATABASE_URL
-/// Optional: WS_PORT (default: 17528)
+/// Optional: WS_PORT (default: 17528), HTTP_PORT (default: 17529)
 pub struct Config {
     /// PostgreSQL connection URL
     pub database_url: String,
     /// WebSocket server port (default: 17528)
     pub ws_port: u16,
+    /// HTTP API server port (default: 17529)
+    pub http_port: u16,
 }
 
 impl Config {
@@ -25,13 +27,19 @@ impl Config {
             .parse()
             .map_err(|e| anyhow::anyhow!("WS_PORT must be a valid port number: {}", e))?;
 
-        if ws_port == 0 {
-            return Err(anyhow::anyhow!("WS_PORT must be between 1 and 65535"));
+        let http_port: u16 = std::env::var("HTTP_PORT")
+            .unwrap_or_else(|_| "17529".to_string())
+            .parse()
+            .map_err(|e| anyhow::anyhow!("HTTP_PORT must be a valid port number: {}", e))?;
+
+        if ws_port == 0 || http_port == 0 {
+            return Err(anyhow::anyhow!("Ports must be between 1 and 65535"));
         }
 
         Ok(Self {
             database_url,
             ws_port,
+            http_port,
         })
     }
 }

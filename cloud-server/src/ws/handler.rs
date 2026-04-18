@@ -90,7 +90,7 @@ impl MessageHandler {
                 tracing::info!("HookMessage from desktop: device={}, session={}, hook_type={:?}",
                     device_token, session_id, hook_type);
 
-                // Persist session state
+                // Extract project_name (prefer hook_body.project_name, fallback to cwd)
                 let project_name = hook_body.get("project_name")
                     .and_then(|v| v.as_str())
                     .or_else(|| {
@@ -101,6 +101,13 @@ impl MessageHandler {
                             })
                         })
                     });
+
+                // Always update project_name if available (for any hook type)
+                if let Some(name) = project_name {
+                    if let Err(e) = self.repo.update_session_project_name(&device_token, &session_id, name).await {
+                        tracing::debug!("Could not update project_name (session may not exist): {}", e);
+                    }
+                }
 
                 match hook_type {
                     crate::messages::HookType::SessionStart => {
@@ -174,6 +181,77 @@ impl MessageHandler {
                             None,
                         ).await {
                             tracing::error!("Failed to persist UserPromptSubmit: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::PostToolUseFailure => {
+                        // Update session to error
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "error",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist PostToolUseFailure: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::PreCompact => {
+                        // Update session to compacting
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "compacting",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist PreCompact: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::PostCompact => {
+                        // Update session to idle
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "idle",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist PostCompact: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::Elicitation => {
+                        // Handle AskUserQuestion (Elicitation)
+                        let questions = hook_body.get("questions");
+
+                        // Generate popup_id for elicitation
+                        let popup_id = format!("elicitation-{}", session_id);
+
+                        // Create popup data
+                        let popup_data = serde_json::json!({
+                            "questions": questions,
+                        });
+
+                        // Persist popup to database
+                        if let Err(e) = self.repo.upsert_popup(
+                            &device_token,
+                            &session_id,
+                            &popup_id,
+                            "ask",
+                            project_name,
+                            popup_data,
+                        ).await {
+                            tracing::error!("Failed to persist Elicitation popup: {}", e);
+                        }
+
+                        // Update session status
+                        if let Err(e) = self.repo.upsert_session(
+                            &device_token,
+                            &session_id,
+                            None,
+                            "waitingForApproval",
+                            None,
+                        ).await {
+                            tracing::error!("Failed to persist Elicitation session: {}", e);
                         }
                     }
                     crate::messages::HookType::PermissionRequest => {

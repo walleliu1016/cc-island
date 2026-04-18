@@ -137,6 +137,26 @@ impl Repository {
         Ok(())
     }
 
+    /// Update session project name (always update, even if already set)
+    pub async fn update_session_project_name(&self, device_token: &str, session_id: &str, project_name: &str) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query!(
+            r#"
+            UPDATE sessions
+            SET project_name = $3, updated_at = $4
+            WHERE device_token = $1 AND session_id = $2
+            "#,
+            device_token,
+            session_id,
+            project_name,
+            now,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// Get active sessions for devices (not ended)
     pub async fn get_active_sessions(&self, device_tokens: &[String]) -> Result<Vec<SessionInfo>> {
         // Filter out ended sessions (handles both 'ended' and '{"type":"ended"}' formats)

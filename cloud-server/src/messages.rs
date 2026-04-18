@@ -56,10 +56,16 @@ pub enum HookType {
     SessionEnd,
     PreToolUse,
     PostToolUse,
+    PostToolUseFailure,
     PermissionRequest,
+    Elicitation,
     Notification,
     Stop,
     UserPromptSubmit,
+    PreCompact,
+    PostCompact,
+    SubagentStart,
+    SubagentStop,
     StatusUpdate,
 }
 

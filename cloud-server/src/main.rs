@@ -4,6 +4,7 @@ mod config;
 mod messages;
 mod db;
 mod ws;
+mod http;
 
 use tokio_util::sync::CancellationToken;
 use config::Config;
@@ -31,11 +32,20 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Migrations complete");
 
     // Create shared components
-    let repo = Repository::new(pool);
+    let repo = Repository::new(pool.clone());
     let router = ConnectionRouter::new();
 
     // Create shutdown token
     let shutdown = CancellationToken::new();
+
+    // Spawn HTTP server for API endpoints
+    let http_router = http::create_http_router(repo.clone(), router.clone());
+    let http_port = config.http_port;
+    tokio::spawn(async move {
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", http_port)).await.unwrap();
+        tracing::info!("HTTP API server listening on {}", http_port);
+        axum::serve(listener, http_router).await.unwrap();
+    });
 
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
