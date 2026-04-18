@@ -204,21 +204,13 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             console.log('[WebSocket] chat_history received:', sessionId, newMessages?.length, 'messages')
             if (sessionId && newMessages && newMessages.length > 0) {
               setState(s => {
-                // Merge new messages with existing, deduplicate by id
+                // Simply append new messages (no dedupe, no sort)
                 const existing = s.chatMessages[sessionId] || []
-                const merged = [...existing]
-                for (const nm of newMessages) {
-                  if (!merged.find(em => em.id === nm.id)) {
-                    merged.push(nm)
-                  }
-                }
-                // Sort by timestamp
-                merged.sort((a, b) => a.timestamp - b.timestamp)
                 return {
                   ...s,
                   chatMessages: {
                     ...s.chatMessages,
-                    [sessionId]: merged,
+                    [sessionId]: [...existing, ...newMessages],
                   },
                 }
               })

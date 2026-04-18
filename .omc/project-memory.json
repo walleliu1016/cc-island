@@ -213,15 +213,15 @@
       "type": "file"
     },
     {
-      "path": "src-tauri/src/conversation_parser.rs",
-      "accessCount": 18,
-      "lastAccessed": 1776502608971,
+      "path": "mobile-app/src/hooks/useAllDevicesWebSocket.ts",
+      "accessCount": 20,
+      "lastAccessed": 1776517120886,
       "type": "file"
     },
     {
-      "path": "mobile-app/src/hooks/useAllDevicesWebSocket.ts",
+      "path": "src-tauri/src/conversation_parser.rs",
       "accessCount": 18,
-      "lastAccessed": 1776516867061,
+      "lastAccessed": 1776502608971,
       "type": "file"
     },
     {
