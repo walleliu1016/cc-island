@@ -108,61 +108,19 @@ impl ConversationParser {
             completed_tool_ids: HashMap::new(),
         };
 
-        Self::parse_file(&file_path, &mut session);
+        Self::parse_file_full(&file_path, &mut session);
 
         session.messages
     }
 
-    /// Parse incrementally - only read new lines since last call
-    pub fn parse_incremental(&mut self, session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
-        let file_path = Self::session_file_path(session_id, cwd);
-
-        if !file_path.exists() {
-            return vec![];
-        }
-
-        let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
-            last_offset: 0,
-            messages: vec![],
-            tool_id_to_name: HashMap::new(),
-            completed_tool_ids: HashMap::new(),
-        });
-
-        // Check if file was truncated (e.g., /clear command)
-        if let Ok(file) = File::open(&file_path) {
-            if let Ok(metadata) = file.metadata() {
-                let file_size = metadata.len();
-                if file_size < session.last_offset {
-                    // File was truncated, reset state
-                    session.last_offset = 0;
-                    session.messages.clear();
-                    session.tool_id_to_name.clear();
-                    session.completed_tool_ids.clear();
-                }
-            }
-        }
-
-        Self::parse_file(&file_path, session);
-
-        session.messages.clone()
-    }
-
-    /// Parse file from current offset
-    fn parse_file(file_path: &PathBuf, session: &mut ParsedSession) {
+    /// Parse entire file (for initial full read)
+    fn parse_file_full(file_path: &PathBuf, session: &mut ParsedSession) {
         let file = File::open(file_path).ok();
         if file.is_none() {
             return;
         }
 
-        let mut file = file.unwrap();
-
-        // Seek to last offset
-        if session.last_offset > 0 {
-            if file.seek(SeekFrom::Start(session.last_offset)).is_err() {
-                return;
-            }
-        }
-
+        let file = file.unwrap();
         let reader = BufReader::new(&file);
         let mut new_messages: Vec<ConversationMessage> = vec![];
 
@@ -194,8 +152,96 @@ impl ConversationParser {
             session.last_offset = metadata.len();
         }
 
-        // Append new messages
+        // Append messages
         session.messages.extend(new_messages);
+    }
+
+    /// Parse incrementally - only read new lines since last call
+    /// Returns ONLY new messages (not the complete list)
+    pub fn parse_incremental(&mut self, session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
+        let file_path = Self::session_file_path(session_id, cwd);
+
+        if !file_path.exists() {
+            return vec![];
+        }
+
+        let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
+            last_offset: 0,
+            messages: vec![],
+            tool_id_to_name: HashMap::new(),
+            completed_tool_ids: HashMap::new(),
+        });
+
+        // Check if file was truncated (e.g., /clear command)
+        if let Ok(file) = File::open(&file_path) {
+            if let Ok(metadata) = file.metadata() {
+                let file_size = metadata.len();
+                if file_size < session.last_offset {
+                    // File was truncated, reset state
+                    session.last_offset = 0;
+                    session.messages.clear();
+                    session.tool_id_to_name.clear();
+                    session.completed_tool_ids.clear();
+                }
+            }
+        }
+
+        Self::parse_file_new_only(&file_path, session)
+    }
+
+    /// Parse file from current offset, return ONLY new messages
+    fn parse_file_new_only(file_path: &PathBuf, session: &mut ParsedSession) -> Vec<ConversationMessage> {
+        let file = File::open(file_path).ok();
+        if file.is_none() {
+            return vec![];
+        }
+
+        let mut file = file.unwrap();
+
+        // Seek to last offset
+        if session.last_offset > 0 {
+            if file.seek(SeekFrom::Start(session.last_offset)).is_err() {
+                return vec![];
+            }
+        }
+
+        let reader = BufReader::new(&file);
+        let mut new_messages: Vec<ConversationMessage> = vec![];
+
+        for line in reader.lines() {
+            if line.is_err() {
+                break;
+            }
+            let line = line.unwrap();
+            if line.is_empty() {
+                continue;
+            }
+
+            // Check for /clear command
+            if line.contains("<command-name>/clear</command-name>") {
+                session.messages.clear();
+                session.tool_id_to_name.clear();
+                session.completed_tool_ids.clear();
+                new_messages.clear();  // Clear any accumulated new messages too
+                continue;
+            }
+
+            // Parse JSON line
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                Self::parse_line(json, session, &mut new_messages);
+            }
+        }
+
+        // Update offset
+        if let Ok(metadata) = file.metadata() {
+            session.last_offset = metadata.len();
+        }
+
+        // Append new messages to session cache (for future reference)
+        session.messages.extend(new_messages.clone());
+
+        // Return only the NEW messages (not the complete list)
+        new_messages
     }
 
     /// Parse a single JSONL line
