@@ -123,11 +123,15 @@ impl CloudClient {
                             tracing::info!("Sending {} existing sessions to cloud", instances.len());
 
                             for instance in instances {
+                                // Get cwd from process_info if available
+                                let cwd = instance.process_info.as_ref()
+                                    .map(|p| p.working_directory.clone());
+
                                 // Send SessionStart-like hook message for existing session
                                 let hook_body = serde_json::json!({
                                     "hook_event_name": "SessionStart",
                                     "session_id": instance.session_id,
-                                    "cwd": None::<String>,
+                                    "cwd": cwd,
                                     "project_name": instance.project_name,
                                 });
                                 let msg = serde_json::json!({
