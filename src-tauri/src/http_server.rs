@@ -1252,33 +1252,44 @@ fn push_hook_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, hook_type
 }
 
 /// Push chat history to cloud client if enabled and connected
-/// Uses JSONL parser for complete conversation content
+/// Push chat history to cloud client if enabled and connected
+/// Uses JSONL parser for incremental conversation content
 fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, cwd: Option<&str>) {
+    // First, parse incrementally (needs mutable borrow)
+    let chat_messages = {
+        let mut state_guard = state.write();
+
+        // Get cwd from parameter or instance
+        let cwd_owned: Option<String> = cwd.map(|s| s.to_string()).or_else(|| {
+            state_guard.instances.get_instance(&session_id.to_string())
+                .and_then(|i| i.process_info.as_ref())
+                .map(|p| p.working_directory.clone())
+        });
+
+        if let Some(cwd_str) = cwd_owned {
+            let new_messages = state_guard.conversation_parser.parse_incremental(session_id, &cwd_str);
+            if !new_messages.is_empty() {
+                tracing::info!("Incremental JSONL: {} new messages for session {}", new_messages.len(), session_id);
+                crate::conversation_parser::ConversationParser::to_chat_messages(new_messages)
+            } else {
+                vec![]
+            }
+        } else {
+            // Fallback: use hook-based chat history
+            state_guard.chat_history.get_messages(session_id)
+        }
+    };
+
+    // Then, push to cloud (needs immutable borrow)
+    if chat_messages.is_empty() {
+        return;
+    }
+
     let state_guard = state.read();
     if let Some(ref cloud_client) = state_guard.cloud_client {
-        // Try to get read lock on async RwLock (non-blocking)
         if let Ok(client) = cloud_client.try_read() {
             if client.is_connected() {
-                // Use JSONL parser for complete conversation if cwd available
-                if let Some(cwd) = cwd {
-                    let messages = crate::conversation_parser::ConversationParser::parse_full(session_id, cwd);
-                    let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
-                    client.push_chat_history(session_id, chat_messages);
-                } else {
-                    // Fallback: try to get cwd from instance
-                    let instance_cwd = state_guard.instances.get_instance(&session_id.to_string())
-                        .and_then(|i| i.process_info.as_ref())
-                        .map(|p| p.working_directory.clone());
-
-                    if let Some(cwd) = instance_cwd {
-                        let messages = crate::conversation_parser::ConversationParser::parse_full(session_id, &cwd);
-                        let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
-                        client.push_chat_history(session_id, chat_messages);
-                    } else {
-                        // Final fallback: use hook-based chat history
-                        client.push_chat_history(session_id, state_guard.chat_history.get_messages(session_id));
-                    }
-                }
+                client.push_chat_history(session_id, chat_messages);
             }
         }
     }
