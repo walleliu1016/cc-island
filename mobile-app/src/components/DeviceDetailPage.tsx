@@ -2,10 +2,8 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useState, useEffect, useRef } from 'react'
-import { AnimatePresence } from 'framer-motion'
-import { ClaudeSession, HookHint, ChatMessageData, AskData } from '../types'
+import { ClaudeSession, HookHint, ChatMessageData } from '../types'
 import { ChatView } from './ChatView'
-import { PopupCard } from './PopupCard'
 
 // Extended device info with cached hostname
 interface DeviceInfoExtended {
@@ -122,117 +120,80 @@ export function DeviceDetailPage({
                   key={session.sessionId}
                   session={session}
                   hasPendingHook={pendingHints.some(h => h.session_id === session.sessionId)}
+                  pendingHint={pendingHints.find(h => h.session_id === session.sessionId)}
                   onViewChat={() => handleViewChat(session.sessionId, session.projectName)}
+                  onRespond={handleRespond}
                 />
               ))}
             </div>
           )}
         </div>
-
-        {/* Divider */}
-        {pendingHints.length > 0 && (
-          <div className="px-4 py-2 border-t border-[#262626]">
-            <div className="text-[#f59e0b] text-xs">
-              待处理 ({pendingHints.length})
-            </div>
-          </div>
-        )}
-
-        {/* Popups Section */}
-        <div className="px-4 py-3 space-y-3">
-          <AnimatePresence>
-            {pendingHints.map(hint => (
-              <HookHintCard
-                key={hint.session_id}
-                hint={hint}
-                session={sessions.find(s => s.sessionId === hint.session_id)}
-                onRespond={handleRespond}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
       </div>
     </div>
   )
 }
 
-function SessionCard({ session, hasPendingHook, onViewChat }: {
+function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespond }: {
   session: ClaudeSession
   hasPendingHook: boolean
+  pendingHint?: HookHint
   onViewChat: () => void
+  onRespond: (sessionId: string, decision: string | null, answers?: string[][]) => void
 }) {
   const statusInfo = getStatusInfo(session.status, session.currentTool)
+  const isAsk = pendingHint?.questions && pendingHint.questions.length > 0
 
   return (
     <div className="p-3 rounded-[8px] bg-[#1a1a1a] border border-[#262626]">
-      <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full ${statusInfo.color}`} />
-        <div className="text-[#f5f5f5] text-sm font-medium">{session.projectName}</div>
-        {hasPendingHook && <span className="text-[#f59e0b] text-xs">⚠</span>}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${hasPendingHook ? 'bg-[#f59e0b]' : statusInfo.color}`} />
+          <div className="text-[#f5f5f5] text-sm font-medium">{session.projectName}</div>
+        </div>
+        {/* Inline action buttons when has pending hook */}
+        {hasPendingHook && pendingHint ? (
+          isAsk ? (
+            // Ask question - show "去回答" button
+            <button
+              onClick={onViewChat}
+              className="px-3 py-1.5 text-xs font-medium text-black bg-white rounded-[8px]"
+            >
+              去回答
+            </button>
+          ) : (
+            // Permission request - show Allow/Deny inline
+            <div className="flex gap-2">
+              <button
+                onClick={() => onRespond(session.sessionId, 'deny')}
+                className="px-3 py-1.5 text-xs text-white/80 bg-[#ef4444] rounded-[8px]"
+              >
+                Deny
+              </button>
+              <button
+                onClick={() => onRespond(session.sessionId, 'allow')}
+                className="px-3 py-1.5 text-xs font-medium text-black bg-white rounded-[8px]"
+              >
+                Allow
+              </button>
+            </div>
+          )
+        ) : (
+          // No pending hook - show "查看对话" button
+          <button
+            onClick={onViewChat}
+            className="px-3 py-1 bg-[#262626] rounded-[8px] text-[#a3a3a3] text-xs hover:bg-[#333]"
+          >
+            查看对话
+          </button>
+        )}
       </div>
-      <div className="text-[#a3a3a3] text-xs mt-1">
-        {statusInfo.text}
-      </div>
-      <button
-        onClick={onViewChat}
-        className="mt-2 px-3 py-1 bg-[#262626] rounded-[8px] text-[#a3a3a3] text-xs hover:bg-[#1a1a1a]"
-      >
-        查看对话
-      </button>
-    </div>
-  )
-}
-
-function HookHintCard({ hint, session, onRespond }: {
-  hint: HookHint
-  session?: ClaudeSession
-  onRespond: (sessionId: string, decision: string | null, answers?: string[][]) => void
-}) {
-  const projectName = session?.projectName || '未知项目'
-  const isPermission = hint.hook_type === 'PermissionRequest'
-
-  if (!isPermission && hint.questions) {
-    // Ask popup - use PopupCard
-    return (
-      <PopupCard
-        popup={{
-          id: hint.session_id,
-          session_id: hint.session_id,
-          project_name: projectName,
-          type: 'ask',
-          data: { questions: hint.questions } as AskData,
-          ask_data: { questions: hint.questions } as AskData,
-          status: 'pending',
-          created_at: hint.timestamp,
-        }}
-        onRespond={(_popupId, decision, answers) => onRespond(hint.session_id, decision ?? null, answers)}
-      />
-    )
-  }
-
-  // Permission popup
-  return (
-    <div className="bg-white rounded-[12px] p-4 shadow-lg">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[#f59e0b]">⚠</span>
-        <span className="text-[#1a1a1a] text-sm font-medium">{projectName}</span>
-      </div>
-      <div className="text-[#737373] text-xs mb-3">
-        {hint.tool_name}: {hint.action || ''}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => onRespond(hint.session_id, 'deny')}
-          className="flex-1 py-2 bg-[#ef4444] text-white rounded-[8px] text-xs font-medium"
-        >
-          拒绝
-        </button>
-        <button
-          onClick={() => onRespond(hint.session_id, 'allow')}
-          className="flex-1 py-2 bg-[#22c55e] text-white rounded-[8px] text-xs font-medium"
-        >
-          允许
-        </button>
+      {/* Status text or tool info */}
+      <div className="text-[#a3a3a3] text-xs mt-2">
+        {hasPendingHook ? (
+          pendingHint?.tool_name ? `${pendingHint.tool_name}: ${pendingHint.action || ''}` : '待处理'
+        ) : (
+          statusInfo.text
+        )}
       </div>
     </div>
   )
