@@ -97,12 +97,14 @@ function QuestionWizard({
   questions,
   selectedAnswers,
   onChange,
-  readOnly = false
+  readOnly = false,
+  onSubmit
 }: {
   questions: AskQuestion[];
   selectedAnswers: string[][];
   onChange: (answers: string[][]) => void;
   readOnly?: boolean
+  onSubmit?: () => void
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQuestion = questions[currentIndex];
@@ -256,6 +258,14 @@ function QuestionWizard({
                 className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 disabled:bg-white/40 rounded-lg transition-all"
               >
                 下一题 →
+              </button>
+            ) : onSubmit ? (
+              <button
+                onClick={onSubmit}
+                disabled={!canGoNext}
+                className="px-4 py-1.5 text-xs font-medium text-black bg-green-500 hover:bg-green-400 disabled:bg-white/40 rounded-lg transition-all"
+              >
+                提交答案
               </button>
             ) : (
               <div className="px-4 py-1.5 text-xs font-medium text-white/50">
@@ -436,11 +446,14 @@ interface ChatViewProps {
   projectName: string
   onClose: () => void
   messages: ChatMessageData[]
+  pendingHint?: { session_id: string; questions?: AskQuestion[] }
+  onSubmitAnswers?: (sessionId: string, answers: string[][]) => void
 }
 
-export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
+export function ChatView({ projectName, onClose, messages, pendingHint, onSubmitAnswers }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [askAnswers, setAskAnswers] = useState<string[][]>([])
+  const [submitted, setSubmitted] = useState(false)
 
   // Detect processing state
   const isProcessing = messages.some(m =>
@@ -457,15 +470,22 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
   // Initialize ask answers from messages
   useEffect(() => {
     if (askAnswers.length === 0) {
-      const askMsg = messages.find(m => m.toolName === 'AskUserQuestion');
-      if (askMsg) {
-        const questions = parseAskQuestions(askMsg.content);
-        if (questions && questions.length > 0) {
-          setAskAnswers(questions.map(() => []));
+      // Use pendingHint if available (live questions from hook)
+      const questions = pendingHint?.questions;
+      if (questions && questions.length > 0) {
+        setAskAnswers(questions.map(() => []));
+      } else {
+        // Fallback: parse from messages
+        const askMsg = messages.find(m => m.toolName === 'AskUserQuestion');
+        if (askMsg) {
+          const parsed = parseAskQuestions(askMsg.content);
+          if (parsed && parsed.length > 0) {
+            setAskAnswers(parsed.map(() => []));
+          }
         }
       }
     }
-  }, [messages, askAnswers.length]);
+  }, [messages, pendingHint, askAnswers.length]);
 
   const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
 
@@ -507,10 +527,14 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
         {sortedMessages.length > 0 && (
           <AnimatePresence>
             {sortedMessages.map(msg => {
-              // Check if this is an AskUserQuestion
+              // Check if this is an AskUserQuestion with pending hint (interactive)
               const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
+              const hasPendingAsk = pendingHint?.questions && pendingHint?.questions.length > 0;
 
-              if (askQuestions) {
+              if (askQuestions || hasPendingAsk) {
+                const questions = hasPendingAsk ? pendingHint!.questions! : askQuestions!;
+                const isInteractive = hasPendingAsk && !submitted;
+
                 return (
                   <motion.div
                     key={msg.id}
@@ -519,10 +543,14 @@ export function ChatView({ projectName, onClose, messages }: ChatViewProps) {
                     className="mb-4 bg-white/5 rounded-lg overflow-hidden mx-2"
                   >
                     <QuestionWizard
-                      questions={askQuestions}
+                      questions={questions}
                       selectedAnswers={askAnswers}
                       onChange={setAskAnswers}
-                      readOnly={true}
+                      readOnly={!isInteractive}
+                      onSubmit={isInteractive && onSubmitAnswers && pendingHint ? () => {
+                        onSubmitAnswers(pendingHint.session_id, askAnswers);
+                        setSubmitted(true);
+                      } : undefined}
                     />
                   </motion.div>
                 );

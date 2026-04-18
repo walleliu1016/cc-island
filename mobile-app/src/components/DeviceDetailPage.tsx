@@ -81,11 +81,14 @@ export function DeviceDetailPage({
 
   // If viewing chat, show ChatView
   if (chatSession) {
+    const sessionPendingHint = pendingHints.find(h => h.session_id === chatSession.sessionId)
     return (
       <ChatView
         projectName={chatSession.projectName}
         onClose={() => setChatSession(null)}
         messages={chatMessages[chatSession.sessionId] || []}
+        pendingHint={sessionPendingHint}
+        onSubmitAnswers={(sessionId, answers) => handleRespond(sessionId, null, answers)}
       />
     )
   }
