@@ -10,6 +10,7 @@ pub mod chat_messages;
 pub mod machine_id;
 pub mod cloud_client;
 pub mod conversation_parser;
+pub mod jsonl_watcher;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -17,6 +18,7 @@ use chat_messages::ChatHistory;
 use http_server::HttpServer;
 use cloud_client::{CloudClient, CloudConfig};
 use conversation_parser::ConversationParser;
+use jsonl_watcher::JsonlWatcherHandle;
 use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
 
@@ -68,6 +70,7 @@ pub struct AppState {
     pub cloud_client: Option<Arc<AsyncRwLock<CloudClient>>>,
     pub cloud_connection_status: CloudConnectionStatus,
     pub cloud_stop_signal: Option<tokio::sync::watch::Sender<bool>>,  // Stop signal for reconnect loop
+    pub jsonl_watcher: Option<JsonlWatcherHandle>,  // JSONL file watcher
 }
 
 impl AppState {
@@ -83,6 +86,7 @@ impl AppState {
             cloud_client: None,
             cloud_connection_status: CloudConnectionStatus::Disconnected,
             cloud_stop_signal: None,
+            jsonl_watcher: None,
         }
     }
 
@@ -226,33 +230,38 @@ fn get_session_notification() -> Option<SessionNotification> {
 
 #[tauri::command]
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
-    let state = SHARED_STATE.read();
+    // First get cwd with read lock (no mutation needed)
+    let cwd = {
+        let state = SHARED_STATE.read();
+        state.instances.get_instance(&session_id)
+            .and_then(|i| i.session_cwd.clone())
+            .or_else(|| {
+                state.instances.get_instance(&session_id)
+                    .and_then(|i| i.process_info.as_ref())
+                    .map(|p| p.working_directory.clone())
+            })
+    };
 
-    // Get session_cwd from instance to locate JSONL file (session startup cwd, not current process cwd)
-    // Fallback chain: session_cwd -> process_info.cwd -> search all project dirs
-    let cwd = state.instances.get_instance(&session_id)
-        .and_then(|i| i.session_cwd.clone())
-        .or_else(|| {
-            state.instances.get_instance(&session_id)
-                .and_then(|i| i.process_info.as_ref())
-                .map(|p| p.working_directory.clone())
-        });
-
+    // Parse JSONL with write lock (needs to update cache)
     if let Some(cwd) = cwd {
-        // Parse JSONL file for complete conversation
-        let messages = conversation_parser::ConversationParser::parse_full(&session_id, &cwd);
+        let mut state = SHARED_STATE.write();
+        let messages = state.conversation_parser.parse_full(&session_id, &cwd);
         if !messages.is_empty() {
             return conversation_parser::ConversationParser::to_chat_messages(messages);
         }
     }
 
     // Fallback: search all project directories for JSONL file
-    let messages = conversation_parser::ConversationParser::parse_full_without_cwd(&session_id);
-    if !messages.is_empty() {
-        return conversation_parser::ConversationParser::to_chat_messages(messages);
+    {
+        let mut state = SHARED_STATE.write();
+        let messages = state.conversation_parser.parse_full_without_cwd(&session_id);
+        if !messages.is_empty() {
+            return conversation_parser::ConversationParser::to_chat_messages(messages);
+        }
     }
 
     // Final fallback: hook-based chat history
+    let state = SHARED_STATE.read();
     state.chat_history.get_messages(&session_id)
 }
 
@@ -722,6 +731,15 @@ pub fn run() {
                         tracing::error!("HTTP server error: {}", e);
                     }
                 });
+
+                // Initialize and start JSONL watcher
+                {
+                    let mut state = SHARED_STATE.write();
+                    let mut watcher = JsonlWatcherHandle::new(SHARED_STATE.clone());
+                    watcher.start();
+                    state.jsonl_watcher = Some(watcher);
+                    tracing::info!("JSONL watcher initialized");
+                }
 
                 // Start Cloud client in background with reconnect (if enabled)
                 {

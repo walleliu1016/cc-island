@@ -118,30 +118,71 @@ impl CloudClient {
                         let device_token = self.device_token.clone();
                         let out_tx_clone = out_tx.clone();
                         tokio::spawn(async move {
-                            let state = app_state.read();
-                            let instances = state.instances.get_all_instances_display();
-                            tracing::info!("Sending {} existing sessions to cloud", instances.len());
+                            // Need to drop read lock before acquiring write lock for parsing
+                            let instances: Vec<(String, Option<String>, String)> = {
+                                let state = app_state.read();
+                                let all_instances = state.instances.get_all_instances_display();
+                                tracing::info!("Sending {} existing sessions to cloud", all_instances.len());
+                                all_instances.into_iter().map(|i| (
+                                    i.session_id.clone(),
+                                    i.session_cwd.clone(),
+                                    i.project_name.clone(),  // project_name is String, not Option
+                                )).collect()
+                            };
 
-                            for instance in instances {
-                                // Use session_cwd for JSONL file location (session startup cwd, not current process cwd)
-                                let cwd = instance.session_cwd.clone();
-
+                            for (session_id, cwd, project_name) in instances {
                                 // Send SessionStart-like hook message for existing session
                                 let hook_body = serde_json::json!({
                                     "hook_event_name": "SessionStart",
-                                    "session_id": instance.session_id,
+                                    "session_id": session_id,
                                     "cwd": cwd,
-                                    "project_name": instance.project_name,
+                                    "project_name": project_name,
                                 });
                                 let msg = serde_json::json!({
                                     "type": "hook_message",
                                     "device_token": device_token,
-                                    "session_id": instance.session_id,
+                                    "session_id": session_id,
                                     "hook_type": "SessionStart",  // PascalCase for consistency
                                     "hook_body": hook_body,
                                 });
                                 if let Err(e) = out_tx_clone.try_send(Message::text(msg.to_string())) {
-                                    tracing::warn!("Failed to send existing session: {}", e);
+                                    tracing::warn!("Failed to send existing session hook: {}", e);
+                                }
+
+                                // Parse and push chat history for existing session
+                                if let Some(cwd_str) = cwd {
+                                    // Parse full JSONL for existing session (not incremental, since we want complete history)
+                                    // Need to access conversation_parser through app_state
+                                    let messages = {
+                                        let mut state = app_state.write();
+                                        state.conversation_parser.parse_full(&session_id, &cwd_str)
+                                    };
+                                    if !messages.is_empty() {
+                                        let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
+                                        tracing::info!("Pushing {} chat messages for existing session {}", chat_messages.len(), session_id);
+
+                                        // Convert ChatMessage to ChatMessageData format
+                                        let messages_data: Vec<serde_json::Value> = chat_messages.iter().map(|msg| {
+                                            serde_json::json!({
+                                                "id": msg.id,
+                                                "sessionId": msg.session_id,
+                                                "messageType": msg.message_type,
+                                                "content": msg.content,
+                                                "toolName": msg.tool_name,
+                                                "timestamp": msg.timestamp,
+                                            })
+                                        }).collect();
+
+                                        let chat_msg = serde_json::json!({
+                                            "type": "chat_history",
+                                            "device_token": device_token,
+                                            "session_id": session_id,
+                                            "messages": messages_data,
+                                        });
+                                        if let Err(e) = out_tx_clone.try_send(Message::text(chat_msg.to_string())) {
+                                            tracing::warn!("Failed to send chat history for {}: {}", session_id, e);
+                                        }
+                                    }
                                 }
                             }
                         });

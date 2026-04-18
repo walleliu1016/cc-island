@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChatMessageData } from '../types'
+import ReactMarkdown from 'react-markdown'
 
 // Terminal-style colors
 const Colors = {
@@ -17,7 +18,38 @@ const Colors = {
   codeBg: 'rgba(255,255,255,0.05)',
 };
 
-// Processing Spinner - Animated symbol spinner
+// Assistant message with markdown rendering and expand/collapse
+function AssistantMessage({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const MAX_LENGTH = 300
+  const isLong = content.length > MAX_LENGTH
+  const displayContent = expanded || !isLong ? content : content.slice(0, MAX_LENGTH)
+
+  return (
+    <div className="flex items-start gap-2">
+      <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
+      <div className="text-sm text-white/90 flex-1 markdown-content">
+        <ReactMarkdown>{displayContent}</ReactMarkdown>
+        {isLong && !expanded && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="text-xs text-white/50 mt-1 hover:text-white/70"
+          >
+            ...展开全文
+          </button>
+        )}
+        {isLong && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-xs text-white/50 mt-1 hover:text-white/70"
+          >
+            收起
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 function ProcessingSpinner({ size = 12 }: { size?: number }) {
   const [phase, setPhase] = useState(0);
   const symbols = ['·', '✢', '✳', '∗', '✻', '✽'];
@@ -487,7 +519,14 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
     }
   }, [messages, pendingHint, askAnswers.length]);
 
-  const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
+  // Dedupe messages by id (same message may be pushed multiple times from incremental updates)
+  const uniqueMessages = messages.reduce((acc, msg) => {
+    if (!acc.find(m => m.id === msg.id)) {
+      acc.push(msg)
+    }
+    return acc
+  }, [] as ChatMessageData[])
+  const sortedMessages = [...uniqueMessages].sort((a, b) => a.timestamp - b.timestamp)
 
   // Debug log
   console.log('[ChatView] messages:', messages.length, 'sorted:', sortedMessages.map(m => ({ id: m.id, type: m.messageType, tool: m.toolName, content: m.content.slice(0, 50) })))
@@ -662,24 +701,10 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
                 );
               }
 
-              // Thinking - LEFT aligned, gray italic (same as desktop)
-              if (msg.messageType === 'thinking') {
-                return (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-3"
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 mt-1 flex-shrink-0" />
-                      <div className="text-xs text-white/50 italic flex-1">{msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}</div>
-                    </div>
-                  </motion.div>
-                );
-              }
+              // Thinking messages are now hidden (internal reasoning not needed for display)
+              // if (msg.messageType === 'thinking') { ... }
 
-              // Assistant - LEFT aligned with dot indicator (same as desktop)
+              // Assistant - LEFT aligned with dot indicator, markdown rendered
               if (msg.messageType === 'assistant') {
                 return (
                   <motion.div
@@ -688,12 +713,9 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-3"
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
-                      <div className="text-sm text-white/90 flex-1">{msg.content}</div>
-                    </div>
+                    <AssistantMessage content={msg.content} />
                   </motion.div>
-                );
+                )
               }
 
               // Interrupted

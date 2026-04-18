@@ -245,7 +245,7 @@ async fn handle_hook(
                     // Save session cwd at startup for JSONL file location
                     let session_cwd = input.cwd.clone();
                     let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
-                    instance.session_cwd = session_cwd;
+                    instance.session_cwd = session_cwd.clone();
 
                     // Try to find process info
                     if let Some(cwd) = &input.cwd {
@@ -267,6 +267,13 @@ async fn handle_hook(
 
                     tracing::info!("New session: {} - {} (cwd: {:?})", instance.session_id, instance.project_name, instance.session_cwd);
                     state_guard.instances.add_instance(instance);
+
+                    // Start JSONL watcher for this session
+                    if let Some(ref mut watcher) = state_guard.jsonl_watcher {
+                        if let Some(cwd) = &session_cwd {
+                            watcher.watch_session(session_id.clone(), cwd.clone());
+                        }
+                    }
 
                     // Set session notification
                     let now = std::time::SystemTime::now()
@@ -291,6 +298,11 @@ async fn handle_hook(
                     if !cancelled.is_empty() {
                         tracing::info!("Session {} ended, cancelled {} pending popups",
                             input.session_id, cancelled.len());
+                    }
+
+                    // Stop JSONL watcher for this session
+                    if let Some(ref mut watcher) = state_guard.jsonl_watcher {
+                        watcher.unwatch_session(&input.session_id);
                     }
 
                     // Remove instance directly (exit means session ended)
@@ -529,9 +541,8 @@ async fn handle_hook(
         let hook_body = build_hook_body_from_input(&input);
         push_hook_to_cloud(&state, &input.session_id, hook_event, hook_body);
 
-        // Push complete chat history from JSONL to cloud
-        let cwd = input.cwd.as_deref();
-        push_chat_history_to_cloud(&state, &input.session_id, cwd);
+        // Note: Chat history is now handled by JsonlWatcher independently
+        // No need to push here - watcher polls every 100ms
 
         Ok(Json(HookOutput {
             continue_exec: true,
@@ -681,33 +692,38 @@ async fn get_chat_messages_http(
     State(state): State<Arc<RwLock<AppState>>>,
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<Vec<ChatMessage>> {
-    let state_guard = state.read();
+    // First get cwd with read lock (no mutation needed)
+    let cwd = {
+        let state_guard = state.read();
+        state_guard.instances.get_instance(&session_id)
+            .and_then(|i| i.session_cwd.clone())
+            .or_else(|| {
+                state_guard.instances.get_instance(&session_id)
+                    .and_then(|i| i.process_info.as_ref())
+                    .map(|p| p.working_directory.clone())
+            })
+    };
 
-    // Get session_cwd from instance to locate JSONL file (session startup cwd, not current process cwd)
-    // Fallback chain: session_cwd -> process_info.cwd -> search all project dirs
-    let cwd = state_guard.instances.get_instance(&session_id)
-        .and_then(|i| i.session_cwd.clone())
-        .or_else(|| {
-            state_guard.instances.get_instance(&session_id)
-                .and_then(|i| i.process_info.as_ref())
-                .map(|p| p.working_directory.clone())
-        });
-
+    // Parse JSONL with write lock (needs to update cache)
     if let Some(cwd) = cwd {
-        // Parse JSONL file for complete conversation
-        let messages = crate::conversation_parser::ConversationParser::parse_full(&session_id, &cwd);
+        let mut state_guard = state.write();
+        let messages = state_guard.conversation_parser.parse_full(&session_id, &cwd);
         if !messages.is_empty() {
             return Json(crate::conversation_parser::ConversationParser::to_chat_messages(messages));
         }
     }
 
     // Fallback: search all project directories for JSONL file
-    let messages = crate::conversation_parser::ConversationParser::parse_full_without_cwd(&session_id);
-    if !messages.is_empty() {
-        return Json(crate::conversation_parser::ConversationParser::to_chat_messages(messages));
+    {
+        let mut state_guard = state.write();
+        let messages = state_guard.conversation_parser.parse_full_without_cwd(&session_id);
+        if !messages.is_empty() {
+            return Json(crate::conversation_parser::ConversationParser::to_chat_messages(messages));
+        }
     }
 
     // Final fallback: hook-based chat history
+    let state_guard = state.read();
     Json(state_guard.chat_history.get_messages(&session_id))
 }
 async fn update_position(
@@ -1281,22 +1297,23 @@ fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, c
                 .and_then(|i| i.session_cwd.clone())
         });
 
+        tracing::debug!("push_chat_history_to_cloud: session={}, cwd={:?}, owned={:?}",
+            session_id, cwd, cwd_owned);
+
         let mut new_messages: Vec<crate::conversation_parser::ConversationMessage> = vec![];
 
         // Try with cwd first
         if let Some(cwd_str) = cwd_owned {
             new_messages = state_guard.conversation_parser.parse_incremental(session_id, &cwd_str);
-            if !new_messages.is_empty() {
-                tracing::info!("Incremental JSONL: {} new messages for session {} with cwd {}", new_messages.len(), session_id, cwd_str);
-            }
+            tracing::info!("Incremental JSONL (cwd): {} new messages for session {} cwd {}",
+                new_messages.len(), session_id, cwd_str);
         }
 
         // Fallback: search all project directories if cwd-based lookup found nothing
         if new_messages.is_empty() {
             new_messages = state_guard.conversation_parser.parse_incremental_without_cwd(session_id);
-            if !new_messages.is_empty() {
-                tracing::info!("Incremental JSONL (fallback): {} new messages for session {}", new_messages.len(), session_id);
-            }
+            tracing::info!("Incremental JSONL (fallback): {} new messages for session {}",
+                new_messages.len(), session_id);
         }
 
         if !new_messages.is_empty() {

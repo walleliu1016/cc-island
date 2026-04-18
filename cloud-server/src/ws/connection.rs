@@ -109,6 +109,7 @@ pub async fn handle_connection(
                         tracing::warn!("Send task: send failed, breaking");
                         break;
                     }
+                    tracing::info!("📤 Send task: message sent successfully via WebSocket");
                 }
                 tracing::info!("Send task ended for connection");
             };

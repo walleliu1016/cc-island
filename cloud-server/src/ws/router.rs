@@ -95,6 +95,9 @@ impl ConnectionRouter {
     pub fn update_mobile_subscription(&self, conn_id: Uuid, device_tokens: &[String], _tx: &Sender<Message>) {
         let mut inner = self.inner.write();
 
+        tracing::info!("📱 update_mobile_subscription: conn_id={}, subscribing to {} devices: {:?}",
+            conn_id, device_tokens.len(), device_tokens);
+
         // Get old subscriptions
         let old_tokens: Vec<String> = inner.mobile_subscriptions
             .iter()
@@ -102,11 +105,14 @@ impl ConnectionRouter {
             .map(|(token, _)| token.clone())
             .collect();
 
+        tracing::info!("📱 Old subscriptions for conn_id {}: {:?}", conn_id, old_tokens);
+
         // Remove from devices that are no longer subscribed
         for token in &old_tokens {
             if !device_tokens.contains(token) {
                 if let Some(subs) = inner.mobile_subscriptions.get_mut(token) {
                     subs.retain(|id| *id != conn_id);
+                    tracing::info!("📱 Removed conn_id {} from device {}", conn_id, token);
                 }
             }
         }
@@ -118,7 +124,14 @@ impl ConnectionRouter {
                     .entry(token.clone())
                     .or_insert_with(Vec::new)
                     .push(conn_id);
+                tracing::info!("📱 Added conn_id {} to device {}", conn_id, token);
             }
+        }
+
+        // Log final subscription state
+        tracing::info!("📱 Final mobile_subscriptions state:");
+        for (token, subs) in inner.mobile_subscriptions.iter() {
+            tracing::info!("📱   device {} -> {} subscribers: {:?}", token, subs.len(), subs);
         }
 
         tracing::info!("Mobile subscription updated: {} -> {} devices", conn_id, device_tokens.len());
@@ -130,17 +143,21 @@ impl ConnectionRouter {
 
         // Get all mobile connection_ids subscribed to this device
         let subs: Vec<Uuid> = inner.mobile_subscriptions.get(device_token).cloned().unwrap_or_default();
-        let count = subs.len();
+
+        if subs.is_empty() {
+            tracing::warn!("broadcast_to_mobiles: NO subscribers for device {}", device_token);
+            return;
+        }
 
         for conn_id in subs {
             if let Some(tx) = inner.mobile_connections.get(&conn_id) {
                 if let Err(e) = tx.try_send(msg.clone()) {
                     tracing::warn!("Failed to send to mobile {}: {}", conn_id, e);
+                } else {
+                    tracing::info!("✅ Sent message to mobile {} for device {}", conn_id, device_token);
                 }
             }
         }
-
-        tracing::debug!("Broadcasted to {} mobile(s) for device: {}", count, device_token);
     }
 
     /// Send to desktop client for a device

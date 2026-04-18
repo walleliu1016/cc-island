@@ -138,27 +138,29 @@ impl ConversationParser {
     }
 
     /// Parse full conversation for a session (reads entire file)
-    pub fn parse_full(session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
+    /// Also updates cache to prevent incremental re-reading
+    pub fn parse_full(&mut self, session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
         let file_path = Self::session_file_path(session_id, cwd);
 
         if !file_path.exists() {
             return vec![];
         }
 
-        let mut session = ParsedSession {
+        let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
             last_offset: 0,
             messages: vec![],
             tool_id_to_name: HashMap::new(),
             completed_tool_ids: HashMap::new(),
-        };
+        });
 
-        Self::parse_file_full(&file_path, &mut session);
+        Self::parse_file_full(&file_path, session);
 
-        session.messages
+        session.messages.clone()
     }
 
     /// Parse full conversation when cwd is unknown (searches all project dirs)
-    pub fn parse_full_without_cwd(session_id: &str) -> Vec<ConversationMessage> {
+    /// Also updates cache to prevent incremental re-reading
+    pub fn parse_full_without_cwd(&mut self, session_id: &str) -> Vec<ConversationMessage> {
         let file_path = Self::find_session_file(session_id);
 
         if file_path.is_none() {
@@ -166,16 +168,16 @@ impl ConversationParser {
         }
 
         let file_path = file_path.unwrap();
-        let mut session = ParsedSession {
+        let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
             last_offset: 0,
             messages: vec![],
             tool_id_to_name: HashMap::new(),
             completed_tool_ids: HashMap::new(),
-        };
+        });
 
-        Self::parse_file_full(&file_path, &mut session);
+        Self::parse_file_full(&file_path, session);
 
-        session.messages
+        session.messages.clone()
     }
 
     /// Parse entire file (for initial full read)
@@ -217,8 +219,12 @@ impl ConversationParser {
             session.last_offset = metadata.len();
         }
 
-        // Append messages
-        session.messages.extend(new_messages);
+        // Append messages (dedupe by id to avoid duplicates from JSONL file)
+        for msg in new_messages {
+            if !session.messages.iter().any(|m| m.id == msg.id) {
+                session.messages.push(msg);
+            }
+        }
     }
 
     /// Parse incrementally - only read new lines since last call
