@@ -180,6 +180,30 @@ impl MessageHandler {
                         // Update session to waitingForApproval
                         let tool_name = hook_body.get("tool_name")
                             .and_then(|v| v.as_str());
+
+                        // Generate popup_id from session_id
+                        let popup_id = format!("popup-{}", session_id);
+
+                        // Create popup data
+                        let popup_data = serde_json::json!({
+                            "tool_name": tool_name,
+                            "action": hook_body.get("tool_input").and_then(|v| v.get("description")).and_then(|v| v.as_str()),
+                            "permission_data": hook_body.get("permission_data"),
+                        });
+
+                        // Persist popup to database
+                        if let Err(e) = self.repo.upsert_popup(
+                            &device_token,
+                            &session_id,
+                            &popup_id,
+                            "permission",
+                            project_name,
+                            popup_data,
+                        ).await {
+                            tracing::error!("Failed to persist PermissionRequest popup: {}", e);
+                        }
+
+                        // Update session status
                         if let Err(e) = self.repo.upsert_session(
                             &device_token,
                             &session_id,
@@ -187,7 +211,55 @@ impl MessageHandler {
                             "waitingForApproval",
                             tool_name,
                         ).await {
-                            tracing::error!("Failed to persist PermissionRequest: {}", e);
+                            tracing::error!("Failed to persist PermissionRequest session: {}", e);
+                        }
+                    }
+                    crate::messages::HookType::Notification => {
+                        // Check if it's an ask (blocking) notification
+                        let notification_data = hook_body.get("notification_data");
+                        let is_ask = notification_data
+                            .and_then(|d| d.get("type"))
+                            .and_then(|t| t.as_str())
+                            .map(|t| t == "ask")
+                            .unwrap_or(false);
+
+                        if is_ask || hook_body.get("questions").is_some() {
+                            // Generate popup_id for ask
+                            let popup_id = format!("ask-{}", session_id);
+
+                            // Get questions
+                            let questions = notification_data
+                                .and_then(|d| d.get("questions"))
+                                .or_else(|| hook_body.get("questions"));
+
+                            // Create popup data
+                            let popup_data = serde_json::json!({
+                                "questions": questions,
+                                "notification_data": notification_data,
+                            });
+
+                            // Persist popup to database
+                            if let Err(e) = self.repo.upsert_popup(
+                                &device_token,
+                                &session_id,
+                                &popup_id,
+                                "ask",
+                                project_name,
+                                popup_data,
+                            ).await {
+                                tracing::error!("Failed to persist Notification ask popup: {}", e);
+                            }
+
+                            // Update session status
+                            if let Err(e) = self.repo.upsert_session(
+                                &device_token,
+                                &session_id,
+                                None,
+                                "waitingForApproval",
+                                None,
+                            ).await {
+                                tracing::error!("Failed to persist Notification session: {}", e);
+                            }
                         }
                     }
                     _ => {}

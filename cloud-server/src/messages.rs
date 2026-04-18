@@ -49,9 +49,8 @@ pub struct ClaudeSession {
     pub created_at: Option<u64>,  // milliseconds
 }
 
-/// Hook types that can be transmitted
+/// Hook types that can be transmitted (PascalCase for consistency with Claude Code)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
 pub enum HookType {
     SessionStart,
     SessionEnd,

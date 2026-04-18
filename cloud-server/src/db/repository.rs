@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use tracing::warn;
-use super::models::{ChatMessage, Device, SessionInfo};
+use super::models::{ChatMessage, Device, SessionInfo, Popup};
 use crate::messages::{ChatMessageData, MessageType, DeviceInfo};
 
 /// Repository for database operations
@@ -276,5 +276,77 @@ impl Repository {
             .collect();
 
         Ok(result)
+    }
+
+    // ===== Popup operations =====
+
+    /// Upsert popup (create or update pending popup)
+    pub async fn upsert_popup(
+        &self,
+        device_token: &str,
+        session_id: &str,
+        popup_id: &str,
+        popup_type: &str,
+        project_name: Option<&str>,
+        data: serde_json::Value,
+    ) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query!(
+            r#"
+            INSERT INTO popups (id, device_token, session_id, project_name, popup_type, data, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+            ON CONFLICT (id)
+            DO UPDATE SET
+                status = 'pending',
+                data = $6,
+                resolved_at = NULL
+            "#,
+            popup_id,
+            device_token,
+            session_id,
+            project_name,
+            popup_type,
+            data,
+            now,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get pending popups for a device
+    pub async fn get_pending_popups(&self, device_token: &str) -> Result<Vec<Popup>> {
+        let popups = sqlx::query_as::<_, Popup>(
+            r#"
+            SELECT id, device_token, session_id, project_name, popup_type, data, status, created_at, resolved_at
+            FROM popups
+            WHERE device_token = $1 AND status = 'pending'
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(device_token)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(popups)
+    }
+
+    /// Resolve popup (mark as resolved)
+    pub async fn resolve_popup(&self, popup_id: &str) -> Result<()> {
+        let now = Utc::now();
+        sqlx::query!(
+            r#"
+            UPDATE popups
+            SET status = 'resolved', resolved_at = $2
+            WHERE id = $1 AND status = 'pending'
+            "#,
+            popup_id,
+            now,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

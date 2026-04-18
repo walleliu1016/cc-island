@@ -315,22 +315,28 @@ async fn handle_hook(
                         instance.tool_input = None;
                     }
 
-                    // Record assistant response completion
-                    let now_ms = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis() as u64;
+                    // Record assistant response from stop_reason
+                    let stop_reason = input.stop_reason.as_deref().unwrap_or("end_turn");
+                    let message_count = input.message_count.unwrap_or(0);
 
-                    let message = ChatMessage {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        session_id: input.session_id.clone(),
-                        message_type: MessageType::Assistant,
-                        content: "Response complete".to_string(),
-                        tool_name: None,
-                        timestamp: now_ms,
-                    };
-                    state_guard.chat_history.add_message(message.clone());
-                    chat_messages_to_push.push((input.session_id.clone(), message));
+                    // Only add message if there was actual content (message_count > 0)
+                    if message_count > 0 {
+                        let now_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as u64;
+
+                        let message = ChatMessage {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: input.session_id.clone(),
+                            message_type: MessageType::Assistant,
+                            content: format!("{} 条消息", message_count),
+                            tool_name: None,
+                            timestamp: now_ms,
+                        };
+                        state_guard.chat_history.add_message(message.clone());
+                        chat_messages_to_push.push((input.session_id.clone(), message));
+                    }
                 }
                 "PreToolUse" => {
                     // First, update instance and extract data
@@ -425,7 +431,7 @@ async fn handle_hook(
                         .and_then(|tr| tr.get("output"))
                         .and_then(|o| o.as_str())
                         .map(|s| s.to_string())
-                        .unwrap_or_else(|| "Tool executed".to_string());
+                        .unwrap_or_default();  // Empty string if no output
 
                     let now_ms = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -1222,10 +1228,9 @@ fn push_hook_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, hook_type
             let connected = client.is_connected();
             tracing::info!("push_hook_to_cloud: session={}, hook={}, connected={}", session_id, hook_type, connected);
             if connected {
-                // Convert hook_type from PascalCase to snake_case for Cloud Server
-                let hook_type_snake = hook_type_to_snake_case(hook_type);
-                client.push_hook_message(session_id, &hook_type_snake, hook_body);
-                tracing::info!("Hook message pushed to cloud: {} (converted to {})", hook_type, hook_type_snake);
+                // Keep original PascalCase hook_type for consistency across all components
+                client.push_hook_message(session_id, hook_type, hook_body);
+                tracing::info!("Hook message pushed to cloud: {}", hook_type);
             } else {
                 tracing::warn!("Cloud client not connected, skipping hook push: {}", hook_type);
             }
@@ -1234,23 +1239,6 @@ fn push_hook_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, hook_type
         }
     } else {
         tracing::warn!("Cloud client not initialized for hook push: {}", hook_type);
-    }
-}
-
-/// Convert PascalCase hook type to snake_case for Cloud Server
-fn hook_type_to_snake_case(hook_type: &str) -> String {
-    // Known hook type mappings
-    match hook_type {
-        "SessionStart" => "session_start".to_string(),
-        "SessionEnd" => "session_end".to_string(),
-        "PreToolUse" => "pre_tool_use".to_string(),
-        "PostToolUse" => "post_tool_use".to_string(),
-        "PermissionRequest" => "permission_request".to_string(),
-        "Notification" => "notification".to_string(),
-        "Stop" => "stop".to_string(),
-        "UserPromptSubmit" => "user_prompt_submit".to_string(),
-        "StatusUpdate" => "status_update".to_string(),
-        _ => hook_type.to_lowercase(),  // Fallback
     }
 }
 
@@ -1269,15 +1257,27 @@ fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, m
 
 /// Build hook_body from HookInput for transparent forwarding
 fn build_hook_body_from_input(input: &HookInput) -> serde_json::Value {
+    // Extract project_name from cwd
+    let project_name = input.cwd.as_ref()
+        .and_then(|cwd| {
+            std::path::Path::new(cwd)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.to_string())
+        });
+
     serde_json::json!({
         "hook_event_name": input.hook_event_name,
         "session_id": input.session_id,
         "cwd": input.cwd,
+        "project_name": project_name,
         "tool_name": input.tool_name,
         "tool_input": input.tool_input,
         "tool_response": input.tool_response,
         "permission_data": input.permission_data,
         "notification_data": input.notification_data,
         "questions": input.questions,
+        "stop_reason": input.stop_reason,
+        "message_count": input.message_count,
     })
 }

@@ -53,3 +53,17 @@ pub struct ChatMessage {
     pub timestamp: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
+
+/// Popup for permission requests and ask questions
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct Popup {
+    pub id: String,
+    pub device_token: String,
+    pub session_id: Option<String>,
+    pub project_name: Option<String>,
+    pub popup_type: String,
+    pub data: serde_json::Value,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+}

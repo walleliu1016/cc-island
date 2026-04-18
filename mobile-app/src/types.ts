@@ -12,7 +12,7 @@ export interface DeviceInfo {
   online: boolean
 }
 
-// Hook types
+// Hook types (PascalCase matching Claude Code)
 export type HookType =
   | 'SessionStart'
   | 'SessionEnd'

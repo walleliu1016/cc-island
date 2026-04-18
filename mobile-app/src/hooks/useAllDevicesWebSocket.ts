@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion } from '../types'
+import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
 
 interface UseAllDevicesWebSocketOptions {
   devices: string[]
@@ -309,7 +309,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           // Add hook hint
           const hint: HookHint = {
             session_id: sessionId,
-            hook_type: hookType,
+            hook_type: hookType as HookType,
             urgent: false,
             tool_name: toolName,
             action: hookBody.tool_input?.description as string,
@@ -335,7 +335,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           const action = hookBody.permission_data?.action || hookBody.tool_input?.description as string
           const hint: HookHint = {
             session_id: sessionId,
-            hook_type: hookType,
+            hook_type: hookType as HookType,
             urgent: true,
             tool_name: toolName,
             action,
@@ -359,7 +359,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             const questions = notificationData?.questions || hookBody.questions || []
             const hint: HookHint = {
               session_id: sessionId,
-              hook_type: hookType,
+              hook_type: hookType as HookType,
               urgent: true,
               questions: questions as AskQuestion[],
               timestamp: Date.now(),

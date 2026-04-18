@@ -134,7 +134,7 @@ impl CloudClient {
                                     "type": "hook_message",
                                     "device_token": device_token,
                                     "session_id": instance.session_id,
-                                    "hook_type": "session_start",  // snake_case for Cloud Server
+                                    "hook_type": "SessionStart",  // PascalCase for consistency
                                     "hook_body": hook_body,
                                 });
                                 if let Err(e) = out_tx_clone.try_send(Message::text(msg.to_string())) {
