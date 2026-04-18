@@ -1,0 +1,481 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776434884829,
+  "projectRoot": "/Users/akke/project/cc-island",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "vite",
+        "version": "6.0.7",
+        "category": "build"
+      }
+    ],
+    "packageManager": "pnpm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "pnpm build",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "pnpm dev",
+    "scripts": {
+      "dev": "vite",
+      "build": "tsc && vite build",
+      "preview": "vite preview",
+      "tauri": "tauri",
+      "tauri:dev": "tauri dev",
+      "tauri:build": "tauri build"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1776434884814,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1776434884817,
+      "keyFiles": [
+        "HOOKS.md",
+        "hook-reference.md",
+        "hooks-claude.md",
+        "jump-implementation.md"
+      ]
+    },
+    "hooks": {
+      "path": "hooks",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776434884818,
+      "keyFiles": [
+        "cc-island-session-start.sh",
+        "hooks.json"
+      ]
+    },
+    "logo-designs": {
+      "path": "logo-designs",
+      "purpose": null,
+      "fileCount": 6,
+      "lastAccessed": 1776434884818,
+      "keyFiles": [
+        "ease-v1-modern.svg",
+        "ease-v2-sunset.svg",
+        "ease-v3-neon.svg",
+        "ease-v4-minimal.svg",
+        "ease-v5-classic.svg"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1776434884818,
+      "keyFiles": [
+        "App.tsx",
+        "index.css",
+        "main.tsx"
+      ]
+    },
+    "src-tauri": {
+      "path": "src-tauri",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1776434884819,
+      "keyFiles": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "build.rs",
+        "tauri.conf.json"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 3,
+      "lastAccessed": 1776434884819,
+      "keyFiles": [
+        "README.md",
+        "test-hooks.ps1",
+        "test-hooks.sh"
+      ]
+    },
+    "dist/assets": {
+      "path": "dist/assets",
+      "purpose": "Static assets",
+      "fileCount": 2,
+      "lastAccessed": 1776434884819,
+      "keyFiles": [
+        "index-DJxPtWuM.js",
+        "index-DSc0x4Zm.css"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 7,
+      "lastAccessed": 1776434884820,
+      "keyFiles": [
+        "ChatView.tsx",
+        "InstanceList.tsx",
+        "MarkdownRenderer.tsx"
+      ]
+    },
+    "src/services": {
+      "path": "src/services",
+      "purpose": "Business logic services",
+      "fileCount": 1,
+      "lastAccessed": 1776434884820,
+      "keyFiles": [
+        "api.ts"
+      ]
+    },
+    "src/types": {
+      "path": "src/types",
+      "purpose": "Type definitions",
+      "fileCount": 1,
+      "lastAccessed": 1776434884821,
+      "keyFiles": [
+        "index.ts"
+      ]
+    },
+    "src-tauri/src": {
+      "path": "src-tauri/src",
+      "purpose": "Source code",
+      "fileCount": 9,
+      "lastAccessed": 1776434884821,
+      "keyFiles": [
+        "chat_messages.rs",
+        "config.rs",
+        "hook_handler.rs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src-tauri/src/http_server.rs",
+      "accessCount": 47,
+      "lastAccessed": 1776501979462,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/conversation_parser.rs",
+      "accessCount": 18,
+      "lastAccessed": 1776502608971,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src/hooks/useAllDevicesWebSocket.ts",
+      "accessCount": 18,
+      "lastAccessed": 1776516867061,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src/components/DeviceDetailPage.tsx",
+      "accessCount": 17,
+      "lastAccessed": 1776516392300,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src/components/ChatView.tsx",
+      "accessCount": 17,
+      "lastAccessed": 1776516422874,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "accessCount": 16,
+      "lastAccessed": 1776501842425,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/ws/handler.rs",
+      "accessCount": 12,
+      "lastAccessed": 1776482142383,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/cloud_client.rs",
+      "accessCount": 11,
+      "lastAccessed": 1776499163291,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src",
+      "accessCount": 8,
+      "lastAccessed": 1776472428387,
+      "type": "directory"
+    },
+    {
+      "path": "mobile-app/src/types.ts",
+      "accessCount": 8,
+      "lastAccessed": 1776516407444,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/db/repository.rs",
+      "accessCount": 7,
+      "lastAccessed": 1776482011279,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/messages.rs",
+      "accessCount": 7,
+      "lastAccessed": 1776482094764,
+      "type": "file"
+    },
+    {
+      "path": "src/components/ChatView.tsx",
+      "accessCount": 7,
+      "lastAccessed": 1776502806520,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src",
+      "accessCount": 7,
+      "lastAccessed": 1776514565154,
+      "type": "directory"
+    },
+    {
+      "path": "cloud-server/src",
+      "accessCount": 6,
+      "lastAccessed": 1776481867337,
+      "type": "directory"
+    },
+    {
+      "path": "",
+      "accessCount": 5,
+      "lastAccessed": 1776502584911,
+      "type": "directory"
+    },
+    {
+      "path": "src-tauri/src/chat_messages.rs",
+      "accessCount": 4,
+      "lastAccessed": 1776502216369,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src/components/DeviceListPage.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1776440252267,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/ws/router.rs",
+      "accessCount": 3,
+      "lastAccessed": 1776481904650,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 3,
+      "lastAccessed": 1776514531357,
+      "type": "directory"
+    },
+    {
+      "path": "mobile-app/src/App.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1776516367608,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "accessCount": 2,
+      "lastAccessed": 1776473879214,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/db/models.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776482051749,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/machine_id.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776504340770,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1776435598440,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/package.json",
+      "accessCount": 1,
+      "lastAccessed": 1776435610786,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/Cargo.toml",
+      "accessCount": 1,
+      "lastAccessed": 1776435620465,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/.env.example",
+      "accessCount": 1,
+      "lastAccessed": 1776435620523,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/.env",
+      "accessCount": 1,
+      "lastAccessed": 1776435642513,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/docker-compose.yml",
+      "accessCount": 1,
+      "lastAccessed": 1776435670677,
+      "type": "file"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-04-15-cloud-relay-design.md",
+      "accessCount": 1,
+      "lastAccessed": 1776438694343,
+      "type": "file"
+    },
+    {
+      "path": "docs/cloud-relay-protocol.md",
+      "accessCount": 1,
+      "lastAccessed": 1776438694390,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/src/ws/connection.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776438927692,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/instance_manager.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776439016823,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server",
+      "accessCount": 1,
+      "lastAccessed": 1776439771451,
+      "type": "directory"
+    },
+    {
+      "path": "cloud-server/migrations/003_device_info.sql",
+      "accessCount": 1,
+      "lastAccessed": 1776439783247,
+      "type": "file"
+    },
+    {
+      "path": "cloud-server/migrations/001_init.sql",
+      "accessCount": 1,
+      "lastAccessed": 1776439783304,
+      "type": "file"
+    },
+    {
+      "path": "docs/architecture-review-2026-04-17.md",
+      "accessCount": 1,
+      "lastAccessed": 1776439962367,
+      "type": "file"
+    },
+    {
+      "path": "src-tauri/src/hook_handler.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776472477967,
+      "type": "file"
+    },
+    {
+      "path": "src/types/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776502246478,
+      "type": "directory"
+    },
+    {
+      "path": "src/components",
+      "accessCount": 1,
+      "lastAccessed": 1776514531302,
+      "type": "directory"
+    },
+    {
+      "path": "src/components/PopupList.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1776514537607,
+      "type": "file"
+    },
+    {
+      "path": "src/components/InstanceList.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1776514537658,
+      "type": "file"
+    },
+    {
+      "path": "src/App.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1776514548316,
+      "type": "file"
+    },
+    {
+      "path": "mobile-app/src/components/PopupCard.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1776514572203,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

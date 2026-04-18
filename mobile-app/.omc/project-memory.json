@@ -1,0 +1,194 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776503297163,
+  "projectRoot": "/Users/akke/project/cc-island/mobile-app",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "vite",
+        "version": "5.3.1",
+        "category": "build"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "vite",
+      "build": "tsc && vite build",
+      "preview": "vite preview",
+      "cap:sync": "npx cap sync",
+      "cap:open:android": "npx cap open android",
+      "cap:open:ios": "npx cap open ios",
+      "android": "npm run build && npx cap sync android",
+      "ios": "npm run build && npx cap sync ios"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "public",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "android": {
+      "path": "android",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1776503297148,
+      "keyFiles": [
+        "build.gradle",
+        "capacitor.settings.gradle",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat"
+      ]
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 1,
+      "lastAccessed": 1776503297148,
+      "keyFiles": [
+        "icon.png"
+      ]
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 5,
+      "lastAccessed": 1776503297150,
+      "keyFiles": [
+        "icon-192.png",
+        "icon-512.png",
+        "index.html",
+        "manifest.json",
+        "vite.svg"
+      ]
+    },
+    "ios": {
+      "path": "ios",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776503297151,
+      "keyFiles": [
+        "debug.xcconfig"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 4,
+      "lastAccessed": 1776503297151,
+      "keyFiles": [
+        "icon-192.png",
+        "icon-512.png",
+        "manifest.json",
+        "vite.svg"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 4,
+      "lastAccessed": 1776503297151,
+      "keyFiles": [
+        "App.tsx",
+        "index.css",
+        "main.tsx",
+        "types.ts"
+      ]
+    },
+    "android/app": {
+      "path": "android/app",
+      "purpose": "Application code",
+      "fileCount": 4,
+      "lastAccessed": 1776503297151,
+      "keyFiles": [
+        "build.gradle",
+        "capacitor.build.gradle",
+        "proguard-rules.pro"
+      ]
+    },
+    "dist/assets": {
+      "path": "dist/assets",
+      "purpose": "Static assets",
+      "fileCount": 3,
+      "lastAccessed": 1776503297152,
+      "keyFiles": [
+        "index-DCvz5Bk4.css",
+        "index-tuZTsj9j.js",
+        "index-tuZTsj9j.js.map"
+      ]
+    },
+    "ios/App": {
+      "path": "ios/App",
+      "purpose": "Application code",
+      "fileCount": 1,
+      "lastAccessed": 1776503297153,
+      "keyFiles": [
+        "Gemfile"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 7,
+      "lastAccessed": 1776503297153,
+      "keyFiles": [
+        "AddDeviceModal.tsx",
+        "ChatView.tsx",
+        "DeviceDetailPage.tsx"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

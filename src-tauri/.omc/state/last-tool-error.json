@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/akke/project/cc-island && cargo check --manifest-path src-tauri/Cargo.toml 2>&1\",\"description\":\"Check Rust compilation\"}",
+  "error": "Exit code 101\n   Compiling cc-island v0.2.0 (/Users/akke/project/cc-island/src-tauri)\nerror[E0424]: expected value, found module `self`\n   --> src/conversation_parser.rs:124:23\n    |\n117 |     pub fn parse_incremental(session_id: &str, cwd: &str) -> Vec<ConversationMessage> {\n    |            ----------------- this function doesn't have a `self` parameter\n...\n124 |         let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {\n    |                       ^^^^ `self` val...",
+  "timestamp": "2026-04-18T01:04:15.638Z",
+  "retry_count": 1
+}

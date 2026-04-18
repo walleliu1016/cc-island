@@ -1,0 +1,148 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776437997419,
+  "projectRoot": "/Users/akke/project/cc-island/cloud-server",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "migrations": {
+      "path": "migrations",
+      "purpose": "Database migrations",
+      "fileCount": 3,
+      "lastAccessed": 1776437997403,
+      "keyFiles": [
+        "001_init.sql",
+        "002_chat.sql",
+        "003_device_info.sql"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 4,
+      "lastAccessed": 1776437997404,
+      "keyFiles": [
+        "config.rs",
+        "lib.rs",
+        "main.rs",
+        "messages.rs"
+      ]
+    },
+    "target": {
+      "path": "target",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1776437997405,
+      "keyFiles": [
+        "CACHEDIR.TAG"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/ws/handler.rs",
+      "accessCount": 9,
+      "lastAccessed": 1776503659306,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 4,
+      "lastAccessed": 1776503561490,
+      "type": "directory"
+    },
+    {
+      "path": "src/db/repository.rs",
+      "accessCount": 3,
+      "lastAccessed": 1776503591668,
+      "type": "file"
+    },
+    {
+      "path": "src/main.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776485507395,
+      "type": "file"
+    },
+    {
+      "path": "src/config.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776485535123,
+      "type": "file"
+    },
+    {
+      "path": "src/http.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776485561861,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 2,
+      "lastAccessed": 1776485585121,
+      "type": "file"
+    },
+    {
+      "path": "src/messages.rs",
+      "accessCount": 2,
+      "lastAccessed": 1776503669926,
+      "type": "directory"
+    },
+    {
+      "path": "src/ws/server.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776484337558,
+      "type": "file"
+    },
+    {
+      "path": "tools/query_sessions.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776484366347,
+      "type": "file"
+    },
+    {
+      "path": "src/db/models.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776503591613,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

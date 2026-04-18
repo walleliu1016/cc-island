@@ -489,6 +489,9 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
 
   const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
 
+  // Debug log
+  console.log('[ChatView] messages:', messages.length, 'sorted:', sortedMessages.map(m => ({ id: m.id, type: m.messageType, tool: m.toolName, content: m.content.slice(0, 50) })))
+
   return (
     <div className="flex flex-col h-full bg-[#0f0f0f]">
       {/* Header */}

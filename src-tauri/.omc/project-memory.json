@@ -1,0 +1,121 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776474041292,
+  "projectRoot": "/Users/akke/project/cc-island/src-tauri",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "axum",
+        "version": null,
+        "category": "backend"
+      }
+    ],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "gen": {
+      "path": "gen",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776474041281,
+      "keyFiles": []
+    },
+    "icons": {
+      "path": "icons",
+      "purpose": null,
+      "fileCount": 20,
+      "lastAccessed": 1776474041282,
+      "keyFiles": [
+        "128x128.png",
+        "128x128@2x.png",
+        "256x256.png",
+        "32x32.png",
+        "64x64.png"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 11,
+      "lastAccessed": 1776474041282,
+      "keyFiles": [
+        "chat_messages.rs",
+        "cloud_client.rs",
+        "config.rs",
+        "conversation_parser.rs",
+        "hook_handler.rs"
+      ]
+    },
+    "target": {
+      "path": "target",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1776474041283,
+      "keyFiles": [
+        "CACHEDIR.TAG"
+      ]
+    },
+    "gen/schemas": {
+      "path": "gen/schemas",
+      "purpose": "Schema definitions",
+      "fileCount": 4,
+      "lastAccessed": 1776474041283,
+      "keyFiles": [
+        "acl-manifests.json",
+        "capabilities.json",
+        "desktop-schema.json"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/machine_id.rs",
+      "accessCount": 6,
+      "lastAccessed": 1776504711565,
+      "type": "file"
+    },
+    {
+      "path": "src/conversation_parser.rs",
+      "accessCount": 1,
+      "lastAccessed": 1776474261666,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

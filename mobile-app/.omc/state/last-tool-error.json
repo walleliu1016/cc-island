@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"lsof -i :4173 -i :5173\",\"description\":\"检查端口状态\"}",
+  "error": "Exit code 1",
+  "timestamp": "2026-04-18T11:53:22.000Z",
+  "retry_count": 1
+}

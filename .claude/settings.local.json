@@ -34,7 +34,29 @@
       "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"SessionStart\"\",\"\"session_id\"\":\"\"test-perm\"\",\"\"cwd\"\":\"\"/Users/akke/project/cc-island\"\"}')",
       "Bash(curl -s -X POST http://localhost:17527/hook -H \"Content-Type: application/json\" -d '{\"\"hook_event_name\"\":\"\"PreToolUse\"\",\"\"session_id\"\":\"\"test-perm\"\",\"\"tool_name\"\":\"\"Bash\"\",\"\"tool_input\"\":{\"\"command\"\":\"\"ls -la\"\"}}')",
       "Bash(pkill -f \"tauri dev\")",
-      "Bash(pkill -9 cc-island)"
+      "Bash(pkill -9 cc-island)",
+      "Bash(curl:*)",
+      "Bash(osascript:*)",
+      "Bash(pkill -f cc-island)",
+      "Bash(git pull:*)",
+      "Bash(git tag:*)",
+      "Bash(pkill -f \"cargo run\")",
+      "Bash(log show:*)",
+      "Bash(cargo test:*)",
+      "Bash(gh release:*)",
+      "Bash(pkill -f \"cc-island-cloud\")",
+      "Bash(pkill -f \"pnpm dev\")",
+      "Bash(./target/release/cc-island-cloud)",
+      "Bash(echo \"cloud-server PID: $!\")",
+      "Bash(ioreg -rd1 -c IOPlatformExpertDevice)",
+      "Bash(pkill -f \"vite preview\")",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Bash(psql:*)",
+      "Bash(cargo run:*)",
+      "Bash(pkill -f \"Ease-Island\")",
+      "Bash(rm -rf /Applications/Ease-Island.app)",
+      "Bash(rm -rf ~/Applications/Ease-Island.app)"
     ]
   }
 }

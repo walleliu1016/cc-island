@@ -200,16 +200,28 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
           case 'chat_history': {
             const sessionId = msg.session_id
-            const messages = msg.messages
-            console.log('[WebSocket] chat_history received:', sessionId, messages?.length, 'messages')
-            if (sessionId && messages) {
-              setState(s => ({
-                ...s,
-                chatMessages: {
-                  ...s.chatMessages,
-                  [sessionId]: messages,
-                },
-              }))
+            const newMessages = msg.messages
+            console.log('[WebSocket] chat_history received:', sessionId, newMessages?.length, 'messages')
+            if (sessionId && newMessages && newMessages.length > 0) {
+              setState(s => {
+                // Merge new messages with existing, deduplicate by id
+                const existing = s.chatMessages[sessionId] || []
+                const merged = [...existing]
+                for (const nm of newMessages) {
+                  if (!merged.find(em => em.id === nm.id)) {
+                    merged.push(nm)
+                  }
+                }
+                // Sort by timestamp
+                merged.sort((a, b) => a.timestamp - b.timestamp)
+                return {
+                  ...s,
+                  chatMessages: {
+                    ...s.chatMessages,
+                    [sessionId]: merged,
+                  },
+                }
+              })
             }
             break
           }

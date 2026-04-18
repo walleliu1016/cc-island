@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"psql postgres://ccisland:password@localhost:5432/ccisland -c \\\"SELECT COUNT(*) FROM chat_messages WHERE session_id = 'dc4b555a-aa1a-4c8b-be60-1a8aeedddecc';\\\" 2>/dev/null || which postgres...",
+  "error": "Exit code 1\npostgres not found\npsql not found",
+  "timestamp": "2026-04-18T09:12:41.612Z",
+  "retry_count": 1
+}
