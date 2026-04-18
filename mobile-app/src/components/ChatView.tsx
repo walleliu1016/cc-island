@@ -531,10 +531,33 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
               const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
               const hasPendingAsk = pendingHint?.questions && pendingHint?.questions.length > 0;
 
-              if (askQuestions || hasPendingAsk) {
-                const questions = hasPendingAsk ? pendingHint!.questions! : askQuestions!;
-                const isInteractive = hasPendingAsk && !submitted;
+              // If we have pending hint for AskUserQuestion, only render the interactive version once
+              // Skip rendering the message-based AskUserQuestion to avoid duplicates
+              if (askQuestions && hasPendingAsk) {
+                // Render interactive version from pendingHint (once)
+                return (
+                  <motion.div
+                    key={`pending-${pendingHint!.session_id}`}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 bg-white/5 rounded-lg overflow-hidden mx-2"
+                  >
+                    <QuestionWizard
+                      questions={pendingHint!.questions!}
+                      selectedAnswers={askAnswers}
+                      onChange={setAskAnswers}
+                      readOnly={submitted}
+                      onSubmit={!submitted && onSubmitAnswers ? () => {
+                        onSubmitAnswers(pendingHint!.session_id, askAnswers);
+                        setSubmitted(true);
+                      } : undefined}
+                    />
+                  </motion.div>
+                );
+              }
 
+              // If no pending hint but message has AskUserQuestion, render readonly version
+              if (askQuestions && !hasPendingAsk) {
                 return (
                   <motion.div
                     key={msg.id}
@@ -543,14 +566,10 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
                     className="mb-4 bg-white/5 rounded-lg overflow-hidden mx-2"
                   >
                     <QuestionWizard
-                      questions={questions}
+                      questions={askQuestions}
                       selectedAnswers={askAnswers}
                       onChange={setAskAnswers}
-                      readOnly={!isInteractive}
-                      onSubmit={isInteractive && onSubmitAnswers && pendingHint ? () => {
-                        onSubmitAnswers(pendingHint.session_id, askAnswers);
-                        setSubmitted(true);
-                      } : undefined}
+                      readOnly={true}
                     />
                   </motion.div>
                 );
