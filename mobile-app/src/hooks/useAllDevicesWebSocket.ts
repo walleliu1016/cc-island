@@ -330,15 +330,23 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PermissionRequest': {
-          // Add urgent hook hint
+          // Check if it's AskUserQuestion
           const toolName = hookBody.tool_name || hookBody.permission_data?.tool_name || '权限请求'
+          const isAskUserQuestion = toolName === 'AskUserQuestion'
+
+          // Add urgent hook hint
           const action = hookBody.permission_data?.action || hookBody.tool_input?.description as string
+          const questions = isAskUserQuestion
+            ? (hookBody.tool_input?.questions || hookBody.questions || []) as AskQuestion[]
+            : undefined
+
           const hint: HookHint = {
             session_id: sessionId,
             hook_type: hookType as HookType,
             urgent: true,
             tool_name: toolName,
             action,
+            questions,
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
