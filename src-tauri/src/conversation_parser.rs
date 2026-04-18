@@ -93,6 +93,50 @@ impl ConversationParser {
         home.join(".claude/projects").join(project_dir).join(format!("{}.jsonl", session_id))
     }
 
+    /// Find JSONL file by searching all project directories when cwd is unknown
+    fn find_session_file(session_id: &str) -> Option<PathBuf> {
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        let projects_dir = home.join(".claude/projects");
+
+        if !projects_dir.exists() {
+            return None;
+        }
+
+        // Search all project directories for this session's JSONL file
+        if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+            for entry in entries.flatten() {
+                let project_dir = entry.path();
+                if project_dir.is_dir() {
+                    let jsonl_file = project_dir.join(format!("{}.jsonl", session_id));
+                    if jsonl_file.exists() {
+                        tracing::info!("Found session {} JSONL at {}", session_id, jsonl_file.display());
+                        return Some(jsonl_file);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Extract cwd from JSONL file first line (fallback when cwd unknown)
+    fn extract_cwd_from_file(file_path: &PathBuf) -> Option<String> {
+        let file = File::open(file_path).ok()?;
+        let reader = BufReader::new(&file);
+
+        for line in reader.lines().flatten() {
+            if line.is_empty() {
+                continue;
+            }
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                if let Some(cwd) = json.get("cwd").and_then(|c| c.as_str()) {
+                    return Some(cwd.to_string());
+                }
+            }
+        }
+        None
+    }
+
     /// Parse full conversation for a session (reads entire file)
     pub fn parse_full(session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
         let file_path = Self::session_file_path(session_id, cwd);
@@ -101,6 +145,27 @@ impl ConversationParser {
             return vec![];
         }
 
+        let mut session = ParsedSession {
+            last_offset: 0,
+            messages: vec![],
+            tool_id_to_name: HashMap::new(),
+            completed_tool_ids: HashMap::new(),
+        };
+
+        Self::parse_file_full(&file_path, &mut session);
+
+        session.messages
+    }
+
+    /// Parse full conversation when cwd is unknown (searches all project dirs)
+    pub fn parse_full_without_cwd(session_id: &str) -> Vec<ConversationMessage> {
+        let file_path = Self::find_session_file(session_id);
+
+        if file_path.is_none() {
+            return vec![];
+        }
+
+        let file_path = file_path.unwrap();
         let mut session = ParsedSession {
             last_offset: 0,
             messages: vec![],
@@ -165,6 +230,39 @@ impl ConversationParser {
             return vec![];
         }
 
+        let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
+            last_offset: 0,
+            messages: vec![],
+            tool_id_to_name: HashMap::new(),
+            completed_tool_ids: HashMap::new(),
+        });
+
+        // Check if file was truncated (e.g., /clear command)
+        if let Ok(file) = File::open(&file_path) {
+            if let Ok(metadata) = file.metadata() {
+                let file_size = metadata.len();
+                if file_size < session.last_offset {
+                    // File was truncated, reset state
+                    session.last_offset = 0;
+                    session.messages.clear();
+                    session.tool_id_to_name.clear();
+                    session.completed_tool_ids.clear();
+                }
+            }
+        }
+
+        Self::parse_file_new_only(&file_path, session)
+    }
+
+    /// Parse incrementally when cwd is unknown (searches all project dirs)
+    pub fn parse_incremental_without_cwd(&mut self, session_id: &str) -> Vec<ConversationMessage> {
+        let file_path = Self::find_session_file(session_id);
+
+        if file_path.is_none() {
+            return vec![];
+        }
+
+        let file_path = file_path.unwrap();
         let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
             last_offset: 0,
             messages: vec![],
@@ -447,10 +545,18 @@ impl ConversationParser {
             let msg_id = &msg.id;
             let msg_session_id = &msg.session_id;
             let msg_timestamp = msg.timestamp;
+            let msg_role = &msg.role;
 
             for block in msg.content {
                 let (content, tool_name, message_type) = match block {
-                    MessageBlock::Text { text } => (text, None, crate::chat_messages::MessageType::User),
+                    MessageBlock::Text { text } => {
+                        // Use role to determine message type for text blocks
+                        let mt = match msg_role {
+                            MessageRole::User => crate::chat_messages::MessageType::User,
+                            MessageRole::Assistant => crate::chat_messages::MessageType::Assistant,
+                        };
+                        (text, None, mt)
+                    }
                     MessageBlock::ToolUse { name, input, .. } => {
                         (format!("{}: {}", name, serde_json::to_string(&input).unwrap_or_default()), Some(name), crate::chat_messages::MessageType::ToolCall)
                     }

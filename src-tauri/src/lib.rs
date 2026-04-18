@@ -228,19 +228,32 @@ fn get_session_notification() -> Option<SessionNotification> {
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     let state = SHARED_STATE.read();
 
-    // Get cwd from instance to locate JSONL file
+    // Get session_cwd from instance to locate JSONL file (session startup cwd, not current process cwd)
+    // Fallback chain: session_cwd -> process_info.cwd -> search all project dirs
     let cwd = state.instances.get_instance(&session_id)
-        .and_then(|i| i.process_info.as_ref())
-        .and_then(|p| Some(p.working_directory.clone()));
+        .and_then(|i| i.session_cwd.clone())
+        .or_else(|| {
+            state.instances.get_instance(&session_id)
+                .and_then(|i| i.process_info.as_ref())
+                .map(|p| p.working_directory.clone())
+        });
 
     if let Some(cwd) = cwd {
         // Parse JSONL file for complete conversation
         let messages = conversation_parser::ConversationParser::parse_full(&session_id, &cwd);
-        conversation_parser::ConversationParser::to_chat_messages(messages)
-    } else {
-        // Fallback to hook-based chat history
-        state.chat_history.get_messages(&session_id)
+        if !messages.is_empty() {
+            return conversation_parser::ConversationParser::to_chat_messages(messages);
+        }
     }
+
+    // Fallback: search all project directories for JSONL file
+    let messages = conversation_parser::ConversationParser::parse_full_without_cwd(&session_id);
+    if !messages.is_empty() {
+        return conversation_parser::ConversationParser::to_chat_messages(messages);
+    }
+
+    // Final fallback: hook-based chat history
+    state.chat_history.get_messages(&session_id)
 }
 
 #[tauri::command]

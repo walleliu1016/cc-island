@@ -607,7 +607,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               );
             }
 
-            // User message
+            // User message (right-aligned with bubble)
             if (msg.messageType === 'user') {
               // Check if this is an AskUserQuestion answer
               if (msg.toolName === 'AskUserQuestionAnswer') {
@@ -618,14 +618,14 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                       key={msg.id}
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mb-3"
+                      className="mb-3 flex justify-end"
                     >
-                      <div className="py-1">
-                        <div className="text-xs text-white/40 mb-1">Your Answers</div>
+                      <div className="max-w-[80%] px-3 py-2 rounded-2xl bg-white/15">
+                        <div className="text-xs text-white/50 mb-1">Your Answers</div>
                         <div className="space-y-1">
                           {answerData.map((answer, idx) => (
-                            <div key={idx} className="text-sm text-white/80">
-                              <span className="text-white/50">Q{idx + 1}:</span>{' '}
+                            <div key={idx} className="text-sm text-white/90">
+                              <span className="text-white/60">Q{idx + 1}:</span>{' '}
                               {answer.join(', ')}
                             </div>
                           ))}
@@ -640,18 +640,17 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                   key={msg.id}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-3"
+                  className="mb-3 flex justify-end"
                 >
-                  <div className="py-1">
-                    <div className="text-xs text-white/40 mb-1">You</div>
-                    <div className="text-sm text-white/90">{msg.content}</div>
+                  <div className="max-w-[80%] px-3 py-2 rounded-2xl bg-white/15 text-sm text-white/90">
+                    {msg.content}
                   </div>
                 </motion.div>
               );
             }
 
-            // Tool result
-            if (msg.messageType === 'toolResult') {
+            // Assistant message (left-aligned with dot indicator)
+            if (msg.messageType === 'assistant') {
               return (
                 <motion.div
                   key={msg.id}
@@ -659,9 +658,43 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                   animate={{ opacity: 1, y: 0 }}
                   className="mb-3"
                 >
-                  <div className="py-1">
-                    <div className="text-xs text-white/40 mb-1">Result</div>
-                    <div className="text-sm text-white/70">{msg.content}</div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
+                    <div className="text-sm text-white/90 flex-1">{msg.content}</div>
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // Thinking message (left-aligned, gray italic)
+            if (msg.messageType === 'thinking') {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/40 mt-1 flex-shrink-0" />
+                    <div className="text-xs text-white/50 italic flex-1">{msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}</div>
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // Tool result (left-aligned, compact)
+            if (msg.messageType === 'toolResult') {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-2"
+                >
+                  <div className="flex items-start gap-2 pl-4">
+                    <span className="w-1 h-1 rounded-full bg-green-400/60 mt-1 flex-shrink-0" />
+                    <div className="text-xs text-white/70 flex-1">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '...' : ''}</div>
                   </div>
                 </motion.div>
               );

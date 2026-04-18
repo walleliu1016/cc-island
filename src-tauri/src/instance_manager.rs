@@ -70,6 +70,9 @@ pub struct ClaudeInstance {
     pub session_id: SessionId,
     pub project_name: String,
     pub custom_name: Option<String>,
+    /// Session cwd at startup - used to locate JSONL file (must NOT change during session)
+    pub session_cwd: Option<String>,
+    /// Process info for jump functionality (working_directory may change during session)
     pub process_info: Option<ProcessInfo>,
     pub status: InstanceStatus,
     pub current_tool: Option<String>,
@@ -93,6 +96,8 @@ pub struct ClaudeInstanceDisplay {
     pub session_id: SessionId,
     pub project_name: String,
     pub custom_name: Option<String>,
+    /// Session cwd at startup - used for JSONL file location
+    pub session_cwd: Option<String>,
     pub process_info: Option<ProcessInfo>,
     pub status: InstanceStatus,
     pub current_tool: Option<String>,
@@ -112,6 +117,7 @@ impl ClaudeInstance {
             session_id,
             project_name,
             custom_name: None,
+            session_cwd: None,
             process_info: None,
             status: InstanceStatus::Idle,
             current_tool: None,
@@ -123,6 +129,13 @@ impl ClaudeInstance {
             display_tool: None,
             display_tool_input: None,
         }
+    }
+
+    /// Create instance with session cwd (for JSONL file location)
+    pub fn with_cwd(session_id: SessionId, project_name: String, cwd: String) -> Self {
+        let mut instance = Self::new(session_id, project_name);
+        instance.session_cwd = Some(cwd);
+        instance
     }
 
     pub fn update_activity(&mut self) {
@@ -202,6 +215,7 @@ impl ClaudeInstance {
             session_id: self.session_id.clone(),
             project_name: self.project_name.clone(),
             custom_name: self.custom_name.clone(),
+            session_cwd: self.session_cwd.clone(),
             process_info: self.process_info.clone(),
             status: status.clone(),
             current_tool: current_tool.cloned(),
