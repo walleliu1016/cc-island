@@ -9,12 +9,14 @@ pub mod config;
 pub mod chat_messages;
 pub mod machine_id;
 pub mod cloud_client;
+pub mod conversation_parser;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
 use chat_messages::ChatHistory;
 use http_server::HttpServer;
 use cloud_client::{CloudClient, CloudConfig};
+use conversation_parser::ConversationParser;
 use serde::{Deserialize, Serialize};
 use tauri::menu::{Menu, MenuItem};
 
@@ -59,6 +61,7 @@ pub struct AppState {
     pub instances: InstanceManager,
     pub popups: PopupQueue,
     pub chat_history: ChatHistory,
+    pub conversation_parser: ConversationParser,
     pub settings: config::AppSettings,
     pub recent_activities: Vec<ToolActivity>,
     pub session_notification: Option<SessionNotification>,
@@ -73,6 +76,7 @@ impl AppState {
             instances: InstanceManager::new(),
             popups: PopupQueue::new(),
             chat_history: ChatHistory::new(),
+            conversation_parser: ConversationParser::new(),
             settings: config::load_settings(),
             recent_activities: Vec::new(),
             session_notification: None,
@@ -223,7 +227,20 @@ fn get_session_notification() -> Option<SessionNotification> {
 #[tauri::command]
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     let state = SHARED_STATE.read();
-    state.chat_history.get_messages(&session_id)
+
+    // Get cwd from instance to locate JSONL file
+    let cwd = state.instances.get_instance(&session_id)
+        .and_then(|i| i.process_info.as_ref())
+        .and_then(|p| Some(p.working_directory.clone()));
+
+    if let Some(cwd) = cwd {
+        // Parse JSONL file for complete conversation
+        let messages = conversation_parser::ConversationParser::parse_full(&session_id, &cwd);
+        conversation_parser::ConversationParser::to_chat_messages(messages)
+    } else {
+        // Fallback to hook-based chat history
+        state.chat_history.get_messages(&session_id)
+    }
 }
 
 #[tauri::command]

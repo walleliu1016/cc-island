@@ -316,7 +316,7 @@ async fn handle_hook(
                     }
 
                     // Record assistant response from stop_reason
-                    let stop_reason = input.stop_reason.as_deref().unwrap_or("end_turn");
+                    let _stop_reason = input.stop_reason.as_deref().unwrap_or("end_turn");
                     let message_count = input.message_count.unwrap_or(0);
 
                     // Only add message if there was actual content (message_count > 0)
@@ -526,13 +526,9 @@ async fn handle_hook(
         let hook_body = build_hook_body_from_input(&input);
         push_hook_to_cloud(&state, &input.session_id, hook_event, hook_body);
 
-        // Push chat messages to cloud as ChatHistory
-        for (session_id, message) in chat_messages_to_push {
-            tracing::info!("Pushing chat message to cloud: session={}, type={:?}, content_preview={}",
-                session_id, message.message_type,
-                if message.content.len() > 50 { &message.content[..50] } else { &message.content });
-            push_chat_history_to_cloud(&state, &session_id, vec![message]);
-        }
+        // Push complete chat history from JSONL to cloud
+        let cwd = input.cwd.as_deref();
+        push_chat_history_to_cloud(&state, &input.session_id, cwd);
 
         Ok(Json(HookOutput {
             continue_exec: true,
@@ -683,7 +679,20 @@ async fn get_chat_messages_http(
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<Vec<ChatMessage>> {
     let state_guard = state.read();
-    Json(state_guard.chat_history.get_messages(&session_id))
+
+    // Get cwd from instance to locate JSONL file
+    let cwd = state_guard.instances.get_instance(&session_id)
+        .and_then(|i| i.process_info.as_ref())
+        .map(|p| p.working_directory.clone());
+
+    if let Some(cwd) = cwd {
+        // Parse JSONL file for complete conversation
+        let messages = crate::conversation_parser::ConversationParser::parse_full(&session_id, &cwd);
+        Json(crate::conversation_parser::ConversationParser::to_chat_messages(messages))
+    } else {
+        // Fallback to hook-based chat history
+        Json(state_guard.chat_history.get_messages(&session_id))
+    }
 }
 async fn update_position(
     Json(_pos): Json<serde_json::Value>,
@@ -1243,13 +1252,33 @@ fn push_hook_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, hook_type
 }
 
 /// Push chat history to cloud client if enabled and connected
-fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, messages: Vec<ChatMessage>) {
+/// Uses JSONL parser for complete conversation content
+fn push_chat_history_to_cloud(state: &Arc<RwLock<AppState>>, session_id: &str, cwd: Option<&str>) {
     let state_guard = state.read();
     if let Some(ref cloud_client) = state_guard.cloud_client {
         // Try to get read lock on async RwLock (non-blocking)
         if let Ok(client) = cloud_client.try_read() {
             if client.is_connected() {
-                client.push_chat_history(session_id, messages);
+                // Use JSONL parser for complete conversation if cwd available
+                if let Some(cwd) = cwd {
+                    let messages = crate::conversation_parser::ConversationParser::parse_full(session_id, cwd);
+                    let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
+                    client.push_chat_history(session_id, chat_messages);
+                } else {
+                    // Fallback: try to get cwd from instance
+                    let instance_cwd = state_guard.instances.get_instance(&session_id.to_string())
+                        .and_then(|i| i.process_info.as_ref())
+                        .map(|p| p.working_directory.clone());
+
+                    if let Some(cwd) = instance_cwd {
+                        let messages = crate::conversation_parser::ConversationParser::parse_full(session_id, &cwd);
+                        let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
+                        client.push_chat_history(session_id, chat_messages);
+                    } else {
+                        // Final fallback: use hook-based chat history
+                        client.push_chat_history(session_id, state_guard.chat_history.get_messages(session_id));
+                    }
+                }
             }
         }
     }

@@ -18,6 +18,9 @@ pub struct HookInput {
     pub cwd: Option<String>,
     // Elicitation 事件专用字段
     pub questions: Option<Vec<ElicitationQuestion>>,
+    // Stop hook 专用字段
+    pub stop_reason: Option<String>,
+    pub message_count: Option<u32>,
 }
 
 /// Elicitation question structure (for AskUserQuestion)
