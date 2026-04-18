@@ -18,10 +18,16 @@ export type HookType =
   | 'SessionEnd'
   | 'PreToolUse'
   | 'PostToolUse'
+  | 'PostToolUseFailure'
   | 'PermissionRequest'
+  | 'Elicitation'
   | 'Notification'
   | 'Stop'
   | 'UserPromptSubmit'
+  | 'PreCompact'
+  | 'PostCompact'
+  | 'SubagentStart'
+  | 'SubagentStop'
   | 'StatusUpdate'
 
 // Claude session state (matches Cloud Server ClaudeSession with camelCase)

@@ -392,6 +392,63 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           sessions[deviceToken] = deviceSessions
           break
         }
+
+        case 'Elicitation': {
+          // Add urgent hook hint for AskUserQuestion
+          const questions = hookBody.questions || []
+          const hint: HookHint = {
+            session_id: sessionId,
+            hook_type: hookType as HookType,
+            urgent: true,
+            questions: questions as AskQuestion[],
+            timestamp: Date.now(),
+          }
+          const deviceHints = hookHints[deviceToken] || []
+          hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || !h.urgent), hint]
+          // Update session status
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'waitingForApproval' } : s
+          )
+          sessions[deviceToken] = deviceSessions
+          break
+        }
+
+        case 'PostToolUseFailure': {
+          // Update session to error
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'error', currentTool: undefined } : s
+          )
+          sessions[deviceToken] = deviceSessions
+          break
+        }
+
+        case 'PreCompact': {
+          // Update session to compacting
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'compacting' } : s
+          )
+          sessions[deviceToken] = deviceSessions
+          break
+        }
+
+        case 'PostCompact': {
+          // Update session to idle
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'idle' } : s
+          )
+          sessions[deviceToken] = deviceSessions
+          break
+        }
+
+        case 'SubagentStart': {
+          // Just update activity (no status change)
+          break
+        }
+
+        case 'SubagentStop': {
+          // Just update activity (no status change)
+          break
+        }
       }
 
       return { ...s, sessions, hookHints }
