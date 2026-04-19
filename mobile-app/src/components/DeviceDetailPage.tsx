@@ -5,6 +5,68 @@ import { useState, useEffect, useRef } from 'react'
 import { ClaudeSession, HookHint, ChatMessageData } from '../types'
 import { ChatView } from './ChatView'
 
+// Terminal-style colors (matching desktop)
+const TerminalColors = {
+  prompt: '#d97857',  // Claude orange
+  amber: '#ffb700',
+  dim: 'rgba(255,255,255,0.4)',
+}
+
+// Processing Spinner - Animated symbol spinner matching Claude Island (desktop)
+// Uses rotating symbols: · ✢ ✳ ∗ ✻ ✽
+function ProcessingSpinner({ size = 12, animated = true }: { size?: number; animated?: boolean }) {
+  const [phase, setPhase] = useState(0)
+  const symbols = ['·', '✢', '✳', '∗', '✻', '✽']
+  const color = animated ? TerminalColors.prompt : TerminalColors.dim
+
+  useEffect(() => {
+    if (!animated) return
+    const timer = setInterval(() => {
+      setPhase((p) => (p + 1) % symbols.length)
+    }, 150)
+    return () => clearInterval(timer)
+  }, [animated])
+
+  return (
+    <span
+      style={{
+        fontSize: size,
+        fontWeight: 'bold',
+        color,
+        width: size,
+        textAlign: 'center',
+        display: 'inline-block',
+      }}
+    >
+      {symbols[phase]}
+    </span>
+  )
+}
+
+// Status indicator component - spinner for active states, static dot for idle
+function StatusIndicator({ status, size = 12 }: { status: string; size?: number }) {
+  const isActive = status === 'thinking' || status === 'working' || status === 'waiting' || status === 'compacting'
+
+  if (isActive) {
+    return <ProcessingSpinner size={size} animated={true} />
+  }
+
+  // Idle/ended/error - static dim dot
+  return (
+    <span
+      style={{
+        fontSize: size,
+        color: TerminalColors.dim,
+        width: size,
+        textAlign: 'center',
+        display: 'inline-block',
+      }}
+    >
+      ·
+    </span>
+  )
+}
+
 // Extended device info with cached hostname
 interface DeviceInfoExtended {
   hostname?: string
@@ -150,7 +212,11 @@ function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespo
     <div className="p-3 rounded-[8px] bg-[#1a1a1a] border border-[#262626]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${hasPendingHook ? 'bg-[#f59e0b]' : statusInfo.color}`} />
+          {hasPendingHook ? (
+            <ProcessingSpinner size={12} animated={true} />
+          ) : (
+            <StatusIndicator status={session.status} size={12} />
+          )}
           <div className="text-[#f5f5f5] text-sm font-medium">{session.projectName}</div>
         </div>
         {/* Inline action buttons when has pending hook */}
