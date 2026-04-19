@@ -173,28 +173,21 @@ function App() {
         let isFailed = false;
         let failedReason = '';
 
-        if (typeof cloudStatusRaw === 'string') {
+        // Parse new format: { type: 'Connected' } | { type: 'Connecting' } | { type: 'Failed', message: 'error' }
+        if (cloudStatusRaw && typeof cloudStatusRaw === 'object') {
+          const status = cloudStatusRaw as { type?: string; message?: string };
+          if (status.type === 'Connected') {
+            isConnected = true;
+          } else if (status.type === 'Connecting') {
+            isConnecting = true;
+          } else if (status.type === 'Failed') {
+            isFailed = true;
+            failedReason = status.message || '连接失败';
+          }
+        } else if (typeof cloudStatusRaw === 'string') {
+          // Fallback for old format (string)
           isConnected = cloudStatusRaw === 'Connected';
           isConnecting = cloudStatusRaw === 'Connecting';
-          // Failed status might come as JSON string like '{"Failed":"error"}' or plain 'Disconnected'
-          if (cloudStatusRaw.startsWith('{')) {
-            try {
-              const parsed = JSON.parse(cloudStatusRaw);
-              if (parsed.Failed) {
-                isFailed = true;
-                failedReason = parsed.Failed;
-              }
-            } catch {}
-          } else if (cloudStatusRaw === 'Disconnected') {
-            // Not configured - show gray cloud without error
-            isFailed = false;
-          }
-        } else if (cloudStatusRaw && typeof cloudStatusRaw === 'object') {
-          // Failed status returned as { Failed: "error message" }
-          if ((cloudStatusRaw as Record<string, string>).Failed) {
-            isFailed = true;
-            failedReason = (cloudStatusRaw as Record<string, string>).Failed;
-          }
         }
 
         setCloudStatus({ connected: isConnected, connecting: isConnecting, failed: isFailed, failedReason });
