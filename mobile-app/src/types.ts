@@ -37,6 +37,7 @@ export interface ClaudeSession {
   status: string         // 'idle' | 'thinking' | 'working' | 'waiting' | 'waitingForApproval' | 'error' | 'ended' | 'compacting'
   currentTool?: string   // camelCase from server
   createdAt?: number     // camelCase from server, milliseconds
+  workingTimestamp?: number // Local: timestamp when 'working' started (for minimum display time)
 }
 
 // Hook hint for display on device list

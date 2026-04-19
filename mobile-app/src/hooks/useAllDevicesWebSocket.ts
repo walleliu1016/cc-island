@@ -306,7 +306,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           const toolName = hookBody.tool_name || '工具'
           console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'current sessions:', deviceSessions.map(s => ({ id: s.sessionId, status: s.status, tool: s.currentTool })))
           deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName } : s
+            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, workingTimestamp: Date.now() } : s
           )
           console.log('[WebSocket] After update:', deviceSessions.map(s => ({ id: s.sessionId, status: s.status, tool: s.currentTool })))
           sessions[deviceToken] = deviceSessions
@@ -325,10 +325,37 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostToolUse': {
-          // Update session to waiting
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'waiting', currentTool: undefined } : s
-          )
+          // Update session to waiting, but respect minimum display time for working state
+          deviceSessions = deviceSessions.map(s => {
+            if (s.sessionId === sessionId) {
+              // Keep 'working' status for at least 2 seconds (like desktop)
+              const workingDuration = s.workingTimestamp ? Date.now() - s.workingTimestamp : 0
+              if (workingDuration < 2000 && s.status === 'working') {
+                // Schedule update to 'waiting' after remaining time
+                const remainingTime = 2000 - workingDuration
+                setTimeout(() => {
+                  setState(prevState => {
+                    const prevSessions = prevState.sessions[deviceToken] || []
+                    const updatedSessions = prevSessions.map(ps =>
+                      ps.sessionId === sessionId && ps.status === 'working'
+                        ? { ...ps, status: 'waiting', currentTool: undefined, workingTimestamp: undefined }
+                        : ps
+                    )
+                    return {
+                      ...prevState,
+                      sessions: {
+                        ...prevState.sessions,
+                        [deviceToken]: updatedSessions,
+                      },
+                    }
+                  })
+                }, remainingTime)
+                return s // Keep current 'working' state
+              }
+              return { ...s, status: 'waiting', currentTool: undefined, workingTimestamp: undefined }
+            }
+            return s
+          })
           sessions[deviceToken] = deviceSessions
           break
         }
