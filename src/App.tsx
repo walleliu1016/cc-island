@@ -1,9 +1,8 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { useAppStore } from './stores/appStore';
 import { useDisplayStore } from './stores/displayStore';
 import { InstanceList } from './components/InstanceList';
@@ -38,72 +37,15 @@ function App() {
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
 
-  // Drag state for horizontal dragging
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartXRef = useRef(0);
-  const windowStartXRef = useRef(0);
-  const appWindowRef = useRef<ReturnType<typeof getCurrentWindow> | null>(null);
-  const lastPositionRef = useRef<number | null>(null); // Track last set position to avoid redundant calls
-
-  // Initialize window reference
-  useEffect(() => {
-    appWindowRef.current = getCurrentWindow();
-  }, []);
-
-  // Handle drag start
+  // Use Tauri's built-in drag mechanism (no manual JS needed)
   const handleDragStart = async (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsDragging(true);
-    dragStartXRef.current = e.clientX;
-
-    // Get current window position
-    if (appWindowRef.current) {
-      try {
-        const position = await appWindowRef.current.outerPosition();
-        windowStartXRef.current = position.x;
-        lastPositionRef.current = position.x;
-      } catch (e) {
-        console.error('Failed to get window position:', e);
-      }
+    try {
+      await invoke('start_drag');
+    } catch (e) {
+      console.error('Failed to start drag:', e);
     }
   };
-
-  // Handle drag move - synchronous with throttling
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!appWindowRef.current) return;
-
-      const deltaX = e.clientX - dragStartXRef.current;
-      const newX = windowStartXRef.current + deltaX;
-
-      // Skip if position hasn't changed (avoid redundant calls)
-      if (lastPositionRef.current !== null && Math.abs(newX - lastPositionRef.current) < 1) {
-        return;
-      }
-
-      lastPositionRef.current = newX;
-
-      // Use setPosition without await for smoother movement
-      appWindowRef.current.setPosition(new LogicalPosition(newX, 0)).catch((e) => {
-        console.error('Failed to move window:', e);
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      lastPositionRef.current = null;
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
 
   // Check hooks configuration on startup
   useEffect(() => {
@@ -293,9 +235,8 @@ function App() {
   );
 
   // Click to expand (replacing hover)
+  // Note: Tauri's start_dragging handles drag vs click distinction at OS level
   const handleClick = () => {
-    // Don't expand if dragging
-    if (isDragging) return;
     setIsExpanded(!isExpanded);
   };
 
@@ -377,7 +318,7 @@ function App() {
         {/* Header - Three column layout: Left | Center | Right */}
         <motion.div
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
-          style={{ height: COLLAPSED_HEIGHT, cursor: isDragging ? 'grabbing' : 'grab' }}
+          style={{ height: COLLAPSED_HEIGHT, cursor: 'grab' }}
           onMouseDown={handleDragStart}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
