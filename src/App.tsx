@@ -130,12 +130,18 @@ function App() {
   // Listen for window blur (click outside) to collapse island or close modals
   useEffect(() => {
     const handleBlur = () => {
-      console.log('Window blur triggered');
-      // Always close any open views when clicking outside
-      setSelectedSessionId(null);
-      setShowSettings(false);
-      setShowHooksSetup(false);
-      setIsExpanded(false);
+      // Delay to avoid immediate collapse from click-focus race
+      setTimeout(() => {
+        // Check if window is still not focused after delay
+        if (!document.hasFocus()) {
+          console.log('Window blur triggered');
+          // Always close any open views when clicking outside
+          setSelectedSessionId(null);
+          setShowSettings(false);
+          setShowHooksSetup(false);
+          setIsExpanded(false);
+        }
+      }, 100);
     };
 
     window.addEventListener('blur', handleBlur);

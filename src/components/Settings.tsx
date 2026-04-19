@@ -42,7 +42,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'hooks' | 'general'>('hooks');
+  const [activeTab, setActiveTab] = useState<'hooks' | 'general' | 'remote'>('hooks');
   const [hooksResult, setHooksResult] = useState<HooksCheckResult | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -231,7 +231,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
               : 'text-white/50 hover:text-white/70'
           }`}
         >
-          Hooks 配置 ({configuredCount}/{requiredCount})
+          Hooks ({configuredCount}/{requiredCount})
         </button>
         <button
           onClick={() => setActiveTab('general')}
@@ -241,7 +241,17 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
               : 'text-white/50 hover:text-white/70'
           }`}
         >
-          通用设置
+          通用
+        </button>
+        <button
+          onClick={() => setActiveTab('remote')}
+          className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            activeTab === 'remote'
+              ? 'text-white border-b-2 border-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          远程访问
         </button>
       </div>
 
@@ -320,7 +330,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 </label>
               ))}
             </motion.div>
-          ) : (
+          ) : activeTab === 'general' ? (
             <motion.div
               key="general"
               initial={{ opacity: 0, x: 10 }}
@@ -474,103 +484,110 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
                   />
                 </div>
-
-                {/* Mobile Remote Access (Cloud Relay) */}
-                <div className="border-t border-white/10 pt-3 mt-3">
-                  <div className="text-white/80 text-sm mb-2">手机远程访问</div>
-
-                  <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={settings.cloud_mode || false}
-                      onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })}
-                      className="w-4 h-4 rounded accent-white"
-                    />
-                    <div className="flex-1">
-                      <span className="text-white/80 text-sm">启用远程访问</span>
-                      <span className="text-white/40 text-xs ml-2">(通过云服务器)</span>
-                    </div>
-                  </label>
-
-                  {settings.cloud_mode && (
-                    <div className="mt-2 space-y-2">
-                      <div>
-                        <label className="text-white/60 text-xs block mb-1">云服务器地址</label>
-                        <input
-                          type="text"
-                          placeholder="wss://cloud.example.com:17528"
-                          value={settings.cloud_server_url || ''}
-                          onChange={e => setSettings({ ...settings, cloud_server_url: e.target.value || null })}
-                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-white/60 text-xs block mb-1">设备名称 (可选)</label>
-                        <input
-                          type="text"
-                          placeholder="我的电脑"
-                          value={settings.device_name || ''}
-                          onChange={e => setSettings({ ...settings, device_name: e.target.value || null })}
-                          className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
-                        />
-                      </div>
-
-                      <div className="bg-white/[0.08] rounded p-2 mt-2">
-                        <div className="text-white/50 text-xs">设备 Token:</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <code className="text-white/70 text-xs bg-black/30 px-1 rounded flex-1 truncate">
-                            {deviceToken || '加载中...'}
-                          </code>
-                          <button
-                            onClick={() => deviceToken && navigator.clipboard.writeText(deviceToken)}
-                            className="text-white/50 hover:text-white px-2 py-1 text-xs"
-                            disabled={!deviceToken}
-                          >
-                            复制
-                          </button>
-                          <button
-                            onClick={generateQRCode}
-                            className="text-white/50 hover:text-white px-2 py-1 text-xs"
-                          >
-                            二维码
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="text-white/40 text-xs">
-                        将此Token输入到手机App即可连接此设备
-                      </div>
-
-                      {/* Connection Status */}
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-white/50 text-xs">连接状态:</span>
-                        {connectionStatus.type === 'Disconnected' && (
-                          <span className="text-white/40 text-xs">未连接</span>
-                        )}
-                        {connectionStatus.type === 'Connecting' && (
-                          <span className="text-yellow-400 text-xs flex items-center gap-1">
-                            <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>●</motion.span>
-                            连接中...
-                          </span>
-                        )}
-                        {connectionStatus.type === 'Connected' && (
-                          <span className="text-green-400 text-xs flex items-center gap-1">
-                            <span>●</span>
-                            已连接
-                          </span>
-                        )}
-                        {connectionStatus.type === 'Failed' && (
-                          <span className="text-red-400 text-xs flex items-center gap-1">
-                            <span>●</span>
-                            连接失败: {connectionStatus.message}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="remote"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-3"
+            >
+              {/* Mobile Remote Access (Cloud Relay) */}
+              <div className="text-white/80 text-sm mb-2">通过云服务器实现手机远程访问</div>
+
+              <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={settings.cloud_mode || false}
+                  onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })}
+                  className="w-4 h-4 rounded accent-white"
+                />
+                <div className="flex-1">
+                  <span className="text-white/80 text-sm">启用远程访问</span>
+                  <span className="text-white/40 text-xs ml-2">(通过云服务器)</span>
+                </div>
+              </label>
+
+              {settings.cloud_mode && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">云服务器地址</label>
+                    <input
+                      type="text"
+                      placeholder="wss://cloud.example.com:17528"
+                      value={settings.cloud_server_url || ''}
+                      onChange={e => setSettings({ ...settings, cloud_server_url: e.target.value || null })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">设备名称 (可选)</label>
+                    <input
+                      type="text"
+                      placeholder="我的电脑"
+                      value={settings.device_name || ''}
+                      onChange={e => setSettings({ ...settings, device_name: e.target.value || null })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="bg-white/[0.08] rounded p-2 mt-2">
+                    <div className="text-white/50 text-xs">设备 Token:</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="text-white/70 text-xs bg-black/30 px-1 rounded flex-1 truncate">
+                        {deviceToken || '加载中...'}
+                      </code>
+                      <button
+                        onClick={() => deviceToken && navigator.clipboard.writeText(deviceToken)}
+                        className="text-white/50 hover:text-white px-2 py-1 text-xs"
+                        disabled={!deviceToken}
+                      >
+                        复制
+                      </button>
+                      <button
+                        onClick={generateQRCode}
+                        className="text-white/50 hover:text-white px-2 py-1 text-xs"
+                      >
+                        二维码
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-white/40 text-xs">
+                    将此Token输入到手机App即可连接此设备
+                  </div>
+
+                  {/* Connection Status */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-white/50 text-xs">连接状态:</span>
+                    {connectionStatus.type === 'Disconnected' && (
+                      <span className="text-white/40 text-xs">未连接</span>
+                    )}
+                    {connectionStatus.type === 'Connecting' && (
+                      <span className="text-yellow-400 text-xs flex items-center gap-1">
+                        <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>●</motion.span>
+                        连接中...
+                      </span>
+                    )}
+                    {connectionStatus.type === 'Connected' && (
+                      <span className="text-green-400 text-xs flex items-center gap-1">
+                        <span>●</span>
+                        已连接
+                      </span>
+                    )}
+                    {connectionStatus.type === 'Failed' && (
+                      <span className="text-red-400 text-xs flex items-center gap-1">
+                        <span>●</span>
+                        连接失败: {connectionStatus.message}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
