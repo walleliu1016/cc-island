@@ -51,10 +51,12 @@ pub struct SessionNotification {
 
 /// Cloud connection status
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", content = "message")]
 pub enum CloudConnectionStatus {
     Disconnected,   // Not configured or disabled
     Connecting,     // Attempting to connect
     Connected,      // Successfully connected
+    #[serde(rename = "Failed")]
     Failed(String), // Connection failed with error message
 }
 
