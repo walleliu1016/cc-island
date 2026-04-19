@@ -43,8 +43,41 @@ function ProcessingSpinner({ size = 12, animated = true }: { size?: number; anim
   )
 }
 
+// Amber spinner for waitingForApproval state (matching desktop)
+function AmberSpinner({ size = 12 }: { size?: number }) {
+  const [phase, setPhase] = useState(0)
+  const symbols = ['·', '✢', '✳', '∗', '✻', '✽']
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPhase((p) => (p + 1) % symbols.length)
+    }, 150)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <span
+      style={{
+        fontSize: size,
+        fontWeight: 'bold',
+        color: TerminalColors.amber,
+        width: size,
+        textAlign: 'center',
+        display: 'inline-block',
+      }}
+    >
+      {symbols[phase]}
+    </span>
+  )
+}
+
 // Status indicator component - spinner for active states, static dot for idle
 function StatusIndicator({ status, size = 12 }: { status: string; size?: number }) {
+  // waitingForApproval - amber spinner (matching desktop)
+  if (status === 'waitingForApproval') {
+    return <AmberSpinner size={size} />
+  }
+
   const isActive = status === 'thinking' || status === 'working' || status === 'waiting' || status === 'compacting'
 
   if (isActive) {
@@ -213,7 +246,7 @@ function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespo
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {hasPendingHook ? (
-            <ProcessingSpinner size={12} animated={true} />
+            <AmberSpinner size={12} />
           ) : (
             <StatusIndicator status={session.status} size={12} />
           )}
