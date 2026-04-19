@@ -14,6 +14,8 @@
     "ios": "npm run build && npx cap sync ios"
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^8.0.1",
+    "barcode-detector": "^3.1.2",
     "framer-motion": "^12.38.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

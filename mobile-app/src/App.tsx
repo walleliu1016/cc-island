@@ -195,6 +195,7 @@ function App() {
         <AddDeviceModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddDevice}
+          onUpdateServer={handleSaveServer}
         />
       )}
 
