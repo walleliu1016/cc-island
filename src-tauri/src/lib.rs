@@ -185,22 +185,36 @@ fn start_drag(window: tauri::Window) -> Result<(), String> {
 fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
     use tauri::{Size, Position};
 
-    // Get current monitor size to calculate center position
+    // Get current window position
+    let current_position = window.outer_position().map_err(|e| e.to_string())?;
+    // Convert physical position to logical
+    let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
+    let current_x = current_position.x as f64 / scale_factor;
+
+    // Keep current X position, adjust X only if expanding from collapsed to keep center-aligned
+    // Get current size to determine if this is an expand or collapse
+    let current_size = window.outer_size().map_err(|e| e.to_string())?;
+    let current_width = current_size.width as f64 / scale_factor;
+
+    // Calculate new X position: keep the window center-aligned relative to current position
+    // If currently at position X with width W, after resize to new width W':
+    // New X = X + (W - W') / 2 (this keeps the center point fixed)
+    let new_x = current_x + (current_width - width as f64) / 2.0;
+
+    // Ensure window stays within screen bounds
     let monitor = window.primary_monitor().map_err(|e| e.to_string())?;
-
     if let Some(monitor) = monitor {
-        // Get scale factor for DPI conversion
-        let scale_factor = monitor.scale_factor();
-        // Get physical screen size and convert to logical
         let physical_size = monitor.size();
-        let logical_screen_width = physical_size.width as f64 / scale_factor;
+        let logical_screen_width = physical_size.width as f64 / monitor.scale_factor();
 
-        // Calculate centered x position (logical coordinates)
-        let x = (logical_screen_width - width as f64) / 2.0;
-        // Keep y = 0 (touching screen top)
+        // Clamp X to keep window on screen
+        let clamped_x = new_x.max(0.0).min(logical_screen_width - width as f64);
 
-        // Set new position using Logical coordinates (DPI-aware)
-        window.set_position(Position::Logical(tauri::LogicalPosition { x, y: 0.0 }))
+        window.set_position(Position::Logical(tauri::LogicalPosition { x: clamped_x, y: 0.0 }))
+            .map_err(|e| e.to_string())?;
+    } else {
+        // No monitor info, just use calculated position
+        window.set_position(Position::Logical(tauri::LogicalPosition { x: new_x, y: 0.0 }))
             .map_err(|e| e.to_string())?;
     }
 
