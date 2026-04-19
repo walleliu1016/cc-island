@@ -238,7 +238,7 @@ function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespo
   onViewChat: () => void
   onRespond: (sessionId: string, decision: string | null, answers?: string[][]) => void
 }) {
-  const statusInfo = getStatusInfo(session.status, session.currentTool)
+  const statusInfo = getStatusInfo(session.status, session.currentTool, session.toolInput)
   const isAsk = pendingHint?.questions && pendingHint.questions.length > 0
 
   return (
@@ -301,14 +301,26 @@ function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespo
   )
 }
 
-function getStatusInfo(status: string, currentTool?: string): { text: string; color: string } {
+function getStatusInfo(status: string, currentTool?: string, toolInput?: { command?: string; file_path?: string; action?: string; details?: string }): { text: string; color: string } {
+  // Helper to get tool input summary (matching desktop)
+  const getInputSummary = (): string => {
+    if (!toolInput) return ''
+    return toolInput.command || toolInput.file_path || toolInput.action || toolInput.details || ''
+  }
+
   switch (status) {
     case 'idle':
       return { text: '', color: 'bg-[#737373]' }
     case 'thinking':
       return { text: 'Thinking', color: 'bg-[#22c55e]' }
-    case 'working':
-      return { text: currentTool || 'Working', color: 'bg-[#22c55e]' }
+    case 'working': {
+      const toolName = currentTool || 'Working'
+      const inputSummary = getInputSummary()
+      return {
+        text: inputSummary ? `${toolName}: ${inputSummary.slice(0, 20)}${inputSummary.length > 20 ? '...' : ''}` : toolName,
+        color: 'bg-[#22c55e]'
+      }
+    }
     case 'waiting':
       return { text: 'Thinking', color: 'bg-[#22c55e]' }
     case 'waitingForApproval':

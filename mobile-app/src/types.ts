@@ -36,8 +36,17 @@ export interface ClaudeSession {
   projectName: string    // camelCase from server
   status: string         // 'idle' | 'thinking' | 'working' | 'waiting' | 'waitingForApproval' | 'error' | 'ended' | 'compacting'
   currentTool?: string   // camelCase from server
+  toolInput?: ToolInput  // Tool input details (command, file_path, etc.)
   createdAt?: number     // camelCase from server, milliseconds
   workingTimestamp?: number // Local: timestamp when 'working' started (for minimum display time)
+}
+
+// Tool input details (for display)
+export interface ToolInput {
+  command?: string
+  file_path?: string
+  action?: string
+  details?: string
 }
 
 // Hook hint for display on device list

@@ -304,11 +304,17 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         case 'PreToolUse': {
           // Update session to working
           const toolName = hookBody.tool_name || '工具'
-          console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'current sessions:', deviceSessions.map(s => ({ id: s.sessionId, status: s.status, tool: s.currentTool })))
+          // Extract tool input for display (command, file_path, etc.)
+          const toolInput = hookBody.tool_input ? {
+            command: hookBody.tool_input.command as string,
+            file_path: hookBody.tool_input.file_path as string,
+            action: (hookBody.tool_input.description || hookBody.tool_input.action) as string,
+            details: hookBody.tool_input.details as string,
+          } : undefined
+          console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'toolInput:', toolInput)
           deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, workingTimestamp: Date.now() } : s
+            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
           )
-          console.log('[WebSocket] After update:', deviceSessions.map(s => ({ id: s.sessionId, status: s.status, tool: s.currentTool })))
           sessions[deviceToken] = deviceSessions
           // Add hook hint
           const hint: HookHint = {
@@ -316,7 +322,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             hook_type: hookType as HookType,
             urgent: false,
             tool_name: toolName,
-            action: hookBody.tool_input?.description as string,
+            action: toolInput?.action || toolInput?.command || toolInput?.file_path,
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
