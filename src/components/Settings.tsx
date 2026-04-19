@@ -349,8 +349,8 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     className="w-4 h-4 rounded accent-white"
                   />
                   <div className="flex-1">
-                    <span className="text-white/80 text-sm">自动允许所有权限</span>
-                    <span className="text-white/40 text-xs ml-2">(跳过权限确认)</span>
+                    <span className="text-white/80 text-sm">自动允许执行命令</span>
+                    <span className="text-white/40 text-xs ml-2">(Bash/Read等，Ask仍需确认)</span>
                   </div>
                 </label>
 
