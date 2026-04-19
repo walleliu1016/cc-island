@@ -205,22 +205,22 @@ function SessionCard({ session, hasPendingHook, pendingHint, onViewChat, onRespo
 function getStatusInfo(status: string, currentTool?: string): { text: string; color: string } {
   switch (status) {
     case 'idle':
-      return { text: '空闲', color: 'bg-[#737373]' }
+      return { text: '', color: 'bg-[#737373]' }  // Empty text like desktop (waitingForInput phase)
     case 'thinking':
-      return { text: '思考中...', color: 'bg-[#22c55e]' }
+      return { text: '思考中...', color: 'bg-[#22c55e]' }  // Thinking
     case 'working':
-      return { text: `执行: ${currentTool || '工具'}`, color: 'bg-[#22c55e]' }
+      return { text: currentTool || '执行中', color: 'bg-[#22c55e]' }  // Tool name only like desktop
     case 'waiting':
-      return { text: '等待继续', color: 'bg-[#3b82f6]' }
+      return { text: '思考中...', color: 'bg-[#22c55e]' }  // Same as thinking (PostToolUse processing)
     case 'waitingForApproval':
       return { text: '需要授权', color: 'bg-[#f59e0b]' }
     case 'error':
-      return { text: '错误', color: 'bg-[#ef4444]' }
+      return { text: '', color: 'bg-[#ef4444]' }  // Empty text like desktop (idle phase)
     case 'compacting':
-      return { text: '压缩上下文', color: 'bg-[#8b5cf6]' }
+      return { text: '压缩中...', color: 'bg-[#8b5cf6]' }
     case 'ended':
-      return { text: '已结束', color: 'bg-[#737373]' }
+      return { text: '', color: 'bg-[#737373]' }  // Empty text like desktop (idle phase)
     default:
-      return { text: currentTool || status, color: 'bg-[#737373]' }
+      return { text: currentTool || '', color: 'bg-[#737373]' }
   }
 }
