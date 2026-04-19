@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
+import ReactMarkdown from 'react-markdown';
 import { ChatMessage, PopupItem, AskQuestion, AskOption } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
 
@@ -649,24 +650,27 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               );
             }
 
-            // Assistant message (left-aligned with dot indicator)
+            // Assistant message (left-aligned with dot indicator, markdown rendered)
             // Parse content - may be a JSON array with thinking/text elements
             if (msg.messageType === 'assistant') {
               // Try to parse content as JSON array
-              let displayContent: React.ReactNode = msg.content;
+              let textContent: string = msg.content;
               try {
                 const parsed = JSON.parse(msg.content);
                 if (Array.isArray(parsed)) {
-                  // Filter out thinking elements, render text elements
+                  // Filter out thinking elements, join text elements
                   const nonThinkingElements = parsed.filter(el => el.type !== 'thinking');
                   if (nonThinkingElements.length > 0) {
-                    displayContent = nonThinkingElements.map((el, idx) => {
-                      if (el.type === 'text' && el.text) {
-                        return <span key={idx}>{el.text}</span>;
-                      }
-                      // Other types: render as string
-                      return <span key={idx}>{JSON.stringify(el)}</span>;
-                    });
+                    // Extract text from each element
+                    textContent = nonThinkingElements
+                      .map(el => {
+                        if (el.type === 'text' && el.text) {
+                          return el.text;
+                        }
+                        // Other types: render as string
+                        return JSON.stringify(el);
+                      })
+                      .join('\n');
                   } else {
                     // All elements were thinking, show nothing
                     return null;
@@ -685,7 +689,9 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                 >
                   <div className="flex items-start gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
-                    <div className="text-sm text-white/90 flex-1">{displayContent}</div>
+                    <div className="text-sm text-white/90 flex-1 markdown-content">
+                      <ReactMarkdown>{textContent}</ReactMarkdown>
+                    </div>
                   </div>
                 </motion.div>
               );
