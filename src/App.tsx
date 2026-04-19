@@ -43,6 +43,7 @@ function App() {
   const dragStartXRef = useRef(0);
   const windowStartXRef = useRef(0);
   const appWindowRef = useRef<ReturnType<typeof getCurrentWindow> | null>(null);
+  const lastPositionRef = useRef<number | null>(null); // Track last set position to avoid redundant calls
 
   // Initialize window reference
   useEffect(() => {
@@ -60,32 +61,39 @@ function App() {
       try {
         const position = await appWindowRef.current.outerPosition();
         windowStartXRef.current = position.x;
+        lastPositionRef.current = position.x;
       } catch (e) {
         console.error('Failed to get window position:', e);
       }
     }
   };
 
-  // Handle drag move
+  // Handle drag move - synchronous with throttling
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = async (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent) => {
       if (!appWindowRef.current) return;
 
       const deltaX = e.clientX - dragStartXRef.current;
       const newX = windowStartXRef.current + deltaX;
 
-      // Only update X position, keep Y at 0 (top of screen)
-      try {
-        await appWindowRef.current.setPosition(new LogicalPosition(newX, 0));
-      } catch (e) {
-        console.error('Failed to move window:', e);
+      // Skip if position hasn't changed (avoid redundant calls)
+      if (lastPositionRef.current !== null && Math.abs(newX - lastPositionRef.current) < 1) {
+        return;
       }
+
+      lastPositionRef.current = newX;
+
+      // Use setPosition without await for smoother movement
+      appWindowRef.current.setPosition(new LogicalPosition(newX, 0)).catch((e) => {
+        console.error('Failed to move window:', e);
+      });
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      lastPositionRef.current = null;
     };
 
     document.addEventListener('mousemove', handleMouseMove);
