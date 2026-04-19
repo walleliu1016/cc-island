@@ -650,7 +650,32 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
             }
 
             // Assistant message (left-aligned with dot indicator)
+            // Parse content - may be a JSON array with thinking/text elements
             if (msg.messageType === 'assistant') {
+              // Try to parse content as JSON array
+              let displayContent: React.ReactNode = msg.content;
+              try {
+                const parsed = JSON.parse(msg.content);
+                if (Array.isArray(parsed)) {
+                  // Filter out thinking elements, render text elements
+                  const nonThinkingElements = parsed.filter(el => el.type !== 'thinking');
+                  if (nonThinkingElements.length > 0) {
+                    displayContent = nonThinkingElements.map((el, idx) => {
+                      if (el.type === 'text' && el.text) {
+                        return <span key={idx}>{el.text}</span>;
+                      }
+                      // Other types: render as string
+                      return <span key={idx}>{JSON.stringify(el)}</span>;
+                    });
+                  } else {
+                    // All elements were thinking, show nothing
+                    return null;
+                  }
+                }
+              } catch {
+                // Not JSON, use raw content
+              }
+
               return (
                 <motion.div
                   key={msg.id}
@@ -660,28 +685,14 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                 >
                   <div className="flex items-start gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
-                    <div className="text-sm text-white/90 flex-1">{msg.content}</div>
+                    <div className="text-sm text-white/90 flex-1">{displayContent}</div>
                   </div>
                 </motion.div>
               );
             }
 
-            // Thinking message (left-aligned, gray italic)
-            if (msg.messageType === 'thinking') {
-              return (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/40 mt-1 flex-shrink-0" />
-                    <div className="text-xs text-white/50 italic flex-1">{msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}</div>
-                  </div>
-                </motion.div>
-              );
-            }
+            // Thinking messages are hidden (internal reasoning not displayed)
+            // if (msg.messageType === 'thinking') { return null; }
 
             // Tool result (left-aligned, compact)
             if (msg.messageType === 'toolResult') {
