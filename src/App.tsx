@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
 import { useAppStore } from './stores/appStore';
 import { useDisplayStore } from './stores/displayStore';
 import { InstanceList } from './components/InstanceList';
@@ -78,7 +78,7 @@ function App() {
 
       // Only update X position, keep Y at 0 (top of screen)
       try {
-        await appWindowRef.current.setPosition(new PhysicalPosition(newX, 0));
+        await appWindowRef.current.setPosition(new LogicalPosition(newX, 0));
       } catch (e) {
         console.error('Failed to move window:', e);
       }

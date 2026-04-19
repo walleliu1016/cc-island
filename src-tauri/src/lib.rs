@@ -187,20 +187,24 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
     let monitor = window.primary_monitor().map_err(|e| e.to_string())?;
 
     if let Some(monitor) = monitor {
-        let screen_size = monitor.size();
-        // Calculate centered x position
-        let x = (screen_size.width - width) / 2;
-        // Keep y = 0 (touching screen top)
-        let y = 0u32;
+        // Get scale factor for DPI conversion
+        let scale_factor = monitor.scale_factor();
+        // Get physical screen size and convert to logical
+        let physical_size = monitor.size();
+        let logical_screen_width = physical_size.width as f64 / scale_factor;
 
-        // Set new position first (to keep window centered)
-        window.set_position(Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }))
+        // Calculate centered x position (logical coordinates)
+        let x = (logical_screen_width - width as f64) / 2.0;
+        // Keep y = 0 (touching screen top)
+
+        // Set new position using Logical coordinates (DPI-aware)
+        window.set_position(Position::Logical(tauri::LogicalPosition { x, y: 0.0 }))
             .map_err(|e| e.to_string())?;
     }
 
-    // Set new size
+    // Set new size using Logical coordinates (DPI-aware)
     window
-        .set_size(Size::Physical(tauri::PhysicalSize { width, height }))
+        .set_size(Size::Logical(tauri::LogicalSize { width: width as f64, height: height as f64 }))
         .map_err(|e| e.to_string())
 }
 
@@ -702,10 +706,13 @@ pub fn run() {
                 // Position window at top center, touching screen top (y=0)
                 if let Ok(monitor) = window.primary_monitor() {
                     if let Some(monitor) = monitor {
-                        let screen_size = monitor.size();
-                        let window_width = 300u32;  // Collapsed width
-                        let x = (screen_size.width - window_width) / 2;
-                        let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: 0 }));
+                        // Get scale factor for DPI conversion
+                        let scale_factor = monitor.scale_factor();
+                        let physical_size = monitor.size();
+                        let logical_screen_width = physical_size.width as f64 / scale_factor;
+                        let window_width = 300.0;  // Collapsed width (logical)
+                        let x = (logical_screen_width - window_width) / 2.0;
+                        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y: 0.0 }));
                     }
                 }
 
