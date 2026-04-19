@@ -84,14 +84,17 @@ async fn handle_hook(
 
     let hook_event = input.hook_event_name.as_str();
 
-    // Check if auto-allow is enabled for PermissionRequest
+    // Check if auto-allow is enabled for PermissionRequest (but NOT for AskUserQuestion)
     if hook_event == "PermissionRequest" {
         let auto_allow = {
             let state_guard = state.read();
             state_guard.settings.auto_allow_permissions
         };
-        if auto_allow {
-            // Auto allow - return immediately without creating popup
+        // Check if this is AskUserQuestion - never auto-allow, always show popup
+        let is_ask_user_question = input.tool_name.as_ref().map(|n| n == "AskUserQuestion").unwrap_or(false);
+
+        if auto_allow && !is_ask_user_question {
+            // Auto allow for non-AskUserQuestion requests - return immediately without creating popup
             return Ok(Json(HookOutput {
                 continue_exec: true,
                 decision: None,
