@@ -47,6 +47,11 @@ function App() {
     }
   };
 
+  // Handle click to expand/collapse (separate from drag)
+  const handleClick = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   // Check hooks configuration on startup
   useEffect(() => {
     const checkHooks = async () => {
@@ -234,12 +239,6 @@ function App() {
     corners.bottom
   );
 
-  // Click to expand (replacing hover)
-  // Note: Tauri's start_dragging handles drag vs click distinction at OS level
-  const handleClick = () => {
-    setIsExpanded(!isExpanded);
-  };
-
   // Respond to popup
   const handleRespond = async (popupId: string, decision?: string, answer?: string, answers?: string[][]) => {
     try {
@@ -291,11 +290,10 @@ function App() {
           height: targetHeight,
         }}
         transition={showExpanded ? openAnimation : closeAnimation}
-        className="relative overflow-hidden flex flex-col pointer-events-auto cursor-pointer"
+        className="relative overflow-hidden flex flex-col pointer-events-auto"
         style={{
           transformOrigin: 'center top',
         }}
-        onClick={handleClick}
       >
         {/* SVG Notch Shape Background */}
         <svg
@@ -318,8 +316,9 @@ function App() {
         {/* Header - Three column layout: Left | Center | Right */}
         <motion.div
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
-          style={{ height: COLLAPSED_HEIGHT, cursor: 'grab' }}
+          style={{ height: COLLAPSED_HEIGHT }}
           onMouseDown={handleDragStart}
+          onClick={handleClick}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
