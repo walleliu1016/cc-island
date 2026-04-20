@@ -190,8 +190,8 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
     // Convert physical position to logical
     let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
     let current_x = current_position.x as f64 / scale_factor;
+    let current_y = current_position.y as f64 / scale_factor;
 
-    // Keep current X position, adjust X only if expanding from collapsed to keep center-aligned
     // Get current size to determine if this is an expand or collapse
     let current_size = window.outer_size().map_err(|e| e.to_string())?;
     let current_width = current_size.width as f64 / scale_factor;
@@ -200,6 +200,9 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
     // If currently at position X with width W, after resize to new width W':
     // New X = X + (W - W') / 2 (this keeps the center point fixed)
     let new_x = current_x + (current_width - width as f64) / 2.0;
+
+    // Keep current Y position (don't reset to top)
+    let new_y = current_y;
 
     // Ensure window stays within screen bounds
     let monitor = window.primary_monitor().map_err(|e| e.to_string())?;
@@ -210,11 +213,11 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
         // Clamp X to keep window on screen
         let clamped_x = new_x.max(0.0).min(logical_screen_width - width as f64);
 
-        window.set_position(Position::Logical(tauri::LogicalPosition { x: clamped_x, y: 0.0 }))
+        window.set_position(Position::Logical(tauri::LogicalPosition { x: clamped_x, y: new_y }))
             .map_err(|e| e.to_string())?;
     } else {
         // No monitor info, just use calculated position
-        window.set_position(Position::Logical(tauri::LogicalPosition { x: new_x, y: 0.0 }))
+        window.set_position(Position::Logical(tauri::LogicalPosition { x: new_x, y: new_y }))
             .map_err(|e| e.to_string())?;
     }
 
