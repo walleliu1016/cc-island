@@ -182,6 +182,21 @@ fn start_drag(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_window_position(window: tauri::Window) -> Result<serde_json::Value, String> {
+    let position = window.outer_position().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "x": position.x,
+        "y": position.y
+    }))
+}
+
+#[tauri::command]
+fn set_window_position(window: tauri::Window, x: i32, y: i32) -> Result<(), String> {
+    use tauri::Position;
+    window.set_position(Position::Physical(tauri::PhysicalPosition { x, y })).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
     use tauri::{Size, Position};
 
@@ -689,6 +704,8 @@ pub fn run() {
             }))
             .invoke_handler(tauri::generate_handler![
                 start_drag,
+                get_window_position,
+                set_window_position,
                 resize_window,
                 get_instances,
                 get_popups,
