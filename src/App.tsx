@@ -37,19 +37,72 @@ function App() {
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
 
-  // Use Tauri's built-in drag mechanism (no manual JS needed)
-  const handleDragStart = async (e: React.MouseEvent) => {
+  // Use Tauri's built-in drag mechanism
+  // On Linux, start_drag prevents onClick, so we use pure JS drag
+  const [isDragging, setIsDragging] = useState(false);
+  const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
+  const [windowPos, setWindowPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Detect Linux platform
+  const isLinux = navigator.platform.toLowerCase().includes('linux') ||
+                  navigator.userAgent.toLowerCase().includes('linux');
+
+  const handleMouseDown = async (e: React.MouseEvent) => {
     e.preventDefault();
-    try {
-      await invoke('start_drag');
-    } catch (e) {
-      console.error('Failed to start drag:', e);
+    setMouseDownPos({ x: e.clientX, y: e.clientY });
+    setIsDragging(false);
+
+    if (!isLinux) {
+      // Windows/Mac: use Tauri's start_drag
+      try {
+        await invoke('start_drag');
+      } catch (e) {
+        console.error('Failed to start drag:', e);
+      }
+    } else {
+      // Linux: get current window position for manual drag
+      try {
+        const pos = await invoke<{ x: number; y: number }>('get_window_position');
+        setWindowPos(pos);
+      } catch (e) {
+        console.error('Failed to get window position:', e);
+      }
     }
   };
 
-  // Handle click to expand/collapse (separate from drag)
-  const handleClick = () => {
-    setIsExpanded(!isExpanded);
+  const handleMouseMove = async (e: React.MouseEvent) => {
+    if (!mouseDownPos || !isLinux) return;
+
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+
+    // Only start dragging if mouse moved significantly
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      setIsDragging(true);
+      if (windowPos) {
+        // Move window manually on Linux
+        try {
+          await invoke('set_window_position', { x: windowPos.x + dx, y: windowPos.y + dy });
+        } catch (e) {
+          console.error('Failed to move window:', e);
+        }
+      }
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    // If mouse didn't move much, treat as click (expand toggle)
+    if (mouseDownPos) {
+      const dx = Math.abs(e.clientX - mouseDownPos.x);
+      const dy = Math.abs(e.clientY - mouseDownPos.y);
+      if (dx < 5 && dy < 5 && !isDragging) {
+        // Small movement = click
+        setIsExpanded(!isExpanded);
+      }
+    }
+    setMouseDownPos(null);
+    setIsDragging(false);
+    setWindowPos(null);
   };
 
   // Check hooks configuration on startup
@@ -239,6 +292,8 @@ function App() {
     corners.bottom
   );
 
+  // Click to expand handled in header onMouseUp (drag vs click distinction)
+
   // Respond to popup
   const handleRespond = async (popupId: string, decision?: string, answer?: string, answers?: string[][]) => {
     try {
@@ -316,9 +371,10 @@ function App() {
         {/* Header - Three column layout: Left | Center | Right */}
         <motion.div
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
-          style={{ height: COLLAPSED_HEIGHT }}
-          onMouseDown={handleDragStart}
-          onClick={handleClick}
+          style={{ height: COLLAPSED_HEIGHT, cursor: 'grab' }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
