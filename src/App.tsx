@@ -38,57 +38,39 @@ function App() {
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
 
   // Drag handling with movement threshold for all platforms
+  // Window stays at top (y=0), only horizontal movement allowed
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
-  const [windowPos, setWindowPos] = useState<{ x: number; y: number } | null>(null);
-  const [dragStarted, setDragStarted] = useState(false);
-
-  // Detect Linux platform
-  const isLinux = navigator.platform.toLowerCase().includes('linux') ||
-                  navigator.userAgent.toLowerCase().includes('linux');
+  const [windowStartX, setWindowStartX] = useState<number | null>(null);
 
   const handleMouseDown = async (e: React.MouseEvent) => {
     e.preventDefault();
     setMouseDownPos({ x: e.clientX, y: e.clientY });
     setIsDragging(false);
-    setDragStarted(false);
 
-    // Get current window position for all platforms
+    // Get current window X position
     try {
       const pos = await invoke<{ x: number; y: number }>('get_window_position');
-      setWindowPos(pos);
+      setWindowStartX(pos.x);
     } catch (e) {
       console.error('Failed to get window position:', e);
     }
   };
 
   const handleMouseMove = async (e: React.MouseEvent) => {
-    if (!mouseDownPos) return;
+    if (!mouseDownPos || windowStartX === null) return;
 
     const dx = e.clientX - mouseDownPos.x;
-    const dy = e.clientY - mouseDownPos.y;
 
-    // Only start dragging if mouse moved significantly
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    // Only start dragging if mouse moved significantly horizontally
+    if (Math.abs(dx) > 3) {
       setIsDragging(true);
 
-      // Start Tauri drag only once when threshold exceeded (Windows/Mac)
-      if (!dragStarted && !isLinux) {
-        setDragStarted(true);
-        try {
-          await invoke('start_drag');
-        } catch (e) {
-          console.error('Failed to start drag:', e);
-        }
-      }
-
-      // Linux: move window manually
-      if (isLinux && windowPos) {
-        try {
-          await invoke('set_window_position', { x: windowPos.x + dx, y: windowPos.y + dy });
-        } catch (e) {
-          console.error('Failed to move window:', e);
-        }
+      // Move window horizontally only (y always 0)
+      try {
+        await invoke('set_window_position', { x: windowStartX + dx, y: 0 });
+      } catch (e) {
+        console.error('Failed to move window:', e);
       }
     }
   };
@@ -105,8 +87,7 @@ function App() {
     }
     setMouseDownPos(null);
     setIsDragging(false);
-    setDragStarted(false);
-    setWindowPos(null);
+    setWindowStartX(null);
   };
 
   // Check hooks configuration on startup
