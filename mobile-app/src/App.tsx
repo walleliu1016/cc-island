@@ -174,6 +174,8 @@ function App() {
         deviceInfoMap={deviceInfoMap}
         hookHints={state.hookHints}
         serverConnected={state.serverConnected}
+        serverConnecting={state.serverConnecting}
+        connectionError={state.connectionError}
         serverUrl={serverUrl}
         onSelectDevice={(token) => {
           // Auto-subscribe device if not already in list

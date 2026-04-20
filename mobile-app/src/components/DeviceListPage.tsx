@@ -13,6 +13,8 @@ interface DeviceListPageProps {
   deviceInfoMap: Record<string, CachedDeviceInfo>  // Cached device info for offline display
   hookHints: Record<string, HookHint[]>  // Hook hints per device
   serverConnected: boolean
+  serverConnecting: boolean
+  connectionError: string | null
   serverUrl: string
   onSelectDevice: (token: string) => void
   onRespondHook: (deviceToken: string, sessionId: string, decision: string | null, answers?: string[][]) => void
@@ -26,6 +28,8 @@ export function DeviceListPage({
   deviceInfoMap,
   hookHints,
   serverConnected,
+  serverConnecting,
+  connectionError,
   serverUrl,
   onSelectDevice,
   onRespondHook,
@@ -62,9 +66,18 @@ export function DeviceListPage({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#262626]">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${serverConnected ? 'bg-[#22c55e]' : serverUrl ? 'bg-[#f59e0b]' : 'bg-[#737373]'}`} />
-          <span className="text-[#a3a3a3] text-sm">
-            {serverConnected ? '☁ 已连接' : serverUrl ? '☁ 连接中' : '☁ 未配置'}
+          <div className={`w-2 h-2 rounded-full ${
+            serverConnected ? 'bg-[#22c55e]' :
+            serverConnecting ? 'bg-[#f59e0b] animate-pulse' :
+            connectionError ? 'bg-[#ef4444]' : 'bg-[#737373]'
+          }`} />
+          <span className={`text-sm ${
+            connectionError ? 'text-[#ef4444]' : 'text-[#a3a3a3]'
+          }`}>
+            {serverConnected ? '☁ 已连接' :
+             serverConnecting ? '☁ 连接中...' :
+             connectionError ? `☁ ${connectionError.slice(0, 20)}${connectionError.length > 20 ? '...' : ''}` :
+             '☁ 未配置'}
           </span>
         </div>
         <div className="flex items-center gap-3">

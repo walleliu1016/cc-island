@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
 
+// Connection timeout in milliseconds
+const CONNECTION_TIMEOUT = 10000
+
 interface UseAllDevicesWebSocketOptions {
   devices: string[]
   serverUrl: string
@@ -21,6 +24,7 @@ interface WsState {
 export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const devicesRef = useRef<string[]>(devices)
 
   // Keep devicesRef updated
@@ -80,8 +84,27 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     const ws = new WebSocket(serverUrl)
     wsRef.current = ws
 
+    // Set connection timeout
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.log('[WebSocket] Connection timeout, closing')
+        ws.close()
+        setState(s => ({
+          ...s,
+          serverConnected: false,
+          serverConnecting: false,
+          connectionError: '连接超时，请检查服务器地址是否正确',
+        }))
+      }
+    }, CONNECTION_TIMEOUT)
+
     ws.onopen = () => {
       console.log('[WebSocket] Connection opened')
+      // Clear connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+        connectionTimeoutRef.current = null
+      }
       const currentDevices = devicesRef.current
       console.log('[WebSocket] Current devices from ref:', currentDevices)
 
@@ -225,6 +248,11 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     ws.onclose = (event) => {
       console.log('[WebSocket] Connection closed, code:', event.code, 'reason:', event.reason)
+      // Clear connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+        connectionTimeoutRef.current = null
+      }
       const errorMessage = event.code === 1006 ? '连接被拒绝或服务器不可达' :
                            event.code === 1000 ? '连接已关闭' : `连接断开 (${event.code})`
       setState(s => ({
@@ -605,6 +633,9 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       console.log('[WebSocket] Cleanup: closing connection')
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
       }
       if (wsRef.current) {
         wsRef.current.close()
