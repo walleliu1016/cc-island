@@ -98,6 +98,76 @@ jobs:
           path: cloud-server-dist/cc-island-cloud-${{ matrix.target }}.tar.gz
           retention-days: 7
 
+  # ===== Mobile App Build (H5 Web) =====
+  build-mobile-h5:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install mobile dependencies
+        run: |
+          cd mobile-app
+          pnpm install
+
+      - name: Build H5 web app
+        run: |
+          cd mobile-app
+          pnpm run build
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Create H5 archive
+        run: |
+          cd mobile-app
+          mkdir -p h5-dist
+          cp -r dist h5-dist/www
+          # Create README
+          echo "# CC-Island Mobile H5" > h5-dist/README.md
+          echo "" >> h5-dist/README.md
+          echo "## 部署说明" >> h5-dist/README.md
+          echo "" >> h5-dist/README.md
+          echo "这是一个静态网站，可以部署到任何静态文件服务器。" >> h5-dist/README.md
+          echo "" >> h5-dist/README.md
+          echo "### 部署选项" >> h5-dist/README.md
+          echo "- Nginx/Apache: 将 www 目录内容放到服务器根目录" >> h5-dist/README.md
+          echo "- GitHub Pages: 推送到 gh-pages 分支" >> h5-dist/README.md
+          echo "- Cloudflare Pages: 直接部署 www 目录" >> h5-dist/README.md
+          echo "- Vercel/Netlify: 导入项目并设置根目录为 www" >> h5-dist/README.md
+          echo "" >> h5-dist/README.md
+          echo "### 配置要求" >> h5-dist/README.md
+          echo "- 需要配置 Cloud Server 的 WebSocket 地址" >> h5-dist/README.md
+          echo "- 在设置页面输入服务器地址后即可使用" >> h5-dist/README.md
+          # Create archive
+          cd h5-dist
+          tar -czvf cc-island-mobile-h5-${{ steps.version.outputs.VERSION }}.tar.gz *
+
+      - name: Upload H5 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-mobile-h5_${{ steps.version.outputs.VERSION }}
+          path: mobile-app/h5-dist/cc-island-mobile-h5-${{ steps.version.outputs.VERSION }}.tar.gz
+          retention-days: 7
+
   # ===== Mobile App Build (Android) =====
   build-mobile-android:
     runs-on: ubuntu-22.04
@@ -349,11 +419,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '${{ steps.product.outputs.NAME }} ${{ github.ref_name }}'
-          releaseBody: 'See assets below.'
-          releaseDraft: true
-          prerelease: false
+          # Don't create release here - let release job handle it
+          tagName: ''
+          releaseName: ''
           target: ${{ matrix.target }}
 
       - name: Get version
@@ -428,13 +496,14 @@ jobs:
           retention-days: 7
 
   release:
-    needs: [build-cloud-server, build-desktop, build-mobile-android, build-mobile-ios]
+    needs: [build-cloud-server, build-desktop, build-mobile-h5, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: |
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
       needs.build-cloud-server.result == 'success' &&
       needs.build-desktop.result == 'success' &&
+      needs.build-mobile-h5.result == 'success' &&
       needs.build-mobile-android.result == 'success' &&
       (needs.build-mobile-ios.result == 'success' || needs.build-mobile-ios.result == 'skipped')
 
@@ -506,6 +575,13 @@ jobs:
             4. 运行: `./cc-island-cloud`
 
             ### Mobile App
+
+            #### H5 (Web 版本)
+            - `cc-island-mobile-h5_*.tar.gz` - 纯 Web 版本，可部署到任何静态服务器
+            - **部署步骤：**
+              1. 解压: `tar -xzf cc-island-mobile-h5_*.tar.gz`
+              2. 将 `www` 目录部署到静态服务器 (Nginx/GitHub Pages/Vercel 等)
+              3. 在浏览器访问，设置 Cloud Server 地址即可使用
 
             #### Android
             - `cc-island-mobile-android_*.apk` - Android APK (unsigned)
