@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO sessions (device_token, session_id, project_name, status, current_tool, started_at, updated_at)\n            VALUES ($1, $2, $3, $4, $5, $6, $6)\n            ON CONFLICT (device_token, session_id)\n            DO UPDATE SET\n                project_name = COALESCE($3, sessions.project_name),\n                status = $4,\n                current_tool = $5,\n                updated_at = $6\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8705dd209c44ac3c9a796462c7fcd216b963b53a1adc063e53f9d7d8f4c12258"
+}

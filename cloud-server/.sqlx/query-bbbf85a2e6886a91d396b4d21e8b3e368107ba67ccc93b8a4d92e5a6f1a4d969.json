@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE sessions\n            SET status = 'ended', updated_at = $3\n            WHERE device_token = $1 AND session_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bbbf85a2e6886a91d396b4d21e8b3e368107ba67ccc93b8a4d92e5a6f1a4d969"
+}

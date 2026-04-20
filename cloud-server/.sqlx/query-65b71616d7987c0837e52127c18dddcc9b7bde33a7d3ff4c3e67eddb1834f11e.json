@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE popups\n            SET status = 'resolved', resolved_at = $2\n            WHERE id = $1 AND status = 'pending'\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "65b71616d7987c0837e52127c18dddcc9b7bde33a7d3ff4c3e67eddb1834f11e"
+}
