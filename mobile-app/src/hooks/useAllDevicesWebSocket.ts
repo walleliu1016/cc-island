@@ -81,14 +81,15 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     console.log('[WebSocket] Creating new WebSocket to:', serverUrl)
     setState(s => ({ ...s, serverConnecting: true, serverConnected: false, connectionError: null }))
 
-    const ws = new WebSocket(serverUrl)
-    wsRef.current = ws
-
     // Set connection timeout
     connectionTimeoutRef.current = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
         console.log('[WebSocket] Connection timeout, closing')
-        ws.close()
+        try {
+          wsRef.current.close()
+        } catch (e) {
+          console.warn('[WebSocket] Error closing on timeout:', e)
+        }
         setState(s => ({
           ...s,
           serverConnected: false,
@@ -98,23 +99,27 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       }
     }, CONNECTION_TIMEOUT)
 
-    ws.onopen = () => {
-      console.log('[WebSocket] Connection opened')
-      // Clear connection timeout
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-        connectionTimeoutRef.current = null
-      }
-      const currentDevices = devicesRef.current
-      console.log('[WebSocket] Current devices from ref:', currentDevices)
+    try {
+      const ws = new WebSocket(serverUrl)
+      wsRef.current = ws
 
-      const authMsg = {
-        type: 'mobile_auth',
-        device_tokens: currentDevices,
+      ws.onopen = () => {
+        console.log('[WebSocket] Connection opened')
+        // Clear connection timeout
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current)
+          connectionTimeoutRef.current = null
+        }
+        const currentDevices = devicesRef.current
+        console.log('[WebSocket] Current devices from ref:', currentDevices)
+
+        const authMsg = {
+          type: 'mobile_auth',
+          device_tokens: currentDevices,
+        }
+        console.log('[WebSocket] Sending mobile_auth message:', JSON.stringify(authMsg))
+        ws.send(JSON.stringify(authMsg))
       }
-      console.log('[WebSocket] Sending mobile_auth message:', JSON.stringify(authMsg))
-      ws.send(JSON.stringify(authMsg))
-    }
 
     ws.onmessage = (e) => {
       console.log('[WebSocket] Message received:', e.data)
@@ -277,6 +282,21 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         serverConnected: false,
         serverConnecting: false,
         connectionError: '连接失败，请检查服务器地址',
+      }))
+    }
+
+    } catch (e) {
+      console.error('[WebSocket] Failed to create WebSocket:', e)
+      // Clear connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+        connectionTimeoutRef.current = null
+      }
+      setState(s => ({
+        ...s,
+        serverConnected: false,
+        serverConnecting: false,
+        connectionError: '无法连接，请检查服务器地址格式',
       }))
     }
 

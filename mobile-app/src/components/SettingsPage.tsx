@@ -73,6 +73,8 @@ export function SettingsPage({
       return
     }
     onSaveServer(url.trim())
+    // Navigate back to device list after save
+    onBack()
   }
 
   const toggleAutoAllow = (token: string) => {
