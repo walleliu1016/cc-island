@@ -156,8 +156,14 @@ impl JsonlWatcherManager {
                 if client.is_connected() {
                     client.push_chat_history(session_id, chat_messages);
                     info!("📁 Pushed {} messages to cloud for session {}", msg_count, session_id);
+                } else {
+                    info!("📁 SKIPPED push: cloud client not connected for session {}", session_id);
                 }
+            } else {
+                info!("📁 SKIPPED push: cannot read cloud client for session {}", session_id);
             }
+        } else {
+            info!("📁 SKIPPED push: no cloud client for session {}", session_id);
         }
     }
 

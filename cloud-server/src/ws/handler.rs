@@ -356,12 +356,14 @@ impl MessageHandler {
 
             // Desktop -> Cloud: Chat history sync
             CloudMessage::ChatHistory { device_token, session_id, messages } => {
-                tracing::info!("ChatHistory from desktop: device={}, session={}, {} messages",
+                tracing::info!("🟢 ChatHistory from desktop: device={}, session={}, {} messages",
                     device_token, session_id, messages.len());
 
                 // Save messages to database
                 if let Err(e) = self.repo.upsert_chat_messages(&device_token, &session_id, &messages).await {
-                    tracing::error!("Failed to upsert chat messages: {}", e);
+                    tracing::error!("🟢 ChatHistory DB ERROR: {}", e);
+                } else {
+                    tracing::info!("🟢 ChatHistory DB SAVED: {} messages for session {}", messages.len(), session_id);
                 }
 
                 // Forward to all subscribed mobiles
@@ -371,6 +373,7 @@ impl MessageHandler {
                     messages,
                 };
                 let json = serde_json::to_string(&chat_msg).unwrap();
+                tracing::info!("🟢 ChatHistory BROADCASTING to mobiles for device {}", device_token);
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
             }
 

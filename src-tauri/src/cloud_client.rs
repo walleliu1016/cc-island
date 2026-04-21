@@ -289,7 +289,11 @@ impl CloudClient {
 
     /// Push chat history to cloud
     pub fn push_chat_history(&self, session_id: &str, messages: Vec<crate::chat_messages::ChatMessage>) {
+        tracing::info!("🔵 push_chat_history called: session={}, messages={}, connected={}",
+            session_id, messages.len(), self.is_connected());
+
         if !self.is_connected() {
+            tracing::warn!("🔵 push_chat_history SKIPPED: not connected to cloud");
             return;
         }
 
@@ -312,9 +316,15 @@ impl CloudClient {
                 "session_id": session_id,
                 "messages": messages_data,
             });
+            tracing::info!("🔵 push_chat_history SENDING: session={}, {} messages to cloud",
+                session_id, messages_data.len());
             if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push chat history: {}", e);
+                tracing::warn!("🔵 push_chat_history FAILED: {}", e);
+            } else {
+                tracing::info!("🔵 push_chat_history SUCCESS: sent to cloud");
             }
+        } else {
+            tracing::warn!("🔵 push_chat_history SKIPPED: no out_tx channel");
         }
     }
 }
