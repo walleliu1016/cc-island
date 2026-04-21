@@ -6,6 +6,10 @@ import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, Ask
 // Connection timeout in milliseconds
 const CONNECTION_TIMEOUT = 10000
 
+// Heartbeat configuration
+const PING_INTERVAL = 30000  // Send Ping every 30 seconds
+const PONG_TIMEOUT = 60000   // If no Pong for 60 seconds, reconnect
+
 interface UseAllDevicesWebSocketOptions {
   devices: string[]
   serverUrl: string
@@ -27,6 +31,11 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const devicesRef = useRef<string[]>(devices)
 
+  // Heartbeat refs
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastPongTimeRef = useRef<number>(0)
+  const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Keep devicesRef updated
   useEffect(() => {
     devicesRef.current = devices
@@ -41,6 +50,54 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     hookHints: {},
     chatMessages: {},
   })
+
+  // Start heartbeat mechanism (called after auth_success)
+  const startHeartbeat = useCallback(() => {
+    console.log('[WebSocket] Starting heartbeat mechanism')
+
+    // Clear existing timers
+    stopHeartbeat()
+
+    // Initialize last pong time
+    lastPongTimeRef.current = Date.now()
+
+    // Send Ping every PING_INTERVAL
+    pingIntervalRef.current = setInterval(() => {
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('[WebSocket] Sending Ping')
+        ws.send(JSON.stringify({ type: 'ping' }))
+
+        // Set timeout to detect missing Pong
+        if (!pongTimeoutRef.current) {
+          pongTimeoutRef.current = setTimeout(() => {
+            const elapsed = Date.now() - lastPongTimeRef.current
+            if (elapsed > PONG_TIMEOUT) {
+              console.log('[WebSocket] Pong timeout! No response for', elapsed, 'ms, reconnecting')
+              // Force reconnect - close ws and let onclose handler trigger reconnect
+              stopHeartbeat()
+              if (wsRef.current) {
+                wsRef.current.close()
+              }
+            }
+          }, PONG_TIMEOUT)
+        }
+      }
+    }, PING_INTERVAL)
+  }, [])
+
+  // Stop heartbeat mechanism
+  const stopHeartbeat = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = null
+    }
+    if (pongTimeoutRef.current) {
+      clearTimeout(pongTimeoutRef.current)
+      pongTimeoutRef.current = null
+    }
+    lastPongTimeRef.current = 0
+  }, [])
 
   const connect = useCallback(() => {
     console.log('[WebSocket] connect() called, serverUrl:', serverUrl, 'devices:', devices.length)
@@ -169,6 +226,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
               serverConnected: true,
               serverConnecting: false,
             }))
+            // Start heartbeat after auth success
+            startHeartbeat()
             break
 
           case 'auth_failed':
@@ -180,6 +239,17 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
               connectionError: '认证失败，请检查设备 Token',
             }))
             ws.close()
+            break
+
+          case 'pong':
+            // Received Pong response, update last pong time
+            console.log('[WebSocket] Pong received')
+            lastPongTimeRef.current = Date.now()
+            // Clear pong timeout (if waiting)
+            if (pongTimeoutRef.current) {
+              clearTimeout(pongTimeoutRef.current)
+              pongTimeoutRef.current = null
+            }
             break
 
           case 'device_list': {
@@ -292,6 +362,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         clearTimeout(connectionTimeoutRef.current)
         connectionTimeoutRef.current = null
       }
+      // Stop heartbeat on disconnect
+      stopHeartbeat()
       const errorMessage = event.code === 1006 ? '连接被拒绝或服务器不可达' :
                            event.code === 1000 ? '连接已关闭' : `连接断开 (${event.code})`
       setState(s => ({
@@ -745,6 +817,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     return () => {
       console.log('[WebSocket] Cleanup: closing connection')
+      stopHeartbeat()
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
