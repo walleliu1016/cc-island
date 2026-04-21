@@ -5,9 +5,15 @@ use parking_lot::RwLock;
 use tokio::sync::mpsc::{Sender, Receiver, channel};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use futures_util::{SinkExt, StreamExt};
+use std::time::{Duration, Instant};
+use axum::body::Bytes;
 use crate::machine_id::get_machine_token;
 use crate::AppState;
 use crate::popup_queue::PopupResponse;
+
+/// Heartbeat configuration
+const PING_INTERVAL: Duration = Duration::from_secs(30);  // Send Ping every 30 seconds
+const PONG_TIMEOUT: Duration = Duration::from_secs(60);   // Reconnect if no Pong for 60 seconds
 
 /// Cloud client configuration
 pub struct CloudConfig {
@@ -23,6 +29,8 @@ pub struct CloudClient {
     app_state: Arc<RwLock<AppState>>,
     out_tx: Option<Sender<Message>>,
     connected: Arc<RwLock<bool>>,
+    // Heartbeat state
+    last_pong_time: Arc<RwLock<Option<Instant>>>,
 }
 
 impl CloudClient {
@@ -39,6 +47,7 @@ impl CloudClient {
             app_state,
             out_tx: None,
             connected: Arc::new(RwLock::new(false)),
+            last_pong_time: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -210,6 +219,7 @@ impl CloudClient {
 
         // Spawn send task
         let connected = self.connected.clone();
+        let out_tx_for_recv = out_tx.clone();
         let send_task = async move {
             while let Some(msg) = out_rx.recv().await {
                 if ws_tx.send(msg).await.is_err() {
@@ -223,10 +233,11 @@ impl CloudClient {
 
         // Spawn receive task
         let app_state = self.app_state.clone();
-        let connected = self.connected.clone();
+        let connected_clone = self.connected.clone();
+        let last_pong_time = self.last_pong_time.clone();
         let recv_task = async move {
-            while let Some(msg) = ws_rx.next().await {
-                match msg {
+            while let Some(msg_result) = ws_rx.next().await {
+                match msg_result {
                     Ok(Message::Text(text)) => {
                         let json: serde_json::Value = match serde_json::from_str(&text) {
                             Ok(v) => v,
@@ -239,15 +250,25 @@ impl CloudClient {
                             handle_hook_response(&app_state, &json);
                         }
                     },
-                    Ok(Message::Pong(_)) => {},
+                    Ok(Message::Ping(data)) => {
+                        // Respond to server Ping with Pong via out_tx channel
+                        tracing::debug!("Received Ping from server, sending Pong");
+                        if let Err(e) = out_tx_for_recv.try_send(Message::Pong(data)) {
+                            tracing::warn!("Failed to send Pong: {}", e);
+                        }
+                    },
+                    Ok(Message::Pong(_)) => {
+                        tracing::debug!("Received Pong from server, updating last_pong_time");
+                        *last_pong_time.write() = Some(Instant::now());
+                    },
                     Ok(Message::Close(_)) => {
                         tracing::info!("Receive task: Close frame received");
-                        *connected.write() = false;
+                        *connected_clone.write() = false;
                         break;
                     },
                     Err(e) => {
                         tracing::error!("WebSocket error: {}", e);
-                        *connected.write() = false;
+                        *connected_clone.write() = false;
                         break;
                     },
                     _ => {}
@@ -256,10 +277,51 @@ impl CloudClient {
             tracing::info!("Receive task ended");
         };
 
+        // Spawn heartbeat task
+        let connected_heartbeat = self.connected.clone();
+        let last_pong_time_heartbeat = self.last_pong_time.clone();
+        let heartbeat_task = async move {
+            // Initialize last pong time on connection
+            *last_pong_time_heartbeat.write() = Some(Instant::now());
+
+            let mut ping_interval = tokio::time::interval(PING_INTERVAL);
+            ping_interval.tick().await; // Skip first immediate tick
+
+            loop {
+                ping_interval.tick().await;
+
+                if !*connected_heartbeat.read() {
+                    tracing::info!("Heartbeat task: connection lost, stopping");
+                    break;
+                }
+
+                // Send Ping
+                tracing::debug!("Heartbeat: sending Ping");
+                if let Err(e) = out_tx.try_send(Message::Ping(Bytes::new())) {
+                    tracing::warn!("Heartbeat: failed to send Ping: {}", e);
+                    *connected_heartbeat.write() = false;
+                    break;
+                }
+
+                // Check Pong timeout
+                let last_pong = *last_pong_time_heartbeat.read();
+                if let Some(last_time) = last_pong {
+                    if last_time.elapsed() > PONG_TIMEOUT {
+                        tracing::warn!("Heartbeat: Pong timeout ({}s elapsed), marking disconnected",
+                            last_time.elapsed().as_secs());
+                        *connected_heartbeat.write() = false;
+                        break;
+                    }
+                }
+            }
+            tracing::info!("Heartbeat task ended");
+        };
+
         tokio::spawn(async move {
             tokio::select! {
-                _ = send_task => {},
-                _ = recv_task => {},
+                _ = send_task => { tracing::info!("select: send_task finished"); },
+                _ = recv_task => { tracing::info!("select: recv_task finished"); },
+                _ = heartbeat_task => { tracing::info!("select: heartbeat_task finished"); },
             }
             tracing::info!("Cloud client disconnected");
         });
