@@ -86,11 +86,14 @@ impl ConversationParser {
     /// Get session file path
     fn session_file_path(session_id: &str, cwd: &str) -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Project dir: replace both Unix (/) and Windows (\) path separators with -
-        let project_dir = cwd
-            .replace('/', "-")
-            .replace('\\', "-")
-            .replace('.', "-");
+        // Extract project name from cwd (last path component)
+        // Claude Code uses only the project directory name, not the full path
+        let project_name = cwd
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(cwd);
+        // Project dir: replace . with - (only in project name, / already removed by rsplit)
+        let project_dir = project_name.replace('.', "-");
         home.join(".claude/projects").join(project_dir).join(format!("{}.jsonl", session_id))
     }
 
