@@ -86,9 +86,10 @@ impl ConversationParser {
     /// Get session file path
     fn session_file_path(session_id: &str, cwd: &str) -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Project dir: replace / and . with -
+        // Project dir: replace both Unix (/) and Windows (\) path separators with -
         let project_dir = cwd
             .replace('/', "-")
+            .replace('\\', "-")
             .replace('.', "-");
         home.join(".claude/projects").join(project_dir).join(format!("{}.jsonl", session_id))
     }
