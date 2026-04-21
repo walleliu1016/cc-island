@@ -389,9 +389,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PreToolUse': {
-          // Update session to working, but keep urgent hint if pending approval
+          // Update session to working (matching desktop: unconditional)
           const toolName = hookBody.tool_name || '工具'
-          // Extract tool input for display (command, file_path, etc.)
           const toolInput = hookBody.tool_input ? {
             command: hookBody.tool_input.command as string,
             file_path: hookBody.tool_input.file_path as string,
@@ -400,14 +399,10 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           } : undefined
           console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'toolInput:', toolInput)
 
-          // Don't override waitingForApproval status - approval should remain pending
-          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
-          if (currentSession?.status !== 'waitingForApproval') {
-            deviceSessions = deviceSessions.map(s =>
-              s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
-            )
-            sessions[deviceToken] = deviceSessions
-          }
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
+          )
+          sessions[deviceToken] = deviceSessions
 
           // Add hook hint (but don't clear urgent hints - they should stay until resolved)
           const hint: HookHint = {
@@ -425,17 +420,10 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostToolUse': {
-          // Update session to waiting, but respect minimum display time for working state
-          // Don't override waitingForApproval status - approval should remain pending
-          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
-          if (currentSession?.status === 'waitingForApproval') {
-            // Keep waitingForApproval status, don't update
-            break
-          }
-
+          // Update session to waiting (matching desktop: unconditional)
+          // Respect minimum display time for working state (2s like desktop)
           deviceSessions = deviceSessions.map(s => {
             if (s.sessionId === sessionId) {
-              // Keep 'working' status for at least 2 seconds (like desktop)
               const workingDuration = s.workingTimestamp ? Date.now() - s.workingTimestamp : 0
               if (workingDuration < 2000 && s.status === 'working') {
                 // Schedule update to 'waiting' after remaining time
@@ -457,7 +445,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
                     }
                   })
                 }, remainingTime)
-                return s // Keep current 'working' state
+                return s
               }
               return { ...s, status: 'waiting', currentTool: undefined, workingTimestamp: undefined }
             }
@@ -522,26 +510,23 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Stop': {
-          // Update session to idle, but don't override waitingForApproval
-          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
-          if (currentSession?.status !== 'waitingForApproval') {
-            deviceSessions = deviceSessions.map(s =>
-              s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
-            )
-            sessions[deviceToken] = deviceSessions
-          }
+          // Update session to idle (matching desktop: unconditional)
+          console.log('[WebSocket] Stop hook: setting session', sessionId, 'to idle')
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
+          )
+          sessions[deviceToken] = deviceSessions
+          console.log('[WebSocket] Stop hook: session status after update:', deviceSessions.find(s => s.sessionId === sessionId)?.status)
           break
         }
 
         case 'UserPromptSubmit': {
-          // Update session to thinking, but don't override waitingForApproval
-          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
-          if (currentSession?.status !== 'waitingForApproval') {
-            deviceSessions = deviceSessions.map(s =>
-              s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
-            )
-            sessions[deviceToken] = deviceSessions
-          }
+          // Update session to thinking (matching desktop: unconditional)
+          console.log('[WebSocket] UserPromptSubmit hook: setting session', sessionId, 'to thinking')
+          deviceSessions = deviceSessions.map(s =>
+            s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
+          )
+          sessions[deviceToken] = deviceSessions
           break
         }
 
@@ -624,6 +609,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       return
     }
 
+    console.log('[WebSocket] sendHookResponse: session', sessionId, 'decision', decision)
+
     ws.send(JSON.stringify({
       type: 'hook_response',
       device_token: deviceToken,
@@ -641,11 +628,14 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       // Change status to idle - subsequent hooks will update naturally
       const sessions = { ...s.sessions }
       const deviceSessions = sessions[deviceToken] || []
+      const prevStatus = deviceSessions.find(sess => sess.sessionId === sessionId)?.status
       sessions[deviceToken] = deviceSessions.map(sess =>
         sess.sessionId === sessionId
           ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
           : sess
       )
+
+      console.log('[WebSocket] sendHookResponse: prevStatus', prevStatus, '-> idle')
 
       return { ...s, hookHints, sessions }
     })
