@@ -389,7 +389,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PreToolUse': {
-          // Update session to working
+          // Update session to working, but keep urgent hint if pending approval
           const toolName = hookBody.tool_name || '工具'
           // Extract tool input for display (command, file_path, etc.)
           const toolInput = hookBody.tool_input ? {
@@ -399,11 +399,17 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             details: hookBody.tool_input.details as string,
           } : undefined
           console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'toolInput:', toolInput)
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
-          )
-          sessions[deviceToken] = deviceSessions
-          // Add hook hint
+
+          // Don't override waitingForApproval status - approval should remain pending
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
+
+          // Add hook hint (but don't clear urgent hints - they should stay until resolved)
           const hint: HookHint = {
             session_id: sessionId,
             hook_type: hookType as HookType,
@@ -413,12 +419,20 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
-          hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId), hint]
+          // Only clear non-urgent hints for this session, keep urgent hints intact
+          hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || h.urgent), hint]
           break
         }
 
         case 'PostToolUse': {
           // Update session to waiting, but respect minimum display time for working state
+          // Don't override waitingForApproval status - approval should remain pending
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status === 'waitingForApproval') {
+            // Keep waitingForApproval status, don't update
+            break
+          }
+
           deviceSessions = deviceSessions.map(s => {
             if (s.sessionId === sessionId) {
               // Keep 'working' status for at least 2 seconds (like desktop)
@@ -508,20 +522,26 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Stop': {
-          // Update session to idle
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to idle, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
         case 'UserPromptSubmit': {
-          // Update session to thinking
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to thinking, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
@@ -546,29 +566,38 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostToolUseFailure': {
-          // Update session to error
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'error', currentTool: undefined } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to error, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'error', currentTool: undefined } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
         case 'PreCompact': {
-          // Update session to compacting
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'compacting' } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to compacting, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'compacting' } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
         case 'PostCompact': {
-          // Update session to idle
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'idle' } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to idle, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'idle' } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
