@@ -661,29 +661,20 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
   // Handle page visibility change (Android WebView zombie connection fix)
   // When phone screen goes black, WebSocket may not fire onclose event,
   // but server-side connection may timeout and clear subscribers.
-  // On page wake, we need to re-subscribe to restore message receiving.
+  // On page wake, we need to force reconnect to restore message receiving.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[WebSocket] Page became visible, checking connection state')
-        const ws = wsRef.current
-        if (ws) {
-          console.log('[WebSocket] Current readyState:', ws.readyState)
-          if (ws.readyState === WebSocket.OPEN) {
-            // Connection appears open, but may be zombie (server cleared subscribers)
-            // Re-send mobile_auth to restore subscription
-            console.log('[WebSocket] WebSocket appears OPEN, re-sending mobile_auth')
-            forceSubscribe()
-          } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-            // Connection is closed/closing, trigger reconnect
-            console.log('[WebSocket] WebSocket is CLOSED/CLOSING, triggering reconnect')
-            connect()
-          }
-        } else {
-          // No WebSocket instance, create new connection
-          console.log('[WebSocket] No WebSocket instance, creating new connection')
-          connect()
+        console.log('[WebSocket] Page became visible, forcing reconnect')
+        // Always close and reconnect on page wake
+        // This is more reliable than checking readyState (zombie connection may show OPEN)
+        if (wsRef.current) {
+          console.log('[WebSocket] Closing existing WebSocket (readyState:', wsRef.current.readyState, ')')
+          wsRef.current.close()
+          wsRef.current = null
         }
+        // Trigger new connection
+        connect()
       }
     }
 
@@ -691,7 +682,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [connect, forceSubscribe])
+  }, [connect])
 
   // Connect/disconnect based on server URL
   useEffect(() => {
