@@ -7,9 +7,13 @@ const config: CapacitorConfig = {
   server: {
     // 允许混合内容（WebSocket 连接）
     allowNavigation: ['*'],
+    // 允许所有外部 URL
+    externalUrls: ['ws://*', 'wss://*'],
   },
   android: {
     backgroundColor: '#0f172a',
+    // 允许混合内容
+    mixedContent: 'allow',
   },
   ios: {
     backgroundColor: '#0f172a',

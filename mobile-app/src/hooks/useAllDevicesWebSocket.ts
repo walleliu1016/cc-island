@@ -63,6 +63,40 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       return
     }
 
+    // Validate URL format before creating WebSocket
+    const trimmedUrl = serverUrl.trim()
+    if (!trimmedUrl.startsWith('ws://') && !trimmedUrl.startsWith('wss://')) {
+      console.log('[WebSocket] Invalid URL format:', trimmedUrl)
+      setState({
+        serverConnected: false,
+        serverConnecting: false,
+        connectionError: '地址必须以 ws:// 或 wss:// 开头',
+        onlineDevices: [],
+        sessions: {},
+        hookHints: {},
+        chatMessages: {},
+      })
+      return
+    }
+
+    // Try to parse URL to validate host and port
+    try {
+      const urlParts = trimmedUrl.replace('ws://', 'http://').replace('wss://', 'https://')
+      new URL(urlParts)  // This will throw if URL is invalid
+    } catch (e) {
+      console.log('[WebSocket] URL parse error:', e)
+      setState({
+        serverConnected: false,
+        serverConnecting: false,
+        connectionError: '服务器地址格式无效',
+        onlineDevices: [],
+        sessions: {},
+        hookHints: {},
+        chatMessages: {},
+      })
+      return
+    }
+
     // Don't create new connection if already connected or connecting
     if (wsRef.current) {
       if (wsRef.current.readyState === WebSocket.OPEN) {
@@ -78,7 +112,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       wsRef.current.close()
     }
 
-    console.log('[WebSocket] Creating new WebSocket to:', serverUrl)
+    console.log('[WebSocket] Creating new WebSocket to:', trimmedUrl)
     setState(s => ({ ...s, serverConnecting: true, serverConnected: false, connectionError: null }))
 
     // Set connection timeout
@@ -100,7 +134,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     }, CONNECTION_TIMEOUT)
 
     try {
-      const ws = new WebSocket(serverUrl)
+      const ws = new WebSocket(trimmedUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
