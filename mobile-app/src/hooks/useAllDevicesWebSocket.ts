@@ -655,26 +655,34 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       }
       console.log('[WebSocket] Force sending mobile_auth:', JSON.stringify(authMsg))
       ws.send(JSON.stringify(authMsg))
-    } else {
-      console.log('[WebSocket] forceSubscribe: WebSocket not open, reconnecting...')
-      // If not connected, trigger reconnect
-      connect()
     }
-  }, [connect])
+  }, [])
 
-  // Reconnect and subscribe when page becomes visible (after black screen/wake)
+  // Handle page visibility change (Android WebView zombie connection fix)
+  // When phone screen goes black, WebSocket may not fire onclose event,
+  // but server-side connection may timeout and clear subscribers.
+  // On page wake, we need to re-subscribe to restore message receiving.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[WebSocket] Page became visible, checking connection...')
+        console.log('[WebSocket] Page became visible, checking connection state')
         const ws = wsRef.current
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          console.log('[WebSocket] Page visible but not connected, reconnecting...')
-          connect()
+        if (ws) {
+          console.log('[WebSocket] Current readyState:', ws.readyState)
+          if (ws.readyState === WebSocket.OPEN) {
+            // Connection appears open, but may be zombie (server cleared subscribers)
+            // Re-send mobile_auth to restore subscription
+            console.log('[WebSocket] WebSocket appears OPEN, re-sending mobile_auth')
+            forceSubscribe()
+          } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            // Connection is closed/closing, trigger reconnect
+            console.log('[WebSocket] WebSocket is CLOSED/CLOSING, triggering reconnect')
+            connect()
+          }
         } else {
-          // Even if connected, re-send mobile_auth to ensure subscription
-          console.log('[WebSocket] Page visible and connected, re-sending mobile_auth')
-          forceSubscribe()
+          // No WebSocket instance, create new connection
+          console.log('[WebSocket] No WebSocket instance, creating new connection')
+          connect()
         }
       }
     }
