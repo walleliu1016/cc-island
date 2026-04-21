@@ -346,6 +346,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     if (!deviceToken || !sessionId || !hookType || !hookBody) return
 
     console.log('[WebSocket] HookMessage:', hookType, 'for device:', deviceToken, 'session:', sessionId)
+    console.log('[WebSocket] HookMessage body:', JSON.stringify(hookBody).slice(0, 200))
 
     setState(s => {
       const sessions = { ...s.sessions }
@@ -353,6 +354,10 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
       // Get or create device sessions list
       let deviceSessions = sessions[deviceToken] || []
+
+      // Log current state before update
+      const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+      console.log('[WebSocket] HookMessage current session status:', currentSession?.status, 'current urgent hints:', hookHints[deviceToken]?.filter(h => h.urgent))
 
       switch (hookType) {
         case 'SessionStart': {
@@ -650,8 +655,35 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       }
       console.log('[WebSocket] Force sending mobile_auth:', JSON.stringify(authMsg))
       ws.send(JSON.stringify(authMsg))
+    } else {
+      console.log('[WebSocket] forceSubscribe: WebSocket not open, reconnecting...')
+      // If not connected, trigger reconnect
+      connect()
     }
-  }, [])
+  }, [connect])
+
+  // Reconnect and subscribe when page becomes visible (after black screen/wake)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[WebSocket] Page became visible, checking connection...')
+        const ws = wsRef.current
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          console.log('[WebSocket] Page visible but not connected, reconnecting...')
+          connect()
+        } else {
+          // Even if connected, re-send mobile_auth to ensure subscription
+          console.log('[WebSocket] Page visible and connected, re-sending mobile_auth')
+          forceSubscribe()
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [connect, forceSubscribe])
 
   // Connect/disconnect based on server URL
   useEffect(() => {
