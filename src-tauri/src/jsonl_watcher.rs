@@ -120,10 +120,16 @@ impl JsonlWatcherManager {
         app_state: &Arc<RwLock<AppState>>,
         sessions: &Arc<RwLock<HashMap<String, SessionInfo>>>,
     ) {
-        // Parse incrementally
+        // Parse incrementally (try cwd first, then fallback to search)
         let new_messages = {
             let mut state = app_state.write();
-            state.conversation_parser.parse_incremental(session_id, cwd)
+            let msgs = state.conversation_parser.parse_incremental(session_id, cwd);
+            if msgs.is_empty() {
+                // Fallback: search all project directories
+                state.conversation_parser.parse_incremental_without_cwd(session_id)
+            } else {
+                msgs
+            }
         };
 
         // Update last_sync regardless of whether there are new messages
