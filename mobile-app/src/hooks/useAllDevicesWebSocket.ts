@@ -632,17 +632,19 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       answers,
     }))
 
-    // Clear hook hint and session status for this session
+    // Clear hook hint and set session to idle (ready for next hook like Stop/PostToolUse/UserPromptSubmit)
     setState(s => {
       const hookHints = { ...s.hookHints }
       const deviceHints = hookHints[deviceToken] || []
       hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId)
 
-      // Also clear session's waitingForApproval status
+      // Change status to idle - subsequent hooks will update naturally
       const sessions = { ...s.sessions }
       const deviceSessions = sessions[deviceToken] || []
       sessions[deviceToken] = deviceSessions.map(sess =>
-        sess.sessionId === sessionId ? { ...sess, status: 'idle', currentTool: undefined } : sess
+        sess.sessionId === sessionId
+          ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
+          : sess
       )
 
       return { ...s, hookHints, sessions }
