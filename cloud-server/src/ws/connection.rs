@@ -52,7 +52,7 @@ pub async fn handle_connection(
     };
 
     match auth_result {
-        Ok((conn_type, device_token, hostname)) => {
+        Ok((conn_type, device_token, hostname, mobile_device_tokens)) => {
             // Send auth success
             let auth_success = CloudMessage::AuthSuccess {
                 device_id: device_token.clone(),
@@ -81,9 +81,16 @@ pub async fn handle_connection(
                     None
                 },
                 ConnectionType::Mobile => {
-                    // For mobile, we expect device_tokens in auth, but for now just register
-                    // The handler will process MobileAuth to update subscription
-                    Some(router.register_mobile_empty(out_tx.clone()))
+                    // Register mobile connection
+                    let conn_id = router.register_mobile_empty(out_tx.clone());
+                    // Immediately set subscription from first MobileAuth message
+                    if let Some(tokens) = mobile_device_tokens {
+                        if !tokens.is_empty() {
+                            tracing::info!("📱 Setting initial subscription for conn_id {} to {} devices: {:?}", conn_id, tokens.len(), tokens);
+                            router.update_mobile_subscription(conn_id, &tokens, &out_tx);
+                        }
+                    }
+                    Some(conn_id)
                 }
             };
 
@@ -197,7 +204,8 @@ pub async fn handle_connection(
 }
 
 /// Parse and handle authentication message
-async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, String, Option<String>), String> {
+/// Returns (ConnectionType, device_id, hostname, mobile_device_tokens)
+async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(ConnectionType, String, Option<String>, Option<Vec<String>>), String> {
     let msg: CloudMessage = serde_json::from_str(text)
         .map_err(|e| format!("Invalid JSON: {}", e))?;
 
@@ -207,13 +215,14 @@ async fn parse_and_handle_auth(text: &str, repo: &Repository) -> Result<(Connect
             if let Err(e) = repo.upsert_device(&device_token, hostname.as_deref(), device_name.as_deref()).await {
                 tracing::error!("Failed to register device: {}", e);
             }
-            Ok((ConnectionType::Desktop, device_token, hostname))
+            Ok((ConnectionType::Desktop, device_token, hostname, None))
         },
         CloudMessage::MobileAuth { device_tokens } => {
             // Mobile subscribes to devices
-            // Return first token as device_id for auth response
+            // Return first token as device_id for auth response, and full list for subscription
             let first_token = device_tokens.first().cloned().unwrap_or_default();
-            Ok((ConnectionType::Mobile, first_token, None))
+            tracing::info!("📱 MobileAuth parsed: {} devices: {:?}", device_tokens.len(), device_tokens);
+            Ok((ConnectionType::Mobile, first_token, None, Some(device_tokens)))
         },
         _ => Err("Expected device_register or mobile_auth as first message".to_string()),
     }

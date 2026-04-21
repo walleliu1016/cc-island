@@ -310,7 +310,7 @@ function getStatusInfo(status: string, currentTool?: string, toolInput?: { comma
 
   switch (status) {
     case 'idle':
-      return { text: '', color: 'bg-[#737373]' }
+      return { text: 'Idle', color: 'bg-[#737373]' }
     case 'thinking':
       return { text: 'Thinking', color: 'bg-[#22c55e]' }
     case 'working': {
@@ -330,7 +330,7 @@ function getStatusInfo(status: string, currentTool?: string, toolInput?: { comma
     case 'compacting':
       return { text: 'Compacting', color: 'bg-[#8b5cf6]' }
     case 'ended':
-      return { text: '', color: 'bg-[#737373]' }
+      return { text: '已结束', color: 'bg-[#737373]' }
     default:
       return { text: currentTool || '', color: 'bg-[#737373]' }
   }

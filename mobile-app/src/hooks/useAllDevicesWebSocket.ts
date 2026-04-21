@@ -346,6 +346,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     if (!deviceToken || !sessionId || !hookType || !hookBody) return
 
     console.log('[WebSocket] HookMessage:', hookType, 'for device:', deviceToken, 'session:', sessionId)
+    console.log('[WebSocket] HookMessage body:', JSON.stringify(hookBody).slice(0, 200))
 
     setState(s => {
       const sessions = { ...s.sessions }
@@ -353,6 +354,10 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
       // Get or create device sessions list
       let deviceSessions = sessions[deviceToken] || []
+
+      // Log current state before update
+      const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+      console.log('[WebSocket] HookMessage current session status:', currentSession?.status, 'current urgent hints:', hookHints[deviceToken]?.filter(h => h.urgent))
 
       switch (hookType) {
         case 'SessionStart': {
@@ -384,9 +389,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PreToolUse': {
-          // Update session to working
+          // Update session to working (matching desktop: unconditional)
           const toolName = hookBody.tool_name || '工具'
-          // Extract tool input for display (command, file_path, etc.)
           const toolInput = hookBody.tool_input ? {
             command: hookBody.tool_input.command as string,
             file_path: hookBody.tool_input.file_path as string,
@@ -394,11 +398,13 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             details: hookBody.tool_input.details as string,
           } : undefined
           console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'toolInput:', toolInput)
+
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
           )
           sessions[deviceToken] = deviceSessions
-          // Add hook hint
+
+          // Add hook hint (but don't clear urgent hints - they should stay until resolved)
           const hint: HookHint = {
             session_id: sessionId,
             hook_type: hookType as HookType,
@@ -408,15 +414,16 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
-          hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId), hint]
+          // Only clear non-urgent hints for this session, keep urgent hints intact
+          hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || h.urgent), hint]
           break
         }
 
         case 'PostToolUse': {
-          // Update session to waiting, but respect minimum display time for working state
+          // Update session to waiting (matching desktop: unconditional)
+          // Respect minimum display time for working state (2s like desktop)
           deviceSessions = deviceSessions.map(s => {
             if (s.sessionId === sessionId) {
-              // Keep 'working' status for at least 2 seconds (like desktop)
               const workingDuration = s.workingTimestamp ? Date.now() - s.workingTimestamp : 0
               if (workingDuration < 2000 && s.status === 'working') {
                 // Schedule update to 'waiting' after remaining time
@@ -438,7 +445,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
                     }
                   })
                 }, remainingTime)
-                return s // Keep current 'working' state
+                return s
               }
               return { ...s, status: 'waiting', currentTool: undefined, workingTimestamp: undefined }
             }
@@ -503,16 +510,19 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Stop': {
-          // Update session to idle
+          // Update session to idle (matching desktop: unconditional)
+          console.log('[WebSocket] Stop hook: setting session', sessionId, 'to idle')
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
           )
           sessions[deviceToken] = deviceSessions
+          console.log('[WebSocket] Stop hook: session status after update:', deviceSessions.find(s => s.sessionId === sessionId)?.status)
           break
         }
 
         case 'UserPromptSubmit': {
-          // Update session to thinking
+          // Update session to thinking (matching desktop: unconditional)
+          console.log('[WebSocket] UserPromptSubmit hook: setting session', sessionId, 'to thinking')
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
           )
@@ -541,29 +551,38 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostToolUseFailure': {
-          // Update session to error
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'error', currentTool: undefined } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to error, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'error', currentTool: undefined } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
         case 'PreCompact': {
-          // Update session to compacting
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'compacting' } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to compacting, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'compacting' } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
         case 'PostCompact': {
-          // Update session to idle
-          deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'idle' } : s
-          )
-          sessions[deviceToken] = deviceSessions
+          // Update session to idle, but don't override waitingForApproval
+          const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
+          if (currentSession?.status !== 'waitingForApproval') {
+            deviceSessions = deviceSessions.map(s =>
+              s.sessionId === sessionId ? { ...s, status: 'idle' } : s
+            )
+            sessions[deviceToken] = deviceSessions
+          }
           break
         }
 
@@ -590,6 +609,8 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       return
     }
 
+    console.log('[WebSocket] sendHookResponse: session', sessionId, 'decision', decision)
+
     ws.send(JSON.stringify({
       type: 'hook_response',
       device_token: deviceToken,
@@ -598,12 +619,25 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       answers,
     }))
 
-    // Clear hook hint for this session
+    // Clear hook hint and set session to idle (ready for next hook like Stop/PostToolUse/UserPromptSubmit)
     setState(s => {
       const hookHints = { ...s.hookHints }
       const deviceHints = hookHints[deviceToken] || []
       hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId)
-      return { ...s, hookHints }
+
+      // Change status to idle - subsequent hooks will update naturally
+      const sessions = { ...s.sessions }
+      const deviceSessions = sessions[deviceToken] || []
+      const prevStatus = deviceSessions.find(sess => sess.sessionId === sessionId)?.status
+      sessions[deviceToken] = deviceSessions.map(sess =>
+        sess.sessionId === sessionId
+          ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
+          : sess
+      )
+
+      console.log('[WebSocket] sendHookResponse: prevStatus', prevStatus, '-> idle')
+
+      return { ...s, hookHints, sessions }
     })
   }, [])
 
@@ -652,6 +686,32 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       ws.send(JSON.stringify(authMsg))
     }
   }, [])
+
+  // Handle page visibility change (Android WebView zombie connection fix)
+  // When phone screen goes black, WebSocket may not fire onclose event,
+  // but server-side connection may timeout and clear subscribers.
+  // On page wake, we need to force reconnect to restore message receiving.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[WebSocket] Page became visible, forcing reconnect')
+        // Always close and reconnect on page wake
+        // This is more reliable than checking readyState (zombie connection may show OPEN)
+        if (wsRef.current) {
+          console.log('[WebSocket] Closing existing WebSocket (readyState:', wsRef.current.readyState, ')')
+          wsRef.current.close()
+          wsRef.current = null
+        }
+        // Trigger new connection
+        connect()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [connect])
 
   // Connect/disconnect based on server URL
   useEffect(() => {
