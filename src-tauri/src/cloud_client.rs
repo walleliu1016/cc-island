@@ -10,6 +10,35 @@ use axum::body::Bytes;
 use crate::machine_id::get_machine_token;
 use crate::AppState;
 use crate::popup_queue::PopupResponse;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use opentelemetry::trace::TraceContextExt;
+
+/// Inject trace context into outgoing WebSocket message
+fn inject_trace_context(msg: &mut serde_json::Value) {
+    let span = tracing::Span::current();
+    if span.is_none() {
+        return;
+    }
+
+    let context = span.context();
+    let span_ref = context.span();
+    let span_context = span_ref.span_context();
+    if !span_context.is_valid() {
+        return;
+    }
+
+    let trace_id = span_context.trace_id();
+    let span_id = span_context.span_id();
+    let trace_flags = span_context.trace_flags();
+
+    msg["trace_context"] = serde_json::json!({
+        "traceparent": format!("00-{:032x}-{:016x}-{:02x}",
+            u128::from_be_bytes(trace_id.to_bytes()),
+            u64::from_be_bytes(span_id.to_bytes()),
+            if trace_flags.is_sampled() { 1u8 } else { 0u8 }
+        )
+    });
+}
 
 /// Heartbeat configuration
 const PING_INTERVAL: Duration = Duration::from_secs(30);  // Send Ping every 30 seconds
@@ -297,6 +326,8 @@ impl CloudClient {
 
                 // Send Ping
                 tracing::debug!("Heartbeat: sending Ping");
+                let span = tracing::info_span!("heartbeat.ping");
+                let _enter = span.enter();
                 if let Err(e) = out_tx.try_send(Message::Ping(Bytes::new())) {
                     tracing::warn!("Heartbeat: failed to send Ping: {}", e);
                     *connected_heartbeat.write() = false;
@@ -335,16 +366,27 @@ impl CloudClient {
             return;
         }
 
+        let span = tracing::info_span!(
+            "ws.message.send",
+            device_token = %self.device_token,
+            msg_type = hook_type,
+        );
+        let _enter = span.enter();
+
         if let Some(tx) = &self.out_tx {
-            let msg = serde_json::json!({
+            let mut msg = serde_json::json!({
                 "type": "hook_message",
                 "device_token": self.device_token,
                 "session_id": session_id,
                 "hook_type": hook_type,
                 "hook_body": hook_body,
             });
+
+            inject_trace_context(&mut msg);
+
             if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
                 tracing::warn!("Failed to push hook message: {}", e);
+                span.record("error", &e.to_string());
             }
         }
     }
