@@ -28,6 +28,60 @@ use once_cell::sync::Lazy;
 use tauri::Manager;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock as AsyncRwLock;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry::trace::TracerProvider as TracerProviderTrait;
+use opentelemetry_sdk::Resource;
+
+/// Initialize OpenTelemetry tracing if enabled
+fn init_tracing(settings: &config::AppSettings) {
+    // Environment variables override config file
+    let enabled = std::env::var("CC_ISLAND_TRACING_ENABLED")
+        .map(|v| v == "true")
+        .unwrap_or(settings.enable_tracing);
+
+    let endpoint = std::env::var("CC_ISLAND_OTEL_ENDPOINT")
+        .ok()
+        .or(settings.otel_endpoint.clone());
+
+    if !enabled || endpoint.is_none() {
+        // Default: only console logging
+        tracing_subscriber::fmt::init();
+        tracing::info!("Tracing disabled or no endpoint configured");
+        return;
+    }
+
+    tracing::info!("Initializing OpenTelemetry tracing with endpoint: {}", endpoint.clone().unwrap());
+
+    // Create OTLP span exporter
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_endpoint(endpoint.unwrap())
+        .build()
+        .expect("Failed to build OTLP span exporter");
+
+    // Create TracerProvider with batch exporter
+    let tracer_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+        .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+        .with_resource(
+            Resource::new(vec![
+                opentelemetry::KeyValue::new("service.name", "cc-island-desktop"),
+            ])
+        )
+        .build();
+
+    // Get tracer from provider
+    let tracer = tracer_provider.tracer("cc-island-desktop");
+
+    // Register tracing layer with fmt layer
+    tracing_subscriber::registry()
+        .with(tracing_opentelemetry::layer().with_tracer(tracer))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    tracing::info!("OpenTelemetry tracing initialized successfully");
+}
 
 /// Global atomic flag for logging (no lock needed)
 pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -675,8 +729,9 @@ fn stop_cloud_client() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Load settings and initialize tracing
+    let settings = config::load_settings();
+    init_tracing(&settings);
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
