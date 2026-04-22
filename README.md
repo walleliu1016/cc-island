@@ -35,6 +35,7 @@
 - **Cloud Relay** - 通过云服务器远程监控和响应权限请求
 - **Mobile Remote** - 手机端实时查看状态、远程审批权限
 - **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
+- **多实例高可用** - Cloud Server 多实例部署，跨实例消息路由，负载分担
 
 ### 界面特点
 
@@ -67,43 +68,64 @@
 ## 架构概览
 
 ```
-┌─────────────────┐                    ┌─────────────────┐
-│   Desktop App   │◄──── WebSocket ───►│   Cloud Server  │
-│  (Tauri/Rust)   │                    │    (Rust/Axum)  │
-│                 │                    │   + PostgreSQL  │
-│ ┌─────────────┐ │                    │                 │
-│ │ HTTP Server │ │                    │ ┌─────────────┐ │
-│ │  (Port 17527│◄── Claude Hooks ───►│ │   Router    │ │
-│ │  Axum)      │ │                    │ │  (WebSocket)│ │
-│ └─────────────┘ │                    │ └─────────────┘ │
-│                 │                    │                 │
-│ ┌─────────────┐ │                    │ ┌─────────────┐ │
-│ │ CloudClient │◄─── Push Hook ──────►│ │  Repository │ │
-│ │ (WebSocket) │ │                    │ │   (Postgres)│ │
-│ └─────────────┘ │                    │ └─────────────┘ │
-│                 │                    │                 │
-│ ┌─────────────┐ │                    │ ┌─────────────┐ │
-│ │  State +    │ │                    │ │  StateCache │ │
-│ │  PopupQueue │ │                    │ │   (Memory)  │ │
-│ └─────────────┘ │                    │ └─────────────┘ │
-│                 │                    │                 │
-│ ┌─────────────┐ │                    │                 │
-│ │ JSONL Watcher│◄── Conversation ────│                 │
-│ │  (Polling)  │ │    File Parsing    │                 │
-│ └─────────────┘ │                    │                 │
-└─────────────────┘                    └─────────────────┘
-                                               │
-                               ┌───────────────┴───────────────┐
-                               │                               │
-                        ┌──────┴──────┐                 ┌──────┴──────┐
-                        │  Mobile 1   │                 │  Mobile 2   │
-                        │  (React +   │                 │  (React +   │
-                        │  Capacitor) │                 │  Capacitor) │
-                        │             │                 │             │
-                        │ Subscribe:  │                 │ Subscribe:  │
-                        │ [Device A,  │                 │ [Device A]  │
-                        │  Device B]  │                 │             │
-                        └─────────────┘                 └─────────────┘
+┌─────────────────┐                    ┌─────────────────────────────────────┐
+│   Desktop App   │◄──── WebSocket ───►│           Cloud Server              │
+│  (Tauri/Rust)   │                    │         (Rust/Axum + Postgres)       │
+│                 │                    │                                     │
+│ ┌─────────────┐ │                    │  ┌───────────┐  ┌─────────────────┐  │
+│ │ HTTP Server │ │                    │  │ Instance A│  │  Instance B     │  │
+│ │  (Port 17527│◄── Claude Hooks ───►│  │           │  │                 │  │
+│ │  Axum)      │ │                    │  │ ┌───────┐ │  │ ┌─────────────┐ │  │
+│ └─────────────┘ │                    │  │ │Router │ │  │ │Router       │ │  │
+│                 │                    │  │ │+ Local│ │  │ │+ Local      │ │  │
+│ ┌─────────────┐ │                    │  │ │State  │ │  │ │State        │ │  │
+│ │ CloudClient │◄─── Push Hook ──────►│  │ └───────┘ │  │ └─────────────┘ │  │
+│ │ (WebSocket) │ │                    │  │     ↓     │  │       ↓         │  │
+│ └─────────────┘ │                    │  │ ┌───────┐ │  │ ┌─────────────┐ │  │
+│                 │                    │  │ │Notify │◄──►│ │Notify       │ │  │
+│ ┌─────────────┐ │                    │  │ │Listen │ │  │ │Listen       │ │  │
+│ │  State +    │ │                    │  │ └──┬────┘ │  │ └──┬──────────┘ │  │
+│ │  PopupQueue │ │                    │  │    │     │  │     │            │  │
+│ └─────────────┘ │                    │  └────┼─────┘  └────┼────────────┘  │
+│                 │                    │       │            │               │
+│ ┌─────────────┐ │                    │  ┌────┴────────────┴─────────────┐  │
+│ │ JSONL Watcher│◄── Conversation ────│  │      PostgreSQL               │  │
+│ │  (Polling)  │ │    File Parsing    │  │  ┌─────────────────────────┐ │  │
+│ └─────────────┘ │                    │  │  │ pending_messages         │ │  │
+└─────────────────┘                    │  │  │ (Cross-instance routing) │ │  │
+                                       │  │  └─────────────────────────┘ │  │
+                                       │  │  + LISTEN/NOTIFY channel    │ │  │
+                                       │  └─────────────────────────────┘  │
+                                       └─────────────────────────────────────┘
+                                                        │
+                               ┌────────────────────────┴────────────────────────┐
+                               │                                                │
+                        ┌──────┴──────┐                                  ┌──────┴──────┐
+                        │  Mobile 1   │                                  │  Mobile 2   │
+                        │  (React +   │                                  │  (React +   │
+                        │  Capacitor) │                                  │  Capacitor) │
+                        │             │                                  │             │
+                        │ Subscribe:  │                                  │ Subscribe:  │
+                        │ [Device A,  │                                  │ [Device A]  │
+                        │  Device B]  │                                  │             │
+                        └─────────────┘                                  └─────────────┘
+```
+
+### 多实例架构
+
+Cloud Server 支持多实例部署，实现高可用和负载分担：
+
+- **本地状态**: 每个实例在内存维护连接状态（Desktop/Mobile 连接映射）
+- **跨实例通信**: PostgreSQL LISTEN/NOTIFY 广播消息
+- **原子操作**: DELETE RETURNING 确保多实例竞争安全
+
+**消息路由流程**:
+```
+Desktop 发送消息 → 检查本地 Mobile 订阅者 → 
+  有: 直接内存广播 (快路径)
+  无: INSERT pending_messages + NOTIFY (慢路径) →
+    其他实例收到 NOTIFY → 检查是否属于自己的连接 →
+    原子获取并删除 → 投递给目标
 ```
 
 ### 数据流
@@ -124,7 +146,10 @@
 **Cloud Server (Rust)**：
 - Router：WebSocket 连接管理，Desktop/Mobile 路由
 - Repository：PostgreSQL 持久化 sessions/popups/chat history
-- State Cache：内存缓存实时状态，快速推送
+- PendingMessageRepo：跨实例消息存储 + NOTIFY 发送
+- NotifyListener：LISTEN PostgreSQL NOTIFY，处理跨实例消息
+- Cleanup Task：定时清理过期消息（> 5分钟）
+- **多实例支持**：LISTEN/NOTIFY 广播 + 原子删除确保竞争安全
 
 **Mobile (React)**：
 - Multi-Device WebSocket：单连接订阅多设备
@@ -264,8 +289,17 @@ cc-island/
 ├── cloud-server/           # 云服务器
 │   └── src/
 │       ├── ws/             # WebSocket 处理
+│       │   ├── router.rs   # 连接路由 + 本地状态
+│       │   ├── handler.rs  # 消息处理 + NOTIFY 路径
+│       │   ├── notify_listener.rs  # LISTEN PostgreSQL NOTIFY
+│       │   └── server.rs   # WebSocket 服务器
 │       ├── db/             # 数据库操作
-│       └── cache/          # 内存缓存
+│       │   ├── repository.rs        # CRUD 操作
+│       │   ├── pending_message.rs   # 跨实例消息存储
+│       │   └── pool.rs     # 连接池 + 迁移
+│       ├── cache/          # 内存缓存
+│       └── migrations/     # 数据库迁移
+│           └── 004_pending_messages.sql  # 跨实例消息表
 │
 ├── hooks/                  # Claude Code Hook 配置
 └ docs/                    # 文档
@@ -337,6 +371,14 @@ Mobile 支持订阅多个 Desktop 设备：
 ---
 
 ## Roadmap
+
+### 已完成
+
+- ✅ **多实例 Cloud Server** - PostgreSQL LISTEN/NOTIFY 跨实例消息路由，高可用架构
+- ✅ **Cloud Relay** - 云服务器远程监控和权限审批
+- ✅ **Mobile Remote** - 手机端实时查看状态、远程审批
+- ✅ **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
+- ✅ **WebSocket 心跳** - Desktop/Mobile 云连接心跳保活
 
 ### 近期规划
 
