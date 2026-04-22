@@ -190,6 +190,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     connectionTimeoutRef.current = setTimeout(() => {
       if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
         console.log('[WebSocket] Connection timeout, closing')
+        connectSpan?.end()
         try {
           wsRef.current.close()
         } catch (e) {
