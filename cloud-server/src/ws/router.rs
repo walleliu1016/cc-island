@@ -139,10 +139,19 @@ impl ConnectionRouter {
 
     /// Broadcast to all mobile clients subscribed to a device
     pub fn broadcast_to_mobiles(&self, device_token: &str, msg: Message) {
+        let span = tracing::info_span!(
+            "broadcast.mobile",
+            device_token = %device_token,
+        );
+        let _enter = span.enter();
+
         let inner = self.inner.read();
 
         // Get all mobile connection_ids subscribed to this device
         let subs: Vec<Uuid> = inner.mobile_subscriptions.get(device_token).cloned().unwrap_or_default();
+
+        span.record("subscriber_count", subs.len() as i64);
+        tracing::info!("Broadcasting to {} mobile subscribers", subs.len());
 
         if subs.is_empty() {
             tracing::warn!("broadcast_to_mobiles: NO subscribers for device {}", device_token);
