@@ -13,6 +13,10 @@ pub struct Config {
     pub ws_port: u16,
     /// HTTP API server port (default: 17529)
     pub http_port: u16,
+    /// OpenTelemetry tracing enabled
+    pub enable_tracing: bool,
+    /// OpenTelemetry OTLP endpoint (e.g., "http://localhost:4317")
+    pub otel_endpoint: Option<String>,
 }
 
 impl Config {
@@ -36,10 +40,18 @@ impl Config {
             return Err(anyhow::anyhow!("Ports must be between 1 and 65535"));
         }
 
+        let enable_tracing = std::env::var("CC_ISLAND_TRACING_ENABLED")
+            .map(|v| v == "true")
+            .unwrap_or(false);
+
+        let otel_endpoint = std::env::var("CC_ISLAND_OTEL_ENDPOINT").ok();
+
         Ok(Self {
             database_url,
             ws_port,
             http_port,
+            enable_tracing,
+            otel_endpoint,
         })
     }
 }
