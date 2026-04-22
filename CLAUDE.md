@@ -23,15 +23,21 @@ pnpm exec tsc --noEmit
 
 ## Architecture Overview
 
-CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks.
+CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks, with optional cloud relay for mobile remote access.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Zustand + Framer Motion + Tailwind CSS
 - Backend: Rust + Axum HTTP server (port 17527) + Tokio async runtime
+- Cloud Server: Rust + PostgreSQL + WebSocket + LISTEN/NOTIFY
 
-**Core Data Flow:**
+**Core Data Flow (Desktop):**
 ```
 Claude Code terminals → HTTP POST /hook (port 17527) → Rust backend → Frontend (polling via Tauri IPC)
+```
+
+**Core Data Flow (Cloud Relay):**
+```
+Desktop → WebSocket → Cloud Server → PostgreSQL → NOTIFY → Other Instance → Mobile
 ```
 
 **Key Components:**
@@ -175,3 +181,33 @@ The product name displayed in expanded idle state is configurable:
 | HTTP API | `src-tauri/src/http_server.rs` | Receives Claude Code hooks, handles blocking (PermissionRequest/Ask) and non-blocking events, sets session notifications |
 | State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) with `session_notification` field for start/end alerts |
 | Frontend | `src/App.tsx` | Handles session notification display, product name fetch via `get_product_name` command |
+
+## Cloud Server (Multi-Instance Architecture)
+
+The cloud-server component enables remote monitoring from mobile devices, with multi-instance support for high availability.
+
+**Architecture:**
+- Each instance maintains local connection state in memory
+- Cross-instance messages via PostgreSQL LISTEN/NOTIFY
+- Messages stored in `pending_messages` table, retrieved atomically with DELETE RETURNING
+
+**Key Cloud Server Components:**
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Migration | `cloud-server/migrations/004_pending_messages.sql` | pending_messages table for cross-instance routing |
+| DB Repo | `cloud-server/src/db/pending_message.rs` | INSERT/SELECT/DELETE pending messages + NOTIFY |
+| NotifyListener | `cloud-server/src/ws/notify_listener.rs` | LISTEN PostgreSQL NOTIFY, handle incoming notifications |
+| ConnectionRouter | `cloud-server/src/ws/router.rs` | Local connection state, has_mobile_subscribers/has_desktop_connection methods |
+| MessageHandler | `cloud-server/src/ws/handler.rs` | NOTIFY path for cross-instance message routing |
+
+**Cross-Instance Message Flow:**
+```
+Desktop sends HookMessage → Check local mobile subscribers → 
+  If found: Direct memory broadcast (fast path)
+  If not found: INSERT pending_messages + NOTIFY (slow path) →
+    Other instance receives NOTIFY → Check if target belongs to them →
+    get_and_delete (atomic) → Deliver → Delete
+```
+
+**Cleanup:** Stale messages (> 5 minutes) deleted every minute by cleanup task.
