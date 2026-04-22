@@ -6,6 +6,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use futures_util::{StreamExt, SinkExt};
 use tokio::sync::mpsc::{Sender, Receiver, channel};
 use crate::messages::CloudMessage;
+use crate::db::pending_message::PendingMessageRepo;
 use crate::db::repository::Repository;
 use super::router::{ConnectionRouter, ConnectionType};
 use super::handler::MessageHandler;
@@ -15,6 +16,7 @@ pub async fn handle_connection(
     stream: TcpStream,
     router: ConnectionRouter,
     repo: Repository,
+    pending_repo: PendingMessageRepo,
 ) {
     // Accept WebSocket connection
     let ws_result = accept_async(stream).await;
@@ -105,7 +107,7 @@ pub async fn handle_connection(
             }
 
             // Create message handler
-            let handler = MessageHandler::new(router.clone(), repo.clone(), mobile_conn_id);
+            let handler = MessageHandler::new(router.clone(), repo.clone(), pending_repo.clone(), mobile_conn_id);
 
             // Spawn send task (forward outgoing messages to WebSocket)
             let send_task = async {

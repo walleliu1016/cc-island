@@ -45,21 +45,29 @@ impl NotifyListener {
                         }
                         Err(e) => {
                             tracing::error!("NotifyListener error: {}, reconnecting...", e);
-                            // Reconnect on error
+                            // Reconnect on error with shutdown check
                             loop {
-                                match PgListener::connect_with(&self.pool).await {
-                                    Ok(new_listener) => {
-                                        listener = new_listener;
-                                        if let Err(e) = listener.listen("pending_message_notify").await {
-                                            tracing::error!("Failed to re-LISTEN: {}", e);
-                                            continue;
+                                tokio::select! {
+                                    reconnect_result = PgListener::connect_with(&self.pool) => {
+                                        match reconnect_result {
+                                            Ok(new_listener) => {
+                                                listener = new_listener;
+                                                if let Err(e) = listener.listen("pending_message_notify").await {
+                                                    tracing::error!("Failed to re-LISTEN: {}", e);
+                                                    continue;
+                                                }
+                                                tracing::info!("NotifyListener reconnected");
+                                                break;
+                                            }
+                                            Err(e) => {
+                                                tracing::error!("Reconnect failed: {}, retrying in 5s...", e);
+                                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                                            }
                                         }
-                                        tracing::info!("NotifyListener reconnected");
-                                        break;
                                     }
-                                    Err(e) => {
-                                        tracing::error!("Reconnect failed: {}, retrying in 5s...", e);
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                                    _ = shutdown.cancelled() => {
+                                        tracing::info!("NotifyListener shutdown during reconnect");
+                                        return Ok(());
                                     }
                                 }
                             }

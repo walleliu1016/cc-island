@@ -18,6 +18,11 @@ impl Repository {
         Self { pool }
     }
 
+    /// Get a clone of the underlying pool
+    pub fn pool(&self) -> PgPool {
+        self.pool.clone()
+    }
+
     // ===== Device operations =====
 
     /// Upsert device (register or update online status)
