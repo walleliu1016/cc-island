@@ -203,6 +203,12 @@ impl ConnectionRouter {
         let inner = self.inner.read();
         inner.desktop_connections.contains_key(device_token)
     }
+
+    /// Get the number of mobile subscribers for a device
+    pub fn get_subscriber_count(&self, device_token: &str) -> usize {
+        let inner = self.inner.read();
+        inner.mobile_subscriptions.get(device_token).map(|subs| subs.len()).unwrap_or(0)
+    }
 }
 
 impl Default for ConnectionRouter {

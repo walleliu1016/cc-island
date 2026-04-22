@@ -24,6 +24,14 @@ impl MessageHandler {
         match msg {
             // Mobile -> Cloud: Update subscription
             CloudMessage::MobileAuth { device_tokens } => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "mobile_auth",
+                    device_token = tracing::field::Empty,
+                    device_count = device_tokens.len() as i64,
+                );
+                let _enter = span.enter();
+
                 tracing::info!("MobileAuth (update subscription): {} devices: {:?}", device_tokens.len(), device_tokens);
 
                 // Update mobile subscription in router
@@ -87,6 +95,16 @@ impl MessageHandler {
 
             // Desktop -> Cloud: Hook message (transparent forwarding + persistence)
             CloudMessage::HookMessage { device_token, session_id, hook_type, hook_body } => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "hook_message",
+                    device_token = %device_token,
+                    session_id = %session_id,
+                    hook_type = ?hook_type,
+                    subscriber_count = tracing::field::Empty,
+                );
+                let _enter = span.enter();
+
                 tracing::info!("HookMessage from desktop: device={}, session={}, hook_type={:?}",
                     device_token, session_id, hook_type);
 
@@ -351,11 +369,23 @@ impl MessageHandler {
                     hook_body,
                 };
                 let json = serde_json::to_string(&hook_msg).unwrap();
+                let subscriber_count = self.router.get_subscriber_count(&device_token);
+                tracing::Span::current().record("subscriber_count", subscriber_count as i64);
                 self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                tracing::info!("Broadcasted hook to {} mobile subscribers", subscriber_count);
             }
 
             // Desktop -> Cloud: Chat history sync
             CloudMessage::ChatHistory { device_token, session_id, messages } => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "chat_history",
+                    device_token = %device_token,
+                    session_id = %session_id,
+                    message_count = messages.len() as i64,
+                );
+                let _enter = span.enter();
+
                 tracing::info!("🟢 ChatHistory from desktop: device={}, session={}, {} messages",
                     device_token, session_id, messages.len());
 
@@ -379,6 +409,15 @@ impl MessageHandler {
 
             // Mobile -> Cloud: Request chat history
             CloudMessage::RequestChatHistory { device_token, session_id, limit } => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "request_chat_history",
+                    device_token = %device_token,
+                    session_id = %session_id,
+                    limit = ?limit,
+                );
+                let _enter = span.enter();
+
                 tracing::info!("RequestChatHistory from mobile: device={}, session={}, limit={:?}",
                     device_token, session_id, limit);
 
@@ -403,6 +442,15 @@ impl MessageHandler {
 
             // Mobile -> Cloud: Hook response (forward to desktop)
             CloudMessage::HookResponse { device_token, session_id, decision, answers } => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "hook_response",
+                    device_token = %device_token,
+                    session_id = %session_id,
+                    decision = ?decision,
+                );
+                let _enter = span.enter();
+
                 tracing::info!("HookResponse from mobile: device={}, session={}, decision={:?}",
                     device_token, session_id, decision);
 
@@ -419,6 +467,12 @@ impl MessageHandler {
 
             // Ping/Pong
             CloudMessage::Ping => {
+                let span = tracing::info_span!(
+                    "ws.message.route",
+                    msg_type = "ping",
+                );
+                let _enter = span.enter();
+
                 let pong_msg = CloudMessage::Pong;
                 let json = serde_json::to_string(&pong_msg).unwrap();
                 if let Err(e) = tx.try_send(Message::text(json)) {
