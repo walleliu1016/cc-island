@@ -39,6 +39,12 @@ qrcode = "0.14"
 hostname = "0.4"
 notify = { version = "8", features = ["macos_kqueue"] }
 
+# OpenTelemetry tracing
+opentelemetry = { version = "0.27", features = ["trace"] }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic"] }
+tracing-opentelemetry = "0.28"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
 objc = "0.2"
