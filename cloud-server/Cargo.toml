@@ -19,3 +19,7 @@ anyhow = "1"
 dotenvy = "0.15"
 parking_lot = "0.12"
 axum = "0.7"
+
+[dev-dependencies]
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "migrate"] }
+tokio = { version = "1", features = ["full"] }
