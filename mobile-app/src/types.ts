@@ -129,6 +129,11 @@ export interface CloudMessage {
   // Hook response
   decision?: string
   answers?: string[][]
+
+  // Trace context for distributed tracing
+  trace_context?: {
+    traceparent?: string
+  }
 }
 
 // Chat message data

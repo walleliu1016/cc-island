@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
+import { getTracer, injectTraceContext, extractTraceContext } from '../tracing'
 
 // Connection timeout in milliseconds
 const CONNECTION_TIMEOUT = 10000
@@ -53,6 +54,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
   // Start heartbeat mechanism (called after auth_success)
   const startHeartbeat = useCallback(() => {
+    const tracer = getTracer()
     console.log('[WebSocket] Starting heartbeat mechanism')
 
     // Clear existing timers
@@ -65,8 +67,10 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     pingIntervalRef.current = setInterval(() => {
       const ws = wsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
+        const pingSpan = tracer?.startSpan('heartbeat.ping')
         console.log('[WebSocket] Sending Ping')
         ws.send(JSON.stringify({ type: 'ping' }))
+        pingSpan?.end()
 
         // Set timeout to detect missing Pong
         if (!pongTimeoutRef.current) {
@@ -100,6 +104,11 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
   }, [])
 
   const connect = useCallback(() => {
+    const tracer = getTracer()
+    const connectSpan = tracer?.startSpan('ws.connect', {
+      attributes: { server_url: serverUrl }
+    })
+
     console.log('[WebSocket] connect() called, serverUrl:', serverUrl, 'devices:', devices.length)
 
     if (!serverUrl) {
@@ -196,6 +205,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
       ws.onopen = () => {
         console.log('[WebSocket] Connection opened')
+        connectSpan?.end()
         // Clear connection timeout
         if (connectionTimeoutRef.current) {
           clearTimeout(connectionTimeoutRef.current)
@@ -213,6 +223,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       }
 
     ws.onmessage = (e) => {
+      const tracer = getTracer()
       console.log('[WebSocket] Message received:', e.data)
       try {
         const msg = JSON.parse(e.data) as CloudMessage
@@ -325,8 +336,23 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           }
 
           case 'hook_message': {
+            const msgSpan = tracer?.startSpan('ws.message.receive', {
+              attributes: {
+                msg_type: 'hook_message',
+                session_id: msg.session_id,
+              }
+            })
+
+            // Extract trace context if present
+            const extractedCtx = extractTraceContext(msg)
+            if (extractedCtx && tracer) {
+              msgSpan?.setAttribute('parent_trace_id', extractedCtx.traceId)
+              msgSpan?.setAttribute('parent_span_id', extractedCtx.spanId)
+            }
+
             // Transparent hook forwarding
             handleHookMessage(msg)
+            msgSpan?.end()
             break
           }
 
@@ -675,6 +701,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
   // Send hook response (for blocking hooks)
   const sendHookResponse = useCallback((deviceToken: string, sessionId: string, decision: string | null, answers?: string[][]) => {
+    const tracer = getTracer()
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.warn('Cannot send hook response: not connected')
@@ -683,13 +710,35 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     console.log('[WebSocket] sendHookResponse: session', sessionId, 'decision', decision)
 
-    ws.send(JSON.stringify({
+    const responseSpan = tracer?.startSpan('hook.response', {
+      attributes: {
+        session_id: sessionId,
+        decision: decision || 'none',
+      }
+    })
+
+    const response: {
+      type: string
+      device_token: string
+      session_id: string
+      decision: string | null
+      answers?: string[][]
+      trace_context?: { traceparent: string }
+    } = {
       type: 'hook_response',
       device_token: deviceToken,
       session_id: sessionId,
       decision,
       answers,
-    }))
+    }
+
+    const traceCtx = injectTraceContext()
+    if (traceCtx) {
+      response.trace_context = traceCtx
+    }
+
+    ws.send(JSON.stringify(response))
+    responseSpan?.end()
 
     // Clear hook hint and set session to idle (ready for next hook like Stop/PostToolUse/UserPromptSubmit)
     setState(s => {
