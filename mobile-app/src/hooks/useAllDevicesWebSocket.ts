@@ -113,6 +113,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     if (!serverUrl) {
       console.log('[WebSocket] No server URL, skipping connection')
+      connectSpan?.end()
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
@@ -133,6 +134,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     const trimmedUrl = serverUrl.trim()
     if (!trimmedUrl.startsWith('ws://') && !trimmedUrl.startsWith('wss://')) {
       console.log('[WebSocket] Invalid URL format:', trimmedUrl)
+      connectSpan?.end()
       setState({
         serverConnected: false,
         serverConnecting: false,
@@ -151,6 +153,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       new URL(urlParts)  // This will throw if URL is invalid
     } catch (e) {
       console.log('[WebSocket] URL parse error:', e)
+      connectSpan?.end()
       setState({
         serverConnected: false,
         serverConnecting: false,
@@ -167,10 +170,12 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     if (wsRef.current) {
       if (wsRef.current.readyState === WebSocket.OPEN) {
         console.log('[WebSocket] Already connected, skipping')
+        connectSpan?.end()
         return
       }
       if (wsRef.current.readyState === WebSocket.CONNECTING) {
         console.log('[WebSocket] Already connecting, skipping')
+        connectSpan?.end()
         return
       }
       // Close old connection that's closing or closed
@@ -409,6 +414,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     ws.onerror = () => {
       console.log('[WebSocket] Error')
+      connectSpan?.end()
       setState(s => ({
         ...s,
         serverConnected: false,
@@ -419,6 +425,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
     } catch (e) {
       console.error('[WebSocket] Failed to create WebSocket:', e)
+      connectSpan?.end()
       // Clear connection timeout
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current)
@@ -732,7 +739,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       answers,
     }
 
-    const traceCtx = injectTraceContext()
+    const traceCtx = injectTraceContext(responseSpan)
     if (traceCtx) {
       response.trace_context = traceCtx
     }

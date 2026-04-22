@@ -70,15 +70,18 @@ export function isTracingEnabled(): boolean {
 /**
  * Inject trace context into outgoing message
  * Returns traceparent string in W3C format
+ * @param span - Optional span to use instead of active span
  */
-export function injectTraceContext(): { traceparent: string } | null {
+export function injectTraceContext(span?: unknown): { traceparent: string } | null {
   if (!tracer) return null
 
-  const activeSpan = trace.getActiveSpan()
-  if (!activeSpan) return null
+  // Use provided span or get active span
+  const targetSpan = span ?? trace.getActiveSpan()
+  if (!targetSpan) return null
 
-  const spanContext = activeSpan.spanContext()
-  if (!isSpanContextValid(spanContext)) return null
+  // Cast to Span type for accessing spanContext
+  const spanContext = (targetSpan as { spanContext: () => { traceId: string; spanId: string; traceFlags: number } }).spanContext()
+  if (!spanContext || !isSpanContextValid(spanContext)) return null
 
   const traceId = spanContext.traceId
   const spanId = spanContext.spanId
