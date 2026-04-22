@@ -10,6 +10,31 @@ use crate::db::repository::Repository;
 use super::router::{ConnectionRouter, ConnectionType};
 use super::handler::MessageHandler;
 
+/// Extract trace context from incoming message and create child span
+fn extract_trace_context(msg: &serde_json::Value) -> tracing::Span {
+    if let Some(ctx) = msg.get("trace_context") {
+        if let Some(traceparent) = ctx["traceparent"].as_str() {
+            // Parse W3C traceparent: "00-{trace-id}-{span-id}-{flags}"
+            let parts: Vec<&str> = traceparent.split('-').collect();
+            if parts.len() == 4 && parts[0] == "00" {
+                tracing::info!(
+                    trace_id = parts[1],
+                    parent_span_id = parts[2],
+                    "Received trace context from client"
+                );
+                // Note: In Rust tracing, we can't directly set parent from parsed traceparent
+                // We create a new span and link it via attributes
+                return tracing::info_span!(
+                    "ws.message.traced",
+                    parent_trace_id = parts[1],
+                    parent_span_id = parts[2],
+                );
+            }
+        }
+    }
+    tracing::info_span!("ws.message")
+}
+
 /// Handle a single WebSocket connection
 pub async fn handle_connection(
     stream: TcpStream,
@@ -53,6 +78,17 @@ pub async fn handle_connection(
 
     match auth_result {
         Ok((conn_type, device_token, hostname, mobile_device_tokens)) => {
+            // Create connection span
+            let conn_span = tracing::info_span!(
+                "ws.connection.handle",
+                conn_type = match conn_type {
+                    ConnectionType::Desktop => "desktop",
+                    ConnectionType::Mobile => "mobile",
+                },
+                device_token = %device_token,
+            );
+            let _conn_enter = conn_span.enter();
+
             // Send auth success
             let auth_success = CloudMessage::AuthSuccess {
                 device_id: device_token.clone(),
@@ -129,7 +165,13 @@ pub async fn handle_connection(
                         Ok(Message::Text(text)) => {
                             let text_preview = text.chars().take(300).collect::<String>();
                             tracing::info!("Recv task: received text message: {}", text_preview);
+
                             if let Ok(cloud_msg) = serde_json::from_str::<CloudMessage>(&text) {
+                                // Extract trace context and create span
+                                let json_value: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::json!({}));
+                                let msg_span = extract_trace_context(&json_value);
+                                let _msg_enter = msg_span.enter();
+
                                 tracing::info!("Recv task: parsed CloudMessage type: {:?}", cloud_msg);
                                 handler.handle(cloud_msg, &out_tx, &device_token).await;
                             } else {

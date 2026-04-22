@@ -3,7 +3,7 @@
 use sqlx::PgPool;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
-use tracing::warn;
+use tracing::{info, info_span, warn};
 use super::models::{ChatMessage, Device, SessionInfo, Popup};
 use crate::messages::{ChatMessageData, MessageType, DeviceInfo};
 
@@ -22,6 +22,14 @@ impl Repository {
 
     /// Upsert device (register or update online status)
     pub async fn upsert_device(&self, device_token: &str, hostname: Option<&str>, name: Option<&str>) -> Result<Device> {
+        let span = info_span!(
+            "db.device.upsert",
+            device_token = %device_token,
+            hostname = hostname.unwrap_or("unknown"),
+        );
+        let _enter = span.enter();
+
+        info!("Upserting device in database");
         let now = Utc::now();
         let device = sqlx::query_as::<_, Device>(
             r#"
@@ -48,6 +56,13 @@ impl Repository {
 
     /// Set device status to offline
     pub async fn set_device_offline(&self, device_token: &str) -> Result<()> {
+        let span = info_span!(
+            "db.device.offline",
+            device_token = %device_token,
+        );
+        let _enter = span.enter();
+
+        info!("Setting device offline in database");
         sqlx::query(
             "UPDATE devices SET status = 'offline' WHERE device_token = $1",
         )
