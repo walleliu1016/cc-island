@@ -62,6 +62,9 @@ pub struct AppSettings {
     pub cloud_mode: bool,             // enable remote access via cloud relay
     pub cloud_server_url: Option<String>, // e.g., "wss://cloud.example.com:17528"
     pub device_name: Option<String>,   // user-defined device name (optional)
+    // OpenTelemetry tracing configuration
+    pub enable_tracing: bool,             // enable distributed tracing
+    pub otel_endpoint: Option<String>,    // e.g., "http://localhost:4317"
 }
 
 impl Default for AppSettings {
@@ -84,6 +87,8 @@ impl Default for AppSettings {
             cloud_mode: false,
             cloud_server_url: None,
             device_name: None,
+            enable_tracing: false,
+            otel_endpoint: None,
         }
     }
 }
