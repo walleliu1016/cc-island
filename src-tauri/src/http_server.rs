@@ -58,6 +58,14 @@ async fn handle_hook(
     State(state): State<Arc<RwLock<AppState>>>,
     Json(input): Json<HookInput>,
 ) -> Result<Json<HookOutput>, StatusCode> {
+    // Create span for hook receive
+    let span = tracing::info_span!(
+        "http.hook.receive",
+        session_id = %input.session_id,
+        hook_type = %input.hook_event_name,
+    );
+    let _enter = span.enter();
+
     // Log complete hook JSON to file if logging enabled (async, no lock)
     if crate::is_logging_enabled() {
         let log_entry = format!(
@@ -86,6 +94,22 @@ async fn handle_hook(
 
     // Check if auto-allow is enabled for PermissionRequest (but NOT for AskUserQuestion)
     if hook_event == "PermissionRequest" {
+        tracing::info!("PermissionRequest received");
+
+        // Record tool_name and action to span
+        if let Some(ref tool_name) = input.tool_name {
+            span.record("tool_name", tool_name.as_str());
+        }
+        if let Some(ref perm_data) = input.permission_data {
+            span.record("action", perm_data.action.as_str());
+        } else if let Some(ref tool_input) = input.tool_input {
+            if let Some(action) = tool_input.get("action").and_then(|v| v.as_str()) {
+                span.record("action", action);
+            } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
+                span.record("action", cmd);
+            }
+        }
+
         let auto_allow = {
             let state_guard = state.read();
             state_guard.settings.auto_allow_permissions
@@ -230,6 +254,8 @@ async fn handle_hook(
             }
             Err(_) => {
                 // Timeout - return deny decision
+                tracing::error!("Hook timeout for session: {}", input.session_id);
+                span.record("error", "timeout");
                 build_timeout_output(&hook_event_name)
             }
         }
