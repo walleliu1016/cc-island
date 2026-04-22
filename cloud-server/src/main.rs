@@ -13,6 +13,7 @@ use db::repository::Repository;
 use db::pending_message::PendingMessageRepo;
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
+use ws::notify_listener::NotifyListener;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -48,6 +49,42 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("HTTP API server listening on {}", http_port);
         axum::serve(listener, http_router).await.unwrap();
     });
+
+    // Start NotifyListener for cross-instance message routing
+    let notify_listener = NotifyListener::new(pool.clone(), router.clone());
+    let notify_shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        if let Err(e) = notify_listener.run(notify_shutdown).await {
+            tracing::error!("NotifyListener error: {}", e);
+        }
+    });
+    tracing::info!("NotifyListener started");
+
+    // Start stale message cleanup task (runs every minute)
+    let cleanup_repo = PendingMessageRepo::new(pool.clone());
+    let cleanup_shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {
+                    match cleanup_repo.delete_stale(5.0).await {
+                        Ok(count) if count > 0 => {
+                            tracing::debug!("Cleaned up {} stale pending messages", count);
+                        }
+                        Err(e) => {
+                            tracing::error!("Cleanup task error: {}", e);
+                        }
+                        _ => {}
+                    }
+                }
+                _ = cleanup_shutdown.cancelled() => {
+                    tracing::info!("Cleanup task stopped");
+                    break;
+                }
+            }
+        }
+    });
+    tracing::info!("Stale message cleanup task started");
 
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
