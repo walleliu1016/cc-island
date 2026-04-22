@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 use config::Config;
 use db::pool::create_pool;
 use db::repository::Repository;
+use db::pending_message::PendingMessageRepo;
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
 
@@ -33,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create shared components
     let repo = Repository::new(pool.clone());
+    let pending_repo = PendingMessageRepo::new(pool.clone());
     let router = ConnectionRouter::new();
 
     // Create shutdown token
@@ -58,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Run WebSocket server
-    run_server(config.ws_port, router, repo, shutdown).await?;
+    run_server(config.ws_port, router, repo, pending_repo, shutdown).await?;
 
     tracing::info!("Server shutdown complete");
     Ok(())

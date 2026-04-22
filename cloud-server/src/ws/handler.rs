@@ -4,6 +4,7 @@ use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use crate::messages::CloudMessage;
 use crate::db::repository::Repository;
+use crate::db::pending_message::{PendingMessageRepo, Direction, NotifyPayload};
 use super::router::ConnectionRouter;
 use uuid::Uuid;
 
@@ -11,12 +12,13 @@ use uuid::Uuid;
 pub struct MessageHandler {
     router: ConnectionRouter,
     repo: Repository,
+    pending_repo: PendingMessageRepo,
     mobile_conn_id: Option<uuid::Uuid>,
 }
 
 impl MessageHandler {
-    pub fn new(router: ConnectionRouter, repo: Repository, mobile_conn_id: Option<Uuid>) -> Self {
-        Self { router, repo, mobile_conn_id }
+    pub fn new(router: ConnectionRouter, repo: Repository, pending_repo: PendingMessageRepo, mobile_conn_id: Option<Uuid>) -> Self {
+        Self { router, repo, pending_repo, mobile_conn_id }
     }
 
     /// Handle an incoming message from a client
@@ -350,8 +352,8 @@ impl MessageHandler {
                     hook_type,
                     hook_body,
                 };
-                let json = serde_json::to_string(&hook_msg).unwrap();
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                let message_body = serde_json::to_value(&hook_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "hook_message", message_body).await;
             }
 
             // Desktop -> Cloud: Chat history sync
@@ -372,9 +374,9 @@ impl MessageHandler {
                     session_id,
                     messages,
                 };
-                let json = serde_json::to_string(&chat_msg).unwrap();
+                let message_body = serde_json::to_value(&chat_msg).unwrap();
                 tracing::info!("🟢 ChatHistory BROADCASTING to mobiles for device {}", device_token);
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                self.send_to_mobiles_via_notify(&device_token, "chat_history", message_body).await;
             }
 
             // Mobile -> Cloud: Request chat history
@@ -413,8 +415,8 @@ impl MessageHandler {
                     decision,
                     answers,
                 };
-                let json = serde_json::to_string(&response_msg).unwrap();
-                self.router.send_to_desktop(&device_token, Message::text(json));
+                let message_body = serde_json::to_value(&response_msg).unwrap();
+                self.send_to_desktop_via_notify(&device_token, "hook_response", message_body).await;
             }
 
             // Ping/Pong
@@ -436,6 +438,64 @@ impl MessageHandler {
             CloudMessage::SessionList { .. } |
             CloudMessage::Pong => {
                 tracing::debug!("Auth/connection message should be handled in connection setup");
+            }
+        }
+    }
+
+    /// Send message to mobiles, using NOTIFY if not locally subscribed
+    async fn send_to_mobiles_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        if self.router.has_mobile_subscribers(device_token) {
+            // Fast path: local subscriber exists
+            let json = message_body.to_string();
+            self.router.broadcast_to_mobiles(device_token, Message::text(json));
+            tracing::debug!("Sent {} directly to local mobile subscribers", message_type);
+        } else {
+            // Slow path: no local subscriber, use NOTIFY
+            match self.pending_repo.insert(device_token, Direction::ToMobile, message_type, message_body.clone()).await {
+                Ok(message_id) => {
+                    let payload = NotifyPayload {
+                        device_token: device_token.to_string(),
+                        direction: "to_mobile".to_string(),
+                        message_id,
+                    };
+                    if let Err(e) = self.pending_repo.notify(&payload).await {
+                        tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
+                    } else {
+                        tracing::debug!("Stored {} for device {}, sent NOTIFY", message_type, device_token);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to insert pending message for {}: {}", device_token, e);
+                }
+            }
+        }
+    }
+
+    /// Send message to desktop, using NOTIFY if not locally connected
+    async fn send_to_desktop_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        if self.router.has_desktop_connection(device_token) {
+            // Fast path: local connection exists
+            let json = message_body.to_string();
+            self.router.send_to_desktop(device_token, Message::text(json));
+            tracing::debug!("Sent {} directly to local desktop", message_type);
+        } else {
+            // Slow path: no local connection, use NOTIFY
+            match self.pending_repo.insert(device_token, Direction::ToDesktop, message_type, message_body.clone()).await {
+                Ok(message_id) => {
+                    let payload = NotifyPayload {
+                        device_token: device_token.to_string(),
+                        direction: "to_desktop".to_string(),
+                        message_id,
+                    };
+                    if let Err(e) = self.pending_repo.notify(&payload).await {
+                        tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
+                    } else {
+                        tracing::debug!("Stored {} for device {}, sent NOTIFY", message_type, device_token);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to insert pending message for {}: {}", device_token, e);
+                }
             }
         }
     }
