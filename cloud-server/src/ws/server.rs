@@ -1,7 +1,9 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 use tokio::net::TcpListener;
+use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
+use socket2::{SockRef, TcpKeepalive};
 use crate::db::repository::Repository;
 use crate::db::pending_message::PendingMessageRepo;
 use super::router::ConnectionRouter;
@@ -37,6 +39,17 @@ pub async fn run_server(
                 match accept_result {
                     Ok((stream, addr)) => {
                         tracing::debug!("New connection from {}", addr);
+
+                        // Set TCP keepalive to detect zombie connections
+                        // 60 seconds idle, then probe every 10 seconds, 3 probes before close
+                        let sock_ref = SockRef::from(&stream);
+                        let keepalive = TcpKeepalive::new()
+                            .with_time(Duration::from_secs(60))
+                            .with_interval(Duration::from_secs(10))
+                            .with_retries(3);
+                        if let Err(e) = sock_ref.set_tcp_keepalive(&keepalive) {
+                            tracing::warn!("Failed to set TCP keepalive for {}: {}", addr, e);
+                        }
 
                         // Clone shared state for the connection handler
                         let router_clone = router.clone();

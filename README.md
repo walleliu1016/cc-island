@@ -128,6 +128,27 @@ Desktop 发送消息 → 检查本地 Mobile 订阅者 →
     原子获取并删除 → 投递给目标
 ```
 
+### WebSocket 心跳机制
+
+Cloud Server 使用三层防护确保僵尸连接被及时清理：
+
+| 机制 | 超时时间 | 作用层级 | 检测目标 |
+|------|---------|---------|---------|
+| AUTH_TIMEOUT | 30 秒 | 应用层认证 | 未认证连接 |
+| READ_TIMEOUT | 120 秒 | 应用层数据 | 无响应连接 |
+| TCP Keepalive | 60 秒 + 10 秒 × 3 次 | 系统网络层 | 网络中断僵尸 |
+
+**客户端心跳要求**：
+- Desktop/Mobile 连接后必须 **30 秒内完成认证**
+- 认证后应 **每 30 秒发送一次 Ping** 保持连接活跃
+- 任何 WebSocket 消息（Text/Ping/Pong/Close）都会重置 120 秒超时计时器
+
+**超时触发场景**：
+- 客户端进程崩溃 → READ_TIMEOUT (120s) 断开
+- 网络物理中断 → TCP Keepalive (60s + 30s) 断开
+- 客户端卡死无响应 → READ_TIMEOUT (120s) 断开
+- 恶意连接不认证 → AUTH_TIMEOUT (30s) 强制断开
+
 ### 数据流
 
 1. **Hook 事件流**：Claude Code → HTTP Hook → Desktop → Cloud Server → Mobile

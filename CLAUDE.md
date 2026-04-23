@@ -211,3 +211,25 @@ Desktop sends HookMessage → Check local mobile subscribers →
 ```
 
 **Cleanup:** Stale messages (> 5 minutes) deleted every minute by cleanup task.
+
+### WebSocket 心跳机制
+
+Cloud Server 使用三层超时防护确保僵尸连接被及时清理：
+
+| 机制 | 超时时间 | 作用层级 | 检测目标 |
+|------|---------|---------|---------|
+| AUTH_TIMEOUT | 30 秒 | 应用层认证 | 未认证连接 |
+| READ_TIMEOUT | 120 秒 | 应用层数据 | 无响应连接 |
+| TCP Keepalive | 60 秒 + 10 秒 × 3 次 | 系统网络层 | 网络中断僵尸 |
+
+**客户端接入要求：**
+- Desktop/Mobile 连接后必须 **30 秒内完成认证**
+- 认证后应 **每 30 秒发送一次 Ping** 保持连接活跃
+- 任何 WebSocket 消息（Text/Ping/Pong/Close）都会重置 120 秒超时计时器
+
+**关键文件：**
+| 文件 | 作用 |
+|------|------|
+| `cloud-server/src/ws/connection.rs` | AUTH_TIMEOUT/READ_TIMEOUT 常量，超时检测逻辑 |
+| `cloud-server/src/ws/server.rs` | TCP Keepalive 设置 (socket2) |
+| `cloud-server/docs/fd-leak-fix.md` | FD 泄漏修复方案文档 |

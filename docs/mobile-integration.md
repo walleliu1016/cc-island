@@ -1,6 +1,6 @@
 # CC-Island 移动端接入文档
 
-> 版本: 0.2.2 | 更新日期: 2026-04-21
+> 版本: 0.2.3 | 更新日期: 2026-04-23
 
 ## 概述
 
@@ -163,6 +163,54 @@ Mobile 连接时发送，订阅指定设备。
 // Pong (Cloud → 任意)
 { "type": "pong" }
 ```
+
+### 心跳机制详解
+
+Cloud Server 使用三层超时防护确保僵尸连接被及时清理：
+
+| 机制 | 超时时间 | 作用层级 | 检测目标 |
+|------|---------|---------|---------|
+| AUTH_TIMEOUT | 30 秒 | 应用层认证 | 未认证连接 |
+| READ_TIMEOUT | 120 秒 | 应用层数据 | 无响应连接 |
+| TCP Keepalive | 60 秒 + 10 秒 × 3 次 | 系统网络层 | 网络中断僵尸 |
+
+**客户端接入要求：**
+
+1. **认证优先**：连接成功后必须在 **30 秒内发送认证消息** (`mobile_auth` 或 `device_register`)
+2. **定时心跳**：认证成功后建议 **每 30 秒发送一次 Ping** 保持连接活跃
+3. **重连机制**：断开后延迟 5-10 秒重连，避免频繁重连风暴
+
+**超时触发场景：**
+
+| 场景 | 检测机制 | 超时时间 | 结果 |
+|------|---------|---------|------|
+| 客户端进程崩溃 | READ_TIMEOUT | 120 秒 | 断开并清理 |
+| 网络物理中断 | TCP Keepalive | 60 + 30 秒 | OS 关闭 → 清理 |
+| 客户端卡死无响应 | READ_TIMEOUT | 120 秒 | 断开并清理 |
+| 未认证连接 | AUTH_TIMEOUT | 30 秒 | 强制断开 |
+| 正常关闭 | WebSocket Close | 立即 | 清理 |
+
+**心跳实现示例：**
+
+```typescript
+// WebSocket 心跳
+const HEARTBEAT_INTERVAL = 30000; // 30 秒
+
+function startHeartbeat(ws: WebSocket) {
+  const timer = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, HEARTBEAT_INTERVAL);
+  
+  // 监听关闭事件，清理定时器
+  ws.addEventListener('close', () => clearInterval(timer));
+  
+  return timer;
+}
+```
+
+> **注意**：任何 WebSocket 消息（Text/Ping/Pong/Close）都会重置 120 秒超时计时器，心跳 Ping 只是在无业务消息时保持活跃。
 
 ---
 
@@ -531,6 +579,7 @@ Mobile 状态来自实时 WebSocket 推送，刷新页面会重置。
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| 0.2.3 | 2026-04-23 | WebSocket 心跳机制详解、三层超时防护 |
 | 0.2.2 | 2026-04-21 | Android 网络安全配置修复 |
 | 0.2.1 | 2026-04-20 | 添加 H5 构建支持 |
 | 0.2.0 | 2026-04-19 | QR 码扫码功能 |

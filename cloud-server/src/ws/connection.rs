@@ -5,11 +5,17 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use futures_util::{StreamExt, SinkExt};
 use tokio::sync::mpsc::{Sender, Receiver, channel};
+use tokio::time::{timeout, Duration};
 use crate::messages::CloudMessage;
 use crate::db::pending_message::PendingMessageRepo;
 use crate::db::repository::Repository;
 use super::router::{ConnectionRouter, ConnectionType};
 use super::handler::MessageHandler;
+
+/// WebSocket read timeout (no activity for this duration = disconnect)
+const READ_TIMEOUT: Duration = Duration::from_secs(120);
+/// Auth timeout (must auth within this duration)
+const AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Handle a single WebSocket connection
 pub async fn handle_connection(
@@ -31,26 +37,49 @@ pub async fn handle_connection(
     // Channel for outgoing messages
     let (out_tx, mut out_rx): (Sender<Message>, Receiver<Message>) = channel(32);
 
-    // Wait for first message (must be auth)
-    let auth_msg = ws_rx.next().await;
+    // Wait for first message (must be auth) with timeout
+    let auth_result = timeout(AUTH_TIMEOUT, ws_rx.next()).await;
+
+    let auth_msg = match auth_result {
+        Ok(Some(Ok(msg))) => msg,
+        Ok(None) => {
+            tracing::warn!("Auth: connection closed before auth");
+            return;
+        },
+        Ok(Some(Err(e))) => {
+            tracing::error!("Auth: WebSocket error: {}", e);
+            return;
+        },
+        Err(_) => {
+            tracing::warn!("Auth timeout ({}s), closing connection", AUTH_TIMEOUT.as_secs());
+            // Try to send close frame
+            let _ = ws_tx.close().await;
+            return;
+        },
+    };
 
     let auth_result = match auth_msg {
-        Some(Ok(Message::Text(text))) => {
+        Message::Text(text) => {
             parse_and_handle_auth(&text, &repo).await
         },
-        Some(Ok(Message::Ping(data))) => {
+        Message::Ping(data) => {
             // Respond to ping and wait for auth
             if let Err(e) = ws_tx.send(Message::Pong(data)).await {
                 tracing::error!("Failed to send pong: {}", e);
+                let _ = ws_tx.close().await;
                 return;
             }
-            // Wait for actual auth message
-            match ws_rx.next().await {
-                Some(Ok(Message::Text(text))) => parse_and_handle_auth(&text, &repo).await,
-                _ => Err("Expected auth message after ping".to_string()),
+            // Wait for actual auth message with timeout
+            let next_result = timeout(AUTH_TIMEOUT, ws_rx.next()).await;
+            match next_result {
+                Ok(Some(Ok(Message::Text(text)))) => parse_and_handle_auth(&text, &repo).await,
+                Ok(Some(Ok(_))) => Err("Expected text auth message after ping".to_string()),
+                Ok(None) => Err("Connection closed after ping".to_string()),
+                Ok(Some(Err(e))) => Err(format!("WebSocket error: {}", e)),
+                Err(_) => Err("Auth timeout after ping".to_string()),
             }
         },
-        _ => Err("Expected auth message as first message".to_string()),
+        _ => Err("Expected text auth message as first message".to_string()),
     };
 
     match auth_result {
@@ -126,9 +155,12 @@ pub async fn handle_connection(
             // Spawn receive task (handle incoming messages)
             let recv_task = async {
                 tracing::debug!("Recv task started for connection");
-                while let Some(msg_result) = ws_rx.next().await {
+                loop {
+                    // Add read timeout to detect zombie connections
+                    let msg_result = timeout(READ_TIMEOUT, ws_rx.next()).await;
+
                     match msg_result {
-                        Ok(Message::Text(text)) => {
+                        Ok(Some(Ok(Message::Text(text)))) => {
                             let text_preview = text.chars().take(300).collect::<String>();
                             tracing::info!("Recv task: received text message: {}", text_preview);
                             if let Ok(cloud_msg) = serde_json::from_str::<CloudMessage>(&text) {
@@ -138,26 +170,39 @@ pub async fn handle_connection(
                                 tracing::warn!("Recv task: failed to parse message as CloudMessage. Full text: {}", text);
                             }
                         },
-                        Ok(Message::Ping(data)) => {
+                        Ok(Some(Ok(Message::Ping(data)))) => {
                             tracing::debug!("Recv task: Ping received");
                             if let Err(e) = out_tx.try_send(Message::Pong(data)) {
                                 tracing::warn!("Failed to send pong: {}", e);
                             }
                         },
-                        Ok(Message::Close(_)) => {
+                        Ok(Some(Ok(Message::Close(_)))) => {
                             tracing::info!("Recv task: received Close from client");
                             break;
                         },
-                        Err(e) => {
+                        Ok(Some(Ok(other))) => {
+                            tracing::debug!("Recv task: other message: {:?}", other);
+                        },
+                        Ok(None) => {
+                            tracing::info!("Recv task: WebSocket stream ended (client disconnected)");
+                            break;
+                        },
+                        Ok(Some(Err(e))) => {
                             tracing::error!("Recv task: WebSocket error: {}", e);
                             break;
                         },
-                        Ok(other) => {
-                            tracing::debug!("Recv task: other message: {:?}", other);
+                        Err(_) => {
+                            // Timeout - no activity for READ_TIMEOUT seconds
+                            tracing::warn!(
+                                "Recv task: connection timeout ({}s), disconnecting device={}",
+                                READ_TIMEOUT.as_secs(),
+                                device_token
+                            );
+                            break;
                         },
                     }
                 }
-                tracing::info!("Recv task ended: ws_rx stream ended");
+                tracing::info!("Recv task ended");
             };
 
             // Run both tasks concurrently
