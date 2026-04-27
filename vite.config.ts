@@ -4,6 +4,7 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  base: './',  // 使用相对路径，确保Tauri本地加载正确
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

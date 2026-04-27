@@ -596,11 +596,8 @@ fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -
                 break;
             }
 
-            // Update connection status
-            if attempt > 0 {
-                SHARED_STATE.write().cloud_connection_status =
-                    CloudConnectionStatus::Failed(format!("连接失败 (尝试 {}), 将重试...", attempt));
-            }
+            // Set Connecting status before each attempt (简洁提示，不显示技术细节)
+            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
 
             tracing::info!("Attempting cloud connection (attempt {})", attempt + 1);
 
@@ -615,6 +612,10 @@ fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -
                 *connected_arc.write() = false;
 
                 attempt += 1;
+
+                // Update status immediately on failure (简洁的用户友好提示)
+                SHARED_STATE.write().cloud_connection_status =
+                    CloudConnectionStatus::Failed(format!("连接失败，正在重试... (第{}次)", attempt));
 
                 // Wait before retry (no max limit - keep retrying forever)
                 tokio::time::sleep(RECONNECT_INTERVAL).await;

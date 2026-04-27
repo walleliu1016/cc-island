@@ -241,6 +241,37 @@ async fn handle_hook(
         {
             let mut state_guard = state.write();
 
+            // Auto-recover session if it doesn't exist (Desktop restart recovery)
+            // Skip for SessionStart (creates new) and SessionEnd (would be invalid)
+            if hook_event != "SessionStart" && hook_event != "SessionEnd" {
+                if state_guard.instances.get_instance(&input.session_id).is_none() {
+                    // Auto-create instance from current event
+                    let session_id = input.session_id.clone();
+                    let project_name = extract_project_name(&input);
+                    let session_cwd = input.cwd.clone();
+                    let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
+                    instance.session_cwd = session_cwd.clone();
+
+                    // Try to find process info
+                    if let Some(cwd) = &input.cwd {
+                        if let Some(process_info) = crate::platform::find_claude_process_by_cwd(cwd) {
+                            instance.process_info = Some(process_info);
+                        }
+                    }
+
+                    tracing::info!("🔄 Auto-recovered session: {} - {} (from {} event)",
+                        instance.session_id, instance.project_name, hook_event);
+                    state_guard.instances.add_instance(instance);
+
+                    // Start JSONL watcher for this recovered session
+                    if let Some(ref mut watcher) = state_guard.jsonl_watcher {
+                        if let Some(cwd) = &session_cwd {
+                            watcher.watch_session(session_id.clone(), cwd.clone());
+                        }
+                    }
+                }
+            }
+
             match hook_event {
                 "SessionStart" => {
                     let session_id = input.session_id.clone();
@@ -578,19 +609,32 @@ async fn handle_response(
     };
 
     if resolved {
-        // Clear WaitingForApproval status for the instance
-        if let Some(session_id) = popup_session_id.clone() {
+        // Clear WaitingForApproval status for the instance and get cloud_client
+        let cloud_client_ref = {
             let mut state_guard = state.write();
-            if let Some(instance) = state_guard.instances.get_instance_mut(&session_id) {
-                if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
-                    instance.set_status(crate::instance_manager::InstanceStatus::Idle);
-                    instance.current_tool = None;
-                    instance.tool_input = None;
+            if let Some(session_id) = popup_session_id.clone() {
+                if let Some(instance) = state_guard.instances.get_instance_mut(&session_id) {
+                    if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                        instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                        instance.current_tool = None;
+                        instance.tool_input = None;
+                    }
                 }
             }
+            state_guard.cloud_client.clone()
+        };
 
-            // Push HookMessage with hook_type "popup_resolved" (conceptually)
-            // This is a local resolution, mobile will be notified via HookMessage if needed
+        // Push PopupResolved to cloud (notify mobiles) - outside of write lock
+        if let Some(cloud_client) = cloud_client_ref {
+            if let Some(session_id) = popup_session_id.clone() {
+                let client = cloud_client.read().await;
+                client.push_popup_resolved(
+                    &response.popup_id,
+                    &session_id,
+                    response.decision.as_deref(),
+                    response.answers.as_ref(),
+                );
+            }
         }
 
         Ok(Json(serde_json::json!({ "success": true })))

@@ -129,6 +129,10 @@ export interface CloudMessage {
   // Hook response
   decision?: string
   answers?: string[][]
+
+  // Popup resolved
+  popup_id?: string
+  source?: string  // 'desktop' or 'mobile'
 }
 
 // Chat message data
