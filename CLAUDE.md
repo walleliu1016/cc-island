@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ```bash
-# Development (hot reload)
+# Development (hot reload) - 必须使用pnpm tauri dev启动，不能用cargo run
 pnpm tauri:dev
 
 # Build release
@@ -20,6 +20,22 @@ cargo check --manifest-path src-tauri/Cargo.toml
 # Check TypeScript frontend
 pnpm exec tsc --noEmit
 ```
+
+**重要：** Desktop启动方式
+- ✅ `pnpm tauri dev` - 完整开发环境（前端Vite + 后端Tauri）
+- ❌ `cargo run` - 只有后端，前端缺失，窗口会显示"Connection refused"错误
+
+## Service Ports (固定端口)
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| Desktop HTTP Server | 17527 | Claude Code hooks接收端口 |
+| Cloud Server WebSocket | 17528 | Desktop/Mobile连接端口 |
+| Cloud Server HTTP API | 17529 | 状态查询API端口 |
+| Desktop Vite (dev) | 1420 | Tauri dev前端热更新 |
+| **Mobile H5 Vite** | **3001** | Mobile开发服务器（固定） |
+
+**注意：** Mobile H5端口固定为3001，不要修改 `mobile-app/vite.config.ts` 中的端口配置。
 
 ## Architecture Overview
 

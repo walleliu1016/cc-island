@@ -146,6 +146,28 @@ pub enum CloudMessage {
         sessions: Vec<ClaudeSession>,
     },
 
+    // ===== Real-time Session Query (Cloud → Desktop) =====
+
+    /// Request session list from desktop (real-time query).
+    #[serde(rename = "request_session_list")]
+    RequestSessionList {
+        /// Device token
+        device_token: String,
+        /// Mobile connection ID (for routing response back)
+        mobile_conn_id: String,
+    },
+
+    /// Session list response from desktop (real-time data).
+    #[serde(rename = "session_list_response")]
+    SessionListResponse {
+        /// Device token
+        device_token: String,
+        /// Mobile connection ID (for routing response back)
+        mobile_conn_id: String,
+        /// Active sessions (real-time from SHARED_STATE)
+        sessions: Vec<ClaudeSession>,
+    },
+
     /// Keepalive ping.
     #[serde(rename = "ping")]
     Ping,
@@ -202,6 +224,23 @@ pub enum CloudMessage {
         device_token: String,
         /// Session ID
         session_id: String,
+        /// User's decision (e.g., "allow" or "deny")
+        decision: Option<String>,
+        /// User's answers for AskUserQuestion
+        answers: Option<Vec<Vec<String>>>,
+    },
+
+    /// Popup resolved notification, broadcast to all clients.
+    #[serde(rename = "popup_resolved")]
+    PopupResolved {
+        /// Device token
+        device_token: String,
+        /// Popup ID
+        popup_id: String,
+        /// Session ID (for direct matching on mobile)
+        session_id: String,
+        /// Source of resolution ("desktop" or "mobile")
+        source: String,
         /// User's decision (e.g., "allow" or "deny")
         decision: Option<String>,
         /// User's answers for AskUserQuestion

@@ -114,8 +114,10 @@ impl NotifyListener {
                 tracing::debug!("NOTIFY skipped (no mobile subscriber for {})", notify_data.device_token);
             }
         } else if notify_data.direction == "to_desktop" {
+            // Each instance checks if it has the desktop connection
+            // DELETE RETURNING is atomic, so only one instance will succeed
             if self.router.has_desktop_connection(&notify_data.device_token) {
-                // Belongs to us -> retrieve -> deliver -> delete
+                // We have the desktop -> retrieve -> deliver -> delete
                 self.deliver_to_desktop(&notify_data);
             } else {
                 tracing::debug!("NOTIFY skipped (no desktop connection for {})", notify_data.device_token);

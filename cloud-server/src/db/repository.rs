@@ -203,6 +203,24 @@ impl Repository {
         Ok(())
     }
 
+    /// Cleanup stale sessions (not ended, but updated_at older than threshold minutes)
+    pub async fn cleanup_stale_sessions(&self, stale_minutes: f64) -> Result<u64> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE sessions
+            SET status = 'ended', updated_at = NOW()
+            WHERE status NOT LIKE '%ended%'
+            AND status NOT LIKE '%test%'
+            AND updated_at < NOW() - ($1 * INTERVAL '1 minute')
+            "#,
+            stale_minutes,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     // ===== Chat message operations =====
 
     /// Upsert chat messages for a session (batch insert, skip duplicates)

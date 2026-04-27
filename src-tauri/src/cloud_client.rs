@@ -235,6 +235,8 @@ impl CloudClient {
         let app_state = self.app_state.clone();
         let connected_clone = self.connected.clone();
         let last_pong_time = self.last_pong_time.clone();
+        let device_token_recv = self.device_token.clone();
+        let out_tx_for_recv = out_tx.clone();
         let recv_task = async move {
             while let Some(msg_result) = ws_rx.next().await {
                 match msg_result {
@@ -246,8 +248,11 @@ impl CloudClient {
                                 serde_json::json!({})
                             }
                         };
-                        if json["type"] == "hook_response" {
+                        let msg_type = json["type"].as_str().unwrap_or("");
+                        if msg_type == "hook_response" {
                             handle_hook_response(&app_state, &json);
+                        } else if msg_type == "request_session_list" {
+                            handle_request_session_list(&app_state, &device_token_recv, &json, &out_tx_for_recv);
                         }
                     },
                     Ok(Message::Ping(data)) => {
@@ -389,6 +394,29 @@ impl CloudClient {
             tracing::warn!("🔵 push_chat_history SKIPPED: no out_tx channel");
         }
     }
+
+    /// Push popup resolved notification to cloud (broadcast to mobiles)
+    pub fn push_popup_resolved(&self, popup_id: &str, session_id: &str, decision: Option<&str>, answers: Option<&Vec<Vec<String>>>) {
+        if !self.is_connected() {
+            return;
+        }
+
+        if let Some(tx) = &self.out_tx {
+            let msg = serde_json::json!({
+                "type": "popup_resolved",
+                "device_token": self.device_token,
+                "popup_id": popup_id,
+                "session_id": session_id,
+                "source": "desktop",
+                "decision": decision,
+                "answers": answers,
+            });
+            tracing::info!("Pushing popup_resolved: popup={}, decision={:?}", popup_id, decision);
+            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
+                tracing::warn!("Failed to push popup_resolved: {}", e);
+            }
+        }
+    }
 }
 
 fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Value) {
@@ -440,5 +468,57 @@ fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Va
         }
     } else {
         tracing::warn!("No pending popup found for session {}", session_id);
+    }
+}
+
+/// Handle RequestSessionList from Cloud Server - return real-time instances
+fn handle_request_session_list(
+    app_state: &Arc<RwLock<AppState>>,
+    device_token: &str,
+    json: &serde_json::Value,
+    out_tx: &Sender<Message>,
+) {
+    let mobile_conn_id = json["mobile_conn_id"].as_str().unwrap_or("");
+    tracing::info!("📱 Received RequestSessionList: device={}, mobile_conn_id={}", device_token, mobile_conn_id);
+
+    // Get real-time instances from SHARED_STATE
+    let sessions: Vec<serde_json::Value> = {
+        let state = app_state.read();
+        let all_instances = state.instances.get_all_instances_display();
+        tracing::info!("📱 Returning {} active sessions", all_instances.len());
+        all_instances.into_iter().filter(|i| i.status != crate::instance_manager::InstanceStatus::Ended).map(|i| {
+            // Convert InstanceStatus to string
+            let status_str = match i.status {
+                crate::instance_manager::InstanceStatus::Idle => "idle",
+                crate::instance_manager::InstanceStatus::Thinking => "thinking",
+                crate::instance_manager::InstanceStatus::Working(_) => "working",
+                crate::instance_manager::InstanceStatus::Waiting => "waiting",
+                crate::instance_manager::InstanceStatus::WaitingForApproval(_) => "waitingForApproval",
+                crate::instance_manager::InstanceStatus::Error => "error",
+                crate::instance_manager::InstanceStatus::Compacting => "compacting",
+                crate::instance_manager::InstanceStatus::Ended => "ended",
+            };
+            serde_json::json!({
+                "sessionId": i.session_id,
+                "projectName": i.project_name,
+                "status": status_str,
+                "currentTool": i.current_tool,
+                "createdAt": i.started_at,
+            })
+        }).collect()
+    };
+
+    // Send SessionListResponse back to Cloud Server
+    let response_msg = serde_json::json!({
+        "type": "session_list_response",
+        "device_token": device_token,
+        "mobile_conn_id": mobile_conn_id,
+        "sessions": sessions,
+    });
+
+    if let Err(e) = out_tx.try_send(Message::text(response_msg.to_string())) {
+        tracing::warn!("Failed to send SessionListResponse: {}", e);
+    } else {
+        tracing::info!("📱 Sent SessionListResponse with {} sessions", sessions.len());
     }
 }

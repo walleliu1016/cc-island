@@ -60,19 +60,31 @@ async fn main() -> anyhow::Result<()> {
     });
     tracing::info!("NotifyListener started");
 
-    // Start stale message cleanup task (runs every minute)
-    let cleanup_repo = PendingMessageRepo::new(pool.clone());
+    // Start stale cleanup task (runs every minute, cleans pending messages and stale sessions)
+    let cleanup_pending_repo = PendingMessageRepo::new(pool.clone());
+    let cleanup_session_repo = Repository::new(pool.clone());
     let cleanup_shutdown = shutdown.clone();
     tokio::spawn(async move {
         loop {
             tokio::select! {
                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {
-                    match cleanup_repo.delete_stale(5.0).await {
+                    // Cleanup stale pending messages (> 5 minutes)
+                    match cleanup_pending_repo.delete_stale(5.0).await {
                         Ok(count) if count > 0 => {
                             tracing::debug!("Cleaned up {} stale pending messages", count);
                         }
                         Err(e) => {
-                            tracing::error!("Cleanup task error: {}", e);
+                            tracing::error!("Pending message cleanup error: {}", e);
+                        }
+                        _ => {}
+                    }
+                    // Cleanup stale sessions (> 30 minutes, not ended)
+                    match cleanup_session_repo.cleanup_stale_sessions(30.0).await {
+                        Ok(count) if count > 0 => {
+                            tracing::info!("Cleaned up {} stale sessions (marked as ended)", count);
+                        }
+                        Err(e) => {
+                            tracing::error!("Session cleanup error: {}", e);
                         }
                         _ => {}
                     }
@@ -84,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
-    tracing::info!("Stale message cleanup task started");
+    tracing::info!("Stale cleanup task started (pending messages + sessions)");
 
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
