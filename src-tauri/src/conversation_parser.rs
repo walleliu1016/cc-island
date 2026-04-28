@@ -84,12 +84,17 @@ impl ConversationParser {
     }
 
     /// Get session file path
-    /// Claude Code uses the full cwd path with / and . replaced by -
+    /// Claude Code uses the full cwd path with path separators and . replaced by -
     /// Example: /home/akke/project/cc-island → -home-akke-project-cc-island
+    /// Example (Windows): C:\Users\akke\project → -C-Users-akke-project
     fn session_file_path(session_id: &str, cwd: &str) -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Convert full cwd path: replace / and . with -
-        let project_dir = cwd.replace('/', "-").replace('.', "-");
+        // Convert full cwd path: replace all path separators (/ or \) and . with -
+        // This matches Claude Code's behavior on all platforms
+        let project_dir = cwd
+            .replace('/', "-")
+            .replace('\\', "-")  // Windows path separator
+            .replace('.', "-");
         home.join(".claude/projects").join(project_dir).join(format!("{}.jsonl", session_id))
     }
 
