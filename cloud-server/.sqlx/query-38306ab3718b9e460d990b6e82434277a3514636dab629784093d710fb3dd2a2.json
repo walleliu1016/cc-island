@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE sessions\n            SET status = 'ended', updated_at = NOW()\n            WHERE status NOT LIKE '%ended%'\n            AND status NOT LIKE '%test%'\n            AND updated_at < NOW() - ($1 * INTERVAL '1 minute')\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "38306ab3718b9e460d990b6e82434277a3514636dab629784093d710fb3dd2a2"
+}
