@@ -386,6 +386,19 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     <span className="text-white/40 text-xs block">~/.cc-island/cc-island.log</span>
                   </div>
                 </label>
+
+                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.show_thinking_messages}
+                    onChange={e => setSettings({ ...settings, show_thinking_messages: e.target.checked })}
+                    className="w-4 h-4 rounded accent-white"
+                  />
+                  <div className="flex-1">
+                    <span className="text-white/80 text-sm">显示思考过程</span>
+                    <span className="text-white/40 text-xs ml-2">(ChatView中显示thinking内容)</span>
+                  </div>
+                </label>
               </div>
 
               {/* Numeric Inputs */}

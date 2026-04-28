@@ -126,6 +126,7 @@ export interface AppSettings {
   cloud_mode: boolean;
   cloud_server_url: string | null;
   device_name: string | null;
+  show_thinking_messages: boolean;  // show thinking messages in ChatView
 }
 
 // Tool activity for display
