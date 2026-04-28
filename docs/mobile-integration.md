@@ -1,6 +1,6 @@
 # CC-Island 移动端接入文档
 
-> 版本: 0.2.3 | 更新日期: 2026-04-23
+> 版本: 0.2.3 | 更新日期: 2026-04-28
 
 ## 概述
 
@@ -387,6 +387,34 @@ Mobile 用户做出决定后发送响应。
 |------|------|------|
 | answers | string[][] | 每个问题的答案数组（支持多选） |
 
+#### 14. Popup 已处理通知 (Desktop → Cloud → Mobile)
+
+当 Desktop 用户在 UI 点击 Allow/Deny 处理弹窗后，通知 Mobile 弹窗已被处理，Mobile 可关闭等待页面。
+
+```json
+{
+  "type": "popup_resolved",
+  "device_token": "device-token-1",
+  "popup_id": "popup-uuid",
+  "session_id": "session-uuid",
+  "source": "desktop",
+  "decision": "allow",
+  "answers": null
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| popup_id | string | 弹窗 ID |
+| session_id | string | 会话 ID |
+| source | string | 来源标识，固定为 "desktop" |
+| decision | string | 决策结果：allow/deny/null |
+| answers | string[][] | AskUserQuestion 的答案 |
+
+**使用场景**：
+- Mobile 显示弹窗等待页面时，收到此消息表示 Desktop 已处理
+- Mobile 应关闭等待页面，显示 Toast 提示"已在 Desktop 处理"
+
 ---
 
 ### 聊天历史
@@ -579,6 +607,7 @@ Mobile 状态来自实时 WebSocket 推送，刷新页面会重置。
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| 0.2.3 | 2026-04-28 | popup_resolved 消息：Desktop UI 点击后通知 Mobile |
 | 0.2.3 | 2026-04-23 | WebSocket 心跳机制详解、三层超时防护 |
 | 0.2.2 | 2026-04-21 | Android 网络安全配置修复 |
 | 0.2.1 | 2026-04-20 | 添加 H5 构建支持 |

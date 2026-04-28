@@ -153,7 +153,8 @@ Cloud Server 使用三层防护确保僵尸连接被及时清理：
 
 1. **Hook 事件流**：Claude Code → HTTP Hook → Desktop → Cloud Server → Mobile
 2. **权限响应流**：Mobile → Cloud Server → Desktop → Claude Code
-3. **聊天历史流**：Desktop JSONL Watcher → Cloud Server → Mobile
+3. **弹窗处理通知流**：Desktop UI 点击 → Cloud Server → Mobile（popup_resolved）
+4. **聊天历史流**：Desktop JSONL Watcher → Cloud Server → Mobile
 
 ### 核心模块
 
@@ -395,6 +396,7 @@ Mobile 支持订阅多个 Desktop 设备：
 
 ### 已完成
 
+- ✅ **Popup Resolved 同步** - Desktop UI 点击后实时通知 Mobile，避免 Mobile 停留在等待页面
 - ✅ **多实例 Cloud Server** - PostgreSQL LISTEN/NOTIFY 跨实例消息路由，高可用架构
 - ✅ **Cloud Relay** - 云服务器远程监控和权限审批
 - ✅ **Mobile Remote** - 手机端实时查看状态、远程审批
