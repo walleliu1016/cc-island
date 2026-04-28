@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM pending_messages\n            WHERE created_at < NOW() - INTERVAL '1 minute' * $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f916e58eacde39d8040e69f3dacb6b455c6b597518800d98573e8f25039448c8"
+}

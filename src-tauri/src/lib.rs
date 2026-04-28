@@ -331,7 +331,7 @@ fn respond_popup(
         }
 
         // Record user answers in chat history if this is an ask popup
-        if let Some(popup) = popup_info {
+        if let Some(ref popup) = popup_info {
             if popup.popup_type == popup_queue::PopupType::Ask {
                 if let (Some(answers_arr), Some(ask_data)) = (&answers, &popup.ask_data) {
                     // Build answer text
@@ -366,6 +366,33 @@ fn respond_popup(
                 }
             }
         }
+
+        // Push PopupResolved to cloud (notify mobiles) - get cloud_client before releasing lock
+        let cloud_client_ref = state.cloud_client.clone();
+        let session_id_for_cloud = popup_info.as_ref().map(|p| p.session_id.clone());
+
+        // Release the write lock before async operation
+        drop(state);
+
+        // Push PopupResolved to cloud (notify mobiles)
+        if let Some(cloud_client) = cloud_client_ref {
+            if let Some(session_id) = session_id_for_cloud {
+                // Use try_read for non-blocking access to CloudClient
+                if let Ok(client) = cloud_client.try_read() {
+                    tracing::info!("📤 push_popup_resolved: popup={}, session={}, decision={:?}",
+                        popup_id, session_id, decision);
+                    client.push_popup_resolved(
+                        &popup_id,
+                        &session_id,
+                        decision.as_deref(),
+                        answers.as_ref(),
+                    );
+                } else {
+                    tracing::warn!("📤 push_popup_resolved: cannot acquire cloud_client lock");
+                }
+            }
+        }
+
         Ok(())
     } else {
         Err("Popup not found or already resolved".to_string())
@@ -596,11 +623,8 @@ fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -
                 break;
             }
 
-            // Update connection status
-            if attempt > 0 {
-                SHARED_STATE.write().cloud_connection_status =
-                    CloudConnectionStatus::Failed(format!("连接失败 (尝试 {}), 将重试...", attempt));
-            }
+            // Set Connecting status before each attempt (简洁提示，不显示技术细节)
+            SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Connecting;
 
             tracing::info!("Attempting cloud connection (attempt {})", attempt + 1);
 
@@ -615,6 +639,10 @@ fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -
                 *connected_arc.write() = false;
 
                 attempt += 1;
+
+                // Update status immediately on failure (简洁的用户友好提示)
+                SHARED_STATE.write().cloud_connection_status =
+                    CloudConnectionStatus::Failed(format!("连接失败，正在重试... (第{}次)", attempt));
 
                 // Wait before retry (no max limit - keep retrying forever)
                 tokio::time::sleep(RECONNECT_INTERVAL).await;

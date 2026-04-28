@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 
 ```bash
-# Development (hot reload)
+# Development (hot reload) - 必须使用pnpm tauri dev启动，不能用cargo run
 pnpm tauri:dev
 
 # Build release
@@ -21,17 +21,39 @@ cargo check --manifest-path src-tauri/Cargo.toml
 pnpm exec tsc --noEmit
 ```
 
+**重要：** Desktop启动方式
+- ✅ `pnpm tauri dev` - 完整开发环境（前端Vite + 后端Tauri）
+- ❌ `cargo run` - 只有后端，前端缺失，窗口会显示"Connection refused"错误
+
+## Service Ports (固定端口)
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| Desktop HTTP Server | 17527 | Claude Code hooks接收端口 |
+| Cloud Server WebSocket | 17528 | Desktop/Mobile连接端口 |
+| Cloud Server HTTP API | 17529 | 状态查询API端口 |
+| Desktop Vite (dev) | 1420 | Tauri dev前端热更新 |
+| **Mobile H5 Vite** | **3001** | Mobile开发服务器（固定） |
+
+**注意：** Mobile H5端口固定为3001，不要修改 `mobile-app/vite.config.ts` 中的端口配置。
+
 ## Architecture Overview
 
-CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks.
+CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks, with optional cloud relay for mobile remote access.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Zustand + Framer Motion + Tailwind CSS
 - Backend: Rust + Axum HTTP server (port 17527) + Tokio async runtime
+- Cloud Server: Rust + PostgreSQL + WebSocket + LISTEN/NOTIFY
 
-**Core Data Flow:**
+**Core Data Flow (Desktop):**
 ```
 Claude Code terminals → HTTP POST /hook (port 17527) → Rust backend → Frontend (polling via Tauri IPC)
+```
+
+**Core Data Flow (Cloud Relay):**
+```
+Desktop → WebSocket → Cloud Server → PostgreSQL → NOTIFY → Other Instance → Mobile
 ```
 
 **Key Components:**
@@ -175,3 +197,55 @@ The product name displayed in expanded idle state is configurable:
 | HTTP API | `src-tauri/src/http_server.rs` | Receives Claude Code hooks, handles blocking (PermissionRequest/Ask) and non-blocking events, sets session notifications |
 | State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) with `session_notification` field for start/end alerts |
 | Frontend | `src/App.tsx` | Handles session notification display, product name fetch via `get_product_name` command |
+
+## Cloud Server (Multi-Instance Architecture)
+
+The cloud-server component enables remote monitoring from mobile devices, with multi-instance support for high availability.
+
+**Architecture:**
+- Each instance maintains local connection state in memory
+- Cross-instance messages via PostgreSQL LISTEN/NOTIFY
+- Messages stored in `pending_messages` table, retrieved atomically with DELETE RETURNING
+
+**Key Cloud Server Components:**
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Migration | `cloud-server/migrations/004_pending_messages.sql` | pending_messages table for cross-instance routing |
+| DB Repo | `cloud-server/src/db/pending_message.rs` | INSERT/SELECT/DELETE pending messages + NOTIFY |
+| NotifyListener | `cloud-server/src/ws/notify_listener.rs` | LISTEN PostgreSQL NOTIFY, handle incoming notifications |
+| ConnectionRouter | `cloud-server/src/ws/router.rs` | Local connection state, has_mobile_subscribers/has_desktop_connection methods |
+| MessageHandler | `cloud-server/src/ws/handler.rs` | NOTIFY path for cross-instance message routing |
+
+**Cross-Instance Message Flow:**
+```
+Desktop sends HookMessage → Check local mobile subscribers → 
+  If found: Direct memory broadcast (fast path)
+  If not found: INSERT pending_messages + NOTIFY (slow path) →
+    Other instance receives NOTIFY → Check if target belongs to them →
+    get_and_delete (atomic) → Deliver → Delete
+```
+
+**Cleanup:** Stale messages (> 5 minutes) deleted every minute by cleanup task.
+
+### WebSocket 心跳机制
+
+Cloud Server 使用三层超时防护确保僵尸连接被及时清理：
+
+| 机制 | 超时时间 | 作用层级 | 检测目标 |
+|------|---------|---------|---------|
+| AUTH_TIMEOUT | 30 秒 | 应用层认证 | 未认证连接 |
+| READ_TIMEOUT | 120 秒 | 应用层数据 | 无响应连接 |
+| TCP Keepalive | 60 秒 + 10 秒 × 3 次 | 系统网络层 | 网络中断僵尸 |
+
+**客户端接入要求：**
+- Desktop/Mobile 连接后必须 **30 秒内完成认证**
+- 认证后应 **每 30 秒发送一次 Ping** 保持连接活跃
+- 任何 WebSocket 消息（Text/Ping/Pong/Close）都会重置 120 秒超时计时器
+
+**关键文件：**
+| 文件 | 作用 |
+|------|------|
+| `cloud-server/src/ws/connection.rs` | AUTH_TIMEOUT/READ_TIMEOUT 常量，超时检测逻辑 |
+| `cloud-server/src/ws/server.rs` | TCP Keepalive 设置 (socket2) |
+| `cloud-server/docs/fd-leak-fix.md` | FD 泄漏修复方案文档 |

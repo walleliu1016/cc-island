@@ -4,6 +4,7 @@ use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use crate::messages::CloudMessage;
 use crate::db::repository::Repository;
+use crate::db::pending_message::{PendingMessageRepo, Direction, NotifyPayload};
 use super::router::ConnectionRouter;
 use uuid::Uuid;
 
@@ -11,12 +12,13 @@ use uuid::Uuid;
 pub struct MessageHandler {
     router: ConnectionRouter,
     repo: Repository,
+    pending_repo: PendingMessageRepo,
     mobile_conn_id: Option<uuid::Uuid>,
 }
 
 impl MessageHandler {
-    pub fn new(router: ConnectionRouter, repo: Repository, mobile_conn_id: Option<Uuid>) -> Self {
-        Self { router, repo, mobile_conn_id }
+    pub fn new(router: ConnectionRouter, repo: Repository, pending_repo: PendingMessageRepo, mobile_conn_id: Option<Uuid>) -> Self {
+        Self { router, repo, pending_repo, mobile_conn_id }
     }
 
     /// Handle an incoming message from a client
@@ -24,7 +26,7 @@ impl MessageHandler {
         match msg {
             // Mobile -> Cloud: Update subscription
             CloudMessage::MobileAuth { device_tokens } => {
-                tracing::info!("MobileAuth (update subscription): {} devices: {:?}", device_tokens.len(), device_tokens);
+                tracing::info!("📱 MobileAuth (update subscription): {} devices: {:?}", device_tokens.len(), device_tokens);
 
                 // Update mobile subscription in router
                 if let Some(conn_id) = self.mobile_conn_id {
@@ -49,37 +51,43 @@ impl MessageHandler {
                     tracing::warn!("Failed to send device list: {}", e);
                 }
 
-                // Send active sessions for each subscribed device
+                // Request real-time session list from desktop (instead of DB query)
                 for device_token in &device_tokens {
-                    match self.repo.get_active_sessions(&[device_token.clone()]).await {
-                        Ok(sessions) => {
-                            // Convert to ClaudeSession format
-                            let claude_sessions: Vec<crate::messages::ClaudeSession> = sessions
-                                .into_iter()
-                                .filter_map(|s| {
-                                    Some(crate::messages::ClaudeSession {
-                                        session_id: s.session_id,
-                                        project_name: s.project_name.unwrap_or_else(|| "未知项目".to_string()),
-                                        status: s.status,
-                                        current_tool: s.current_tool,
-                                        created_at: s.started_at.map(|t| t.timestamp_millis() as u64),
-                                    })
-                                })
-                                .collect();
-
-                            if !claude_sessions.is_empty() {
-                                let session_list_msg = CloudMessage::SessionList {
+                    if self.router.has_desktop_connection(device_token) {
+                        // Fast path: Desktop is on this instance, send request directly
+                        let conn_id_str = self.mobile_conn_id.map(|id| id.to_string()).unwrap_or_default();
+                        let request_msg = CloudMessage::RequestSessionList {
+                            device_token: device_token.clone(),
+                            mobile_conn_id: conn_id_str,
+                        };
+                        let json = serde_json::to_string(&request_msg).unwrap();
+                        self.router.send_to_desktop(device_token, Message::text(json));
+                        tracing::info!("📱 Sent RequestSessionList directly to desktop for {}", device_token);
+                    } else {
+                        // Slow path: Desktop may be on another instance, use NOTIFY
+                        // Each instance will check if it has the desktop connection
+                        let conn_id_str = self.mobile_conn_id.map(|id| id.to_string()).unwrap_or_default();
+                        let request_msg = CloudMessage::RequestSessionList {
+                            device_token: device_token.clone(),
+                            mobile_conn_id: conn_id_str,
+                        };
+                        let message_body = serde_json::to_value(&request_msg).unwrap();
+                        match self.pending_repo.insert(device_token, Direction::ToDesktop, "request_session_list", message_body).await {
+                            Ok(message_id) => {
+                                let payload = NotifyPayload {
                                     device_token: device_token.clone(),
-                                    sessions: claude_sessions,
+                                    direction: "to_desktop".to_string(),
+                                    message_id,
                                 };
-                                let json = serde_json::to_string(&session_list_msg).unwrap();
-                                if let Err(e) = tx.try_send(Message::text(json)) {
-                                    tracing::warn!("Failed to send session list for {}: {}", device_token, e);
+                                if let Err(e) = self.pending_repo.notify(&payload).await {
+                                    tracing::error!("Failed to NOTIFY RequestSessionList for {}: {}", device_token, e);
+                                } else {
+                                    tracing::info!("📱 Stored RequestSessionList for {}, sent NOTIFY", device_token);
                                 }
                             }
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to get sessions for {}: {}", device_token, e);
+                            Err(e) => {
+                                tracing::error!("Failed to insert RequestSessionList for {}: {}", device_token, e);
+                            }
                         }
                     }
                 }
@@ -350,8 +358,8 @@ impl MessageHandler {
                     hook_type,
                     hook_body,
                 };
-                let json = serde_json::to_string(&hook_msg).unwrap();
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                let message_body = serde_json::to_value(&hook_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "hook_message", message_body).await;
             }
 
             // Desktop -> Cloud: Chat history sync
@@ -372,9 +380,9 @@ impl MessageHandler {
                     session_id,
                     messages,
                 };
-                let json = serde_json::to_string(&chat_msg).unwrap();
+                let message_body = serde_json::to_value(&chat_msg).unwrap();
                 tracing::info!("🟢 ChatHistory BROADCASTING to mobiles for device {}", device_token);
-                self.router.broadcast_to_mobiles(&device_token, Message::text(json));
+                self.send_to_mobiles_via_notify(&device_token, "chat_history", message_body).await;
             }
 
             // Mobile -> Cloud: Request chat history
@@ -401,7 +409,7 @@ impl MessageHandler {
                 }
             }
 
-            // Mobile -> Cloud: Hook response (forward to desktop)
+            // Mobile -> Cloud: Hook response (forward to desktop + broadcast PopupResolved)
             CloudMessage::HookResponse { device_token, session_id, decision, answers } => {
                 tracing::info!("HookResponse from mobile: device={}, session={}, decision={:?}",
                     device_token, session_id, decision);
@@ -409,12 +417,43 @@ impl MessageHandler {
                 // Forward to desktop
                 let response_msg = CloudMessage::HookResponse {
                     device_token: device_token.clone(),
-                    session_id,
+                    session_id: session_id.clone(),
+                    decision: decision.clone(),
+                    answers: answers.clone(),
+                };
+                let message_body = serde_json::to_value(&response_msg).unwrap();
+                self.send_to_desktop_via_notify(&device_token, "hook_response", message_body).await;
+
+                // Broadcast PopupResolved to all mobiles (including the responder)
+                let popup_id = format!("popup-{}", session_id);
+                let resolved_msg = CloudMessage::PopupResolved {
+                    device_token: device_token.clone(),
+                    popup_id,
+                    session_id: session_id.clone(),
+                    source: "mobile".to_string(),
                     decision,
                     answers,
                 };
-                let json = serde_json::to_string(&response_msg).unwrap();
-                self.router.send_to_desktop(&device_token, Message::text(json));
+                let resolved_body = serde_json::to_value(&resolved_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "popup_resolved", resolved_body).await;
+            }
+
+            // Desktop -> Cloud: Popup resolved (broadcast to all mobiles)
+            CloudMessage::PopupResolved { device_token, popup_id, session_id, source, decision, answers } => {
+                tracing::info!("PopupResolved from {}: device={}, popup={}, session={}, decision={:?}",
+                    source, device_token, popup_id, session_id, decision);
+
+                // Broadcast to all mobiles
+                let resolved_msg = CloudMessage::PopupResolved {
+                    device_token: device_token.clone(),
+                    popup_id,
+                    session_id,
+                    source,
+                    decision,
+                    answers,
+                };
+                let resolved_body = serde_json::to_value(&resolved_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "popup_resolved", resolved_body).await;
             }
 
             // Ping/Pong
@@ -424,6 +463,25 @@ impl MessageHandler {
                 if let Err(e) = tx.try_send(Message::text(json)) {
                     tracing::warn!("Failed to send pong: {}", e);
                 }
+            }
+
+            // Desktop -> Cloud: Session list response (forward to mobile)
+            CloudMessage::SessionListResponse { device_token, mobile_conn_id, sessions } => {
+                tracing::info!("📱 SessionListResponse from desktop: device={}, {} sessions, target_mobile={}",
+                    device_token, sessions.len(), mobile_conn_id);
+
+                // Forward to mobile via NOTIFY (mobile may be on different instance)
+                let session_list_msg = CloudMessage::SessionList {
+                    device_token: device_token.clone(),
+                    sessions,
+                };
+                let message_body = serde_json::to_value(&session_list_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "session_list", message_body).await;
+            }
+
+            // RequestSessionList is sent by Cloud, Desktop will handle it
+            CloudMessage::RequestSessionList { .. } => {
+                tracing::debug!("RequestSessionList should only be sent by Cloud Server");
             }
 
             // Auth messages are handled in connection handler
@@ -436,6 +494,64 @@ impl MessageHandler {
             CloudMessage::SessionList { .. } |
             CloudMessage::Pong => {
                 tracing::debug!("Auth/connection message should be handled in connection setup");
+            }
+        }
+    }
+
+    /// Send message to mobiles, using NOTIFY if not locally subscribed
+    async fn send_to_mobiles_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        if self.router.has_mobile_subscribers(device_token) {
+            // Fast path: local subscriber exists
+            let json = message_body.to_string();
+            self.router.broadcast_to_mobiles(device_token, Message::text(json));
+            tracing::debug!("Sent {} directly to local mobile subscribers", message_type);
+        } else {
+            // Slow path: no local subscriber, use NOTIFY
+            match self.pending_repo.insert(device_token, Direction::ToMobile, message_type, message_body.clone()).await {
+                Ok(message_id) => {
+                    let payload = NotifyPayload {
+                        device_token: device_token.to_string(),
+                        direction: "to_mobile".to_string(),
+                        message_id,
+                    };
+                    if let Err(e) = self.pending_repo.notify(&payload).await {
+                        tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
+                    } else {
+                        tracing::debug!("Stored {} for device {}, sent NOTIFY", message_type, device_token);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to insert pending message for {}: {}", device_token, e);
+                }
+            }
+        }
+    }
+
+    /// Send message to desktop, using NOTIFY if not locally connected
+    async fn send_to_desktop_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        if self.router.has_desktop_connection(device_token) {
+            // Fast path: local connection exists
+            let json = message_body.to_string();
+            self.router.send_to_desktop(device_token, Message::text(json));
+            tracing::debug!("Sent {} directly to local desktop", message_type);
+        } else {
+            // Slow path: no local connection, use NOTIFY
+            match self.pending_repo.insert(device_token, Direction::ToDesktop, message_type, message_body.clone()).await {
+                Ok(message_id) => {
+                    let payload = NotifyPayload {
+                        device_token: device_token.to_string(),
+                        direction: "to_desktop".to_string(),
+                        message_id,
+                    };
+                    if let Err(e) = self.pending_repo.notify(&payload).await {
+                        tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
+                    } else {
+                        tracing::debug!("Stored {} for device {}, sent NOTIFY", message_type, device_token);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to insert pending message for {}: {}", device_token, e);
+                }
             }
         }
     }

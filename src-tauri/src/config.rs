@@ -62,6 +62,7 @@ pub struct AppSettings {
     pub cloud_mode: bool,             // enable remote access via cloud relay
     pub cloud_server_url: Option<String>, // e.g., "wss://cloud.example.com:17528"
     pub device_name: Option<String>,   // user-defined device name (optional)
+    pub show_thinking_messages: bool,  // show thinking messages in ChatView
 }
 
 impl Default for AppSettings {
@@ -84,6 +85,7 @@ impl Default for AppSettings {
             cloud_mode: false,
             cloud_server_url: None,
             device_name: None,
+            show_thinking_messages: false,  // hide thinking messages by default
         }
     }
 }

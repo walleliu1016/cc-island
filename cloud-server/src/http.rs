@@ -7,9 +7,9 @@ use axum::{
 };
 use crate::db::repository::Repository;
 use crate::ws::router::ConnectionRouter;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SessionInfoResponse {
     pub device_token: String,
     pub session_id: String,

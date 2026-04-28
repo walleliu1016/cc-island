@@ -84,16 +84,17 @@ impl ConversationParser {
     }
 
     /// Get session file path
+    /// Claude Code uses the full cwd path with path separators and . replaced by -
+    /// Example: /home/akke/project/cc-island → -home-akke-project-cc-island
+    /// Example (Windows): C:\Users\akke\project → -C-Users-akke-project
     fn session_file_path(session_id: &str, cwd: &str) -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        // Extract project name from cwd (last path component)
-        // Claude Code uses only the project directory name, not the full path
-        let project_name = cwd
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or(cwd);
-        // Project dir: replace . with - (only in project name, / already removed by rsplit)
-        let project_dir = project_name.replace('.', "-");
+        // Convert full cwd path: replace all path separators (/ or \) and . with -
+        // This matches Claude Code's behavior on all platforms
+        let project_dir = cwd
+            .replace('/', "-")
+            .replace('\\', "-")  // Windows path separator
+            .replace('.', "-");
         home.join(".claude/projects").join(project_dir).join(format!("{}.jsonl", session_id))
     }
 
@@ -141,14 +142,18 @@ impl ConversationParser {
         None
     }
 
-    /// Parse full conversation for a session (reads entire file)
-    /// Also updates cache to prevent incremental re-reading
+    /// Parse full conversation for a session
+    /// For cached sessions: uses incremental read (fast)
+    /// For new sessions: reads tail of large files to avoid blocking
     pub fn parse_full(&mut self, session_id: &str, cwd: &str) -> Vec<ConversationMessage> {
         let file_path = Self::session_file_path(session_id, cwd);
 
         if !file_path.exists() {
             return vec![];
         }
+
+        // Check if we have cached data
+        let has_cache = self.cache.contains_key(session_id);
 
         let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
             last_offset: 0,
@@ -157,13 +162,28 @@ impl ConversationParser {
             completed_tool_ids: HashMap::new(),
         });
 
-        Self::parse_file_full(&file_path, session);
+        // If cached, use incremental read (fast)
+        if has_cache && session.last_offset > 0 {
+            Self::parse_file_new_only(&file_path, session);
+        } else {
+            // First read: check file size
+            if let Ok(metadata) = std::fs::metadata(&file_path) {
+                let file_size = metadata.len();
+                if file_size > 5_000_000 {  // 5 MB
+                    tracing::info!("Large JSONL file ({:.1}MB), reading tail only for session {}", file_size as f64 / 1_000_000.0, session_id);
+                    Self::parse_file_tail(&file_path, session, 1_000_000);  // Read last 1MB
+                } else {
+                    Self::parse_file_full(&file_path, session);
+                }
+            } else {
+                Self::parse_file_full(&file_path, session);
+            }
+        }
 
         session.messages.clone()
     }
 
     /// Parse full conversation when cwd is unknown (searches all project dirs)
-    /// Also updates cache to prevent incremental re-reading
     pub fn parse_full_without_cwd(&mut self, session_id: &str) -> Vec<ConversationMessage> {
         let file_path = Self::find_session_file(session_id);
 
@@ -172,6 +192,10 @@ impl ConversationParser {
         }
 
         let file_path = file_path.unwrap();
+
+        // Check if we have cached data
+        let has_cache = self.cache.contains_key(session_id);
+
         let session = self.cache.entry(session_id.to_string()).or_insert(ParsedSession {
             last_offset: 0,
             messages: vec![],
@@ -179,9 +203,91 @@ impl ConversationParser {
             completed_tool_ids: HashMap::new(),
         });
 
-        Self::parse_file_full(&file_path, session);
+        // If cached, use incremental read (fast)
+        if has_cache && session.last_offset > 0 {
+            Self::parse_file_new_only(&file_path, session);
+        } else {
+            // First read: check file size
+            if let Ok(metadata) = std::fs::metadata(&file_path) {
+                let file_size = metadata.len();
+                if file_size > 5_000_000 {  // 5 MB
+                    tracing::info!("Large JSONL file ({:.1}MB), reading tail only for session {}", file_size as f64 / 1_000_000.0, session_id);
+                    Self::parse_file_tail(&file_path, session, 1_000_000);  // Read last 1MB
+                } else {
+                    Self::parse_file_full(&file_path, session);
+                }
+            } else {
+                Self::parse_file_full(&file_path, session);
+            }
+        }
 
         session.messages.clone()
+    }
+
+    /// Parse file tail (last N bytes) for large files - avoids blocking
+    fn parse_file_tail(file_path: &PathBuf, session: &mut ParsedSession, tail_bytes: u64) {
+        let file = File::open(file_path).ok();
+        if file.is_none() {
+            return;
+        }
+
+        let mut file = file.unwrap();
+        let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+
+        // Seek to tail position (but ensure we start at a line boundary)
+        let seek_pos = if file_size > tail_bytes {
+            file_size - tail_bytes
+        } else {
+            0
+        };
+
+        if file.seek(SeekFrom::Start(seek_pos)).is_err() {
+            return;
+        }
+
+        let reader = BufReader::new(&file);
+        let mut new_messages: Vec<ConversationMessage> = vec![];
+        let mut first_line = true;
+
+        for line in reader.lines() {
+            if line.is_err() {
+                break;
+            }
+            let line = line.unwrap();
+            if line.is_empty() {
+                continue;
+            }
+
+            // Skip first line if we seeked to middle of file (likely incomplete JSON)
+            if first_line && seek_pos > 0 {
+                first_line = false;
+                continue;
+            }
+            first_line = false;
+
+            // Check for /clear command
+            if line.contains("<command-name>/clear</command-name>") {
+                session.messages.clear();
+                session.tool_id_to_name.clear();
+                session.completed_tool_ids.clear();
+                continue;
+            }
+
+            // Parse JSON line
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                Self::parse_line(json, session, &mut new_messages);
+            }
+        }
+
+        // Update offset to full file size (so incremental reads work correctly)
+        session.last_offset = file_size;
+
+        // Append messages (dedupe by id)
+        for msg in new_messages {
+            if !session.messages.iter().any(|m| m.id == msg.id) {
+                session.messages.push(msg);
+            }
+        }
     }
 
     /// Parse entire file (for initial full read)

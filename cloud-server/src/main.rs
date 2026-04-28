@@ -10,8 +10,10 @@ use tokio_util::sync::CancellationToken;
 use config::Config;
 use db::pool::create_pool;
 use db::repository::Repository;
+use db::pending_message::PendingMessageRepo;
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
+use ws::notify_listener::NotifyListener;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create shared components
     let repo = Repository::new(pool.clone());
+    let pending_repo = PendingMessageRepo::new(pool.clone());
     let router = ConnectionRouter::new();
 
     // Create shutdown token
@@ -47,6 +50,54 @@ async fn main() -> anyhow::Result<()> {
         axum::serve(listener, http_router).await.unwrap();
     });
 
+    // Start NotifyListener for cross-instance message routing
+    let notify_listener = NotifyListener::new(pool.clone(), router.clone());
+    let notify_shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        if let Err(e) = notify_listener.run(notify_shutdown).await {
+            tracing::error!("NotifyListener error: {}", e);
+        }
+    });
+    tracing::info!("NotifyListener started");
+
+    // Start stale cleanup task (runs every minute, cleans pending messages and stale sessions)
+    let cleanup_pending_repo = PendingMessageRepo::new(pool.clone());
+    let cleanup_session_repo = Repository::new(pool.clone());
+    let cleanup_shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {
+                    // Cleanup stale pending messages (> 5 minutes)
+                    match cleanup_pending_repo.delete_stale(5.0).await {
+                        Ok(count) if count > 0 => {
+                            tracing::debug!("Cleaned up {} stale pending messages", count);
+                        }
+                        Err(e) => {
+                            tracing::error!("Pending message cleanup error: {}", e);
+                        }
+                        _ => {}
+                    }
+                    // Cleanup stale sessions (> 30 minutes, not ended)
+                    match cleanup_session_repo.cleanup_stale_sessions(30.0).await {
+                        Ok(count) if count > 0 => {
+                            tracing::info!("Cleaned up {} stale sessions (marked as ended)", count);
+                        }
+                        Err(e) => {
+                            tracing::error!("Session cleanup error: {}", e);
+                        }
+                        _ => {}
+                    }
+                }
+                _ = cleanup_shutdown.cancelled() => {
+                    tracing::info!("Cleanup task stopped");
+                    break;
+                }
+            }
+        }
+    });
+    tracing::info!("Stale cleanup task started (pending messages + sessions)");
+
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
     tokio::spawn(async move {
@@ -58,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Run WebSocket server
-    run_server(config.ws_port, router, repo, shutdown).await?;
+    run_server(config.ws_port, router, repo, pending_repo, shutdown).await?;
 
     tracing::info!("Server shutdown complete");
     Ok(())

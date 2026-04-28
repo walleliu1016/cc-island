@@ -349,6 +349,46 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             }
             break
           }
+
+          case 'popup_resolved': {
+            // Popup resolved by another client (desktop or another mobile)
+            const deviceToken = msg.device_token
+            const sessionId = msg.session_id  // Use session_id directly
+            const source = msg.source
+            const decision = msg.decision
+            const answers = msg.answers
+            console.log('[WebSocket] popup_resolved:', sessionId, 'by', source, 'decision:', decision)
+
+            if (!deviceToken || !sessionId) break
+
+            setState(s => {
+              // Remove the hook hint for this session
+              const hookHints = { ...s.hookHints }
+              const deviceHints = hookHints[deviceToken] || []
+              const removedHint = deviceHints.find(h => h.session_id === sessionId && h.urgent)
+              hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId || !h.urgent)
+
+              // Update session status to idle (matching desktop behavior)
+              const sessions = { ...s.sessions }
+              const deviceSessions = sessions[deviceToken] || []
+              sessions[deviceToken] = deviceSessions.map(sess =>
+                sess.sessionId === sessionId
+                  ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
+                  : sess
+              )
+
+              // Log toast info for UI to display
+              if (removedHint && source) {
+                const toastMessage = buildPopupResolvedToast(source, decision, answers)
+                console.log('[WebSocket] Toast notification:', toastMessage)
+                // Note: Actual toast display should be handled by UI component
+                // This hook just clears the popup state
+              }
+
+              return { ...s, hookHints, sessions }
+            })
+            break
+          }
         }
       } catch (err) {
         console.warn('Failed to parse cloud message:', err)
@@ -838,4 +878,21 @@ function extractProjectName(cwd?: string): string | undefined {
   if (!cwd) return undefined
   const parts = cwd.split('/')
   return parts[parts.length - 1] || undefined
+}
+
+// Helper: build toast message for popup resolved
+function buildPopupResolvedToast(source: string, decision?: string, answers?: string[][]): string {
+  const sourceLabel = source === 'desktop' ? 'Desktop' : '手机端'
+
+  if (answers && answers.length > 0) {
+    // AskUserQuestion - format answers
+    const answerStr = answers.map(a => a.join('; ')).join('; ')
+    return `已由 ${sourceLabel} 处理（${answerStr}）`
+  } else if (decision) {
+    // Permission - format decision
+    const decisionLabel = decision === 'allow' ? '允许' : '拒绝'
+    return `已由 ${sourceLabel} 处理（${decisionLabel}）`
+  } else {
+    return `已由 ${sourceLabel} 处理`
+  }
 }

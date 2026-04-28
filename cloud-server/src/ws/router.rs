@@ -194,6 +194,21 @@ impl ConnectionRouter {
         let inner = self.inner.read();
         inner.desktop_connections.contains_key(device_token)
     }
+
+    /// Check if any mobile subscriber exists for a device (local memory)
+    pub fn has_mobile_subscribers(&self, device_token: &str) -> bool {
+        let inner = self.inner.read();
+        inner.mobile_subscriptions
+            .get(device_token)
+            .map(|subs| !subs.is_empty())
+            .unwrap_or(false)
+    }
+
+    /// Check if desktop connection exists for a device (local memory)
+    pub fn has_desktop_connection(&self, device_token: &str) -> bool {
+        let inner = self.inner.read();
+        inner.desktop_connections.contains_key(device_token)
+    }
 }
 
 impl Default for ConnectionRouter {
