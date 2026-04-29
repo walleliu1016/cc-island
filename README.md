@@ -36,6 +36,8 @@
 - **Mobile Remote** - 手机端实时查看状态、远程审批权限
 - **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
 - **多实例高可用** - Cloud Server 多实例部署，跨实例消息路由，负载分担
+- **后台模式** - 支持无 UI 后台运行，适合服务器部署
+- **命令行配置** - 所有配置项可通过命令行设置，无需 UI
 
 ### 界面特点
 
@@ -245,6 +247,90 @@ xattr -cr /Applications/Ease-Island.app
 1. 启动云服务器
 2. Desktop Settings → Cloud → 填写服务器地址并复制 Token
 3. Mobile Settings → 添加服务器地址 + Token
+
+---
+
+## 后台模式
+
+CC-Island 支持无 UI 的后台运行模式，适合服务器部署或无桌面环境使用。
+
+### 启动方式
+
+```bash
+# UI 模式（默认）
+cc-island
+
+# 后台模式
+cc-island --background
+```
+
+### 命令行配置
+
+所有配置项都可通过命令行设置：
+
+```bash
+# 查看帮助
+cc-island --help
+
+# 查看当前配置
+cc-island --show-config
+
+# 更新配置
+cc-island --config --cloud-mode --cloud-server-url ws://server:17528
+
+# 后台启动（可同时配置）
+cc-island --background --cloud-mode --cloud-server-url ws://server:17528
+```
+
+### 可配置项
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--cloud-mode` | 启用云转发 | false |
+| `--cloud-server-url <URL>` | 云服务器地址 | - |
+| `--device-name <NAME>` | 设备名称 | 自动获取 hostname |
+| `--enable-logging` | 启用日志 | false |
+| `--permission-timeout <SECS>` | 权限超时 | 300 |
+| `--ask-timeout <SECS>` | Ask 超时 | 120 |
+| `--auto-deny-on-timeout` | 超时自动拒绝 | true |
+| `--auto-allow-permissions` | 自动允许权限 | false |
+
+### Mobile 配对
+
+后台模式下通过命令行获取配对信息：
+
+```bash
+# 查看 device token
+cc-island --device-token
+
+# 查看完整配对信息（推荐）
+cc-island --pair-info
+```
+
+输出示例：
+```
+CC-Island Pairing Information
+==============================
+Device Token: d8ba913a09bf93daaf73dfe78d2de4ae
+Device Name:  my-server
+Server URL:   ws://cloud.example.com:17528
+✓ Cloud mode enabled and server configured
+
+使用方法：
+1. 在 Mobile App Settings 中点击 '+' 添加设备
+2. 输入 Device Token: d8ba913a09bf93daaf73dfe78d2de4ae
+3. 输入 Server URL: ws://cloud.example.com:17528
+```
+
+### 后台模式完整流程
+
+```bash
+# 一步启动（配置 + 后台运行）
+cc-island --background --cloud-mode --cloud-server-url ws://your-server:17528
+
+# 后台启动时会自动打印配对信息，用于 Mobile 配对
+# 按 Ctrl+C 停止
+```
 
 ---
 
