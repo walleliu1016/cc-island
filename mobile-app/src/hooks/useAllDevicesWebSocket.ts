@@ -118,6 +118,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
+        mcpChatMessages: {},
       })
       return
     }
@@ -134,6 +135,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
+        mcpChatMessages: {},
       })
       return
     }
@@ -152,6 +154,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
+        mcpChatMessages: {},
       })
       return
     }
@@ -394,11 +397,11 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
           case 'chat_reply': {
             const sessionId = msg.session_id
-            const text = msg.text
+            const text = msg.text || ''
             const replyTo = msg.reply_to
             console.log('[WebSocket] chat_reply received:', sessionId, text)
 
-            if (sessionId) {
+            if (sessionId && text) {
               setState(s => {
                 const existing = s.mcpChatMessages[sessionId] || []
                 const replyMessage: LocalChatMessage = {
@@ -867,6 +870,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
+        mcpChatMessages: {},
       })
       return
     }
