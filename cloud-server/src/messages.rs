@@ -246,4 +246,32 @@ pub enum CloudMessage {
         /// User's answers for AskUserQuestion
         answers: Option<Vec<Vec<String>>>,
     },
+
+    // ===== Chat Messaging (Mobile → Cloud → Desktop → MCP Bridge) =====
+
+    /// Chat message from Mobile to MCP Bridge.
+    #[serde(rename = "chat_message")]
+    ChatMessage {
+        /// Device token
+        device_token: String,
+        /// Session ID
+        session_id: String,
+        /// Message text
+        text: String,
+        /// Message ID (unique)
+        message_id: String,
+    },
+
+    /// Chat reply from MCP Bridge to Mobile.
+    #[serde(rename = "chat_reply")]
+    ChatReply {
+        /// Device token
+        device_token: String,
+        /// Session ID
+        session_id: String,
+        /// Reply text
+        text: String,
+        /// Original message ID (optional)
+        reply_to: Option<String>,
+    },
 }

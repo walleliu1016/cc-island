@@ -495,6 +495,38 @@ impl MessageHandler {
             CloudMessage::Pong => {
                 tracing::debug!("Auth/connection message should be handled in connection setup");
             }
+
+            // Mobile -> Cloud -> Desktop: Chat message to MCP Bridge
+            CloudMessage::ChatMessage { device_token, session_id, text, message_id } => {
+                tracing::info!("ChatMessage from mobile: device={}, session={}, msg_id={}",
+                    device_token, session_id, message_id);
+
+                // Forward to desktop (MCP Bridge runs on desktop)
+                let chat_msg = CloudMessage::ChatMessage {
+                    device_token: device_token.clone(),
+                    session_id,
+                    text,
+                    message_id,
+                };
+                let message_body = serde_json::to_value(&chat_msg).unwrap();
+                self.send_to_desktop_via_notify(&device_token, "chat_message", message_body).await;
+            }
+
+            // Desktop -> Cloud -> Mobile: Chat reply from MCP Bridge
+            CloudMessage::ChatReply { device_token, session_id, text, reply_to } => {
+                tracing::info!("ChatReply from desktop: device={}, session={}, reply_to={:?}",
+                    device_token, session_id, reply_to);
+
+                // Forward to all subscribed mobiles
+                let reply_msg = CloudMessage::ChatReply {
+                    device_token: device_token.clone(),
+                    session_id,
+                    text,
+                    reply_to,
+                };
+                let message_body = serde_json::to_value(&reply_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "chat_reply", message_body).await;
+            }
         }
     }
 
