@@ -253,6 +253,12 @@ impl CloudClient {
                             handle_hook_response(&app_state, &json);
                         } else if msg_type == "request_session_list" {
                             handle_request_session_list(&app_state, &device_token_recv, &json, &out_tx_for_recv);
+                        } else if msg_type == "chat_message" {
+                            // Forward to MCP Bridge
+                            let session_id = json["session_id"].as_str().unwrap_or("");
+                            let text = json["text"].as_str().unwrap_or("");
+                            let message_id = json["message_id"].as_str().unwrap_or("");
+                            crate::ws_server::send_to_mcp_bridge(session_id, text, message_id);
                         }
                     },
                     Ok(Message::Ping(data)) => {
@@ -520,5 +526,37 @@ fn handle_request_session_list(
         tracing::warn!("Failed to send SessionListResponse: {}", e);
     } else {
         tracing::info!("📱 Sent SessionListResponse with {} sessions", sessions.len());
+    }
+}
+
+/// Send chat_reply from MCP Bridge to Cloud Server → Mobile
+pub fn send_chat_reply_from_bridge(session_id: &str, text: &str, reply_to: Option<&str>) {
+    // Get Cloud Client from SHARED_STATE
+    let cloud_client_opt = crate::SHARED_STATE.read().cloud_client.clone();
+
+    if let Some(cloud_client) = cloud_client_opt {
+        // Use try_read for non-blocking access
+        if let Ok(client) = cloud_client.try_read() {
+            if client.is_connected() {
+                if let Some(tx) = client.get_out_tx() {
+                    let msg = serde_json::json!({
+                        "type": "chat_reply",
+                        "device_token": client.get_device_token(),
+                        "session_id": session_id,
+                        "text": text,
+                        "reply_to": reply_to,
+                    });
+                    if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
+                        tracing::warn!("Failed to send chat_reply: {}", e);
+                    } else {
+                        tracing::info!("Sent chat_reply to Cloud: session {}", session_id);
+                    }
+                }
+            } else {
+                tracing::warn!("Cloud client not connected, cannot send chat_reply");
+            }
+        }
+    } else {
+        tracing::warn!("No cloud client configured, cannot send chat_reply");
     }
 }
