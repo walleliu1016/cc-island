@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChatMessageData } from '../types'
+import { ChatMessageData, LocalChatMessage } from '../types'
 import ReactMarkdown from 'react-markdown'
+import { ChatInput } from './ChatInput'
 
 // Terminal-style colors
 const Colors = {
@@ -480,9 +481,13 @@ interface ChatViewProps {
   messages: ChatMessageData[]
   pendingHint?: { session_id: string; questions?: AskQuestion[] }
   onSubmitAnswers?: (sessionId: string, answers: string[][]) => void
+  // MCP Bridge chat messages and send function
+  mcpChatMessages?: LocalChatMessage[]
+  onSendMcpMessage?: (text: string) => void
+  mcpEnabled?: boolean  // Whether MCP Bridge is connected
 }
 
-export function ChatView({ projectName, onClose, messages, pendingHint, onSubmitAnswers }: ChatViewProps) {
+export function ChatView({ projectName, onClose, messages, pendingHint, onSubmitAnswers, mcpChatMessages, onSendMcpMessage, mcpEnabled }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [askAnswers, setAskAnswers] = useState<string[][]>([])
   const [submitted, setSubmitted] = useState(false)
@@ -563,6 +568,32 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
         )}
 
         {/* Messages list */}
+        {/* MCP Bridge chat messages */}
+        {mcpChatMessages && mcpChatMessages.length > 0 && (
+          <div className="border-b border-white/10 pb-3 mb-3">
+            <div className="text-xs text-white/40 px-2 mb-2">MCP Bridge 消息</div>
+            {mcpChatMessages.map(msg => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mb-2 ${msg.from === 'user' ? 'flex justify-end' : ''}`}
+              >
+                {msg.from === 'user' ? (
+                  <div className="max-w-[80%] px-3 py-2 rounded-2xl bg-blue-500/20 text-sm text-white/90">
+                    {msg.text}
+                  </div>
+                ) : (
+                  <div className="px-3">
+                    <div className="text-xs text-white/50 mb-1">Claude</div>
+                    <div className="text-sm text-white/90">{msg.text}</div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
+
         {sortedMessages.length > 0 && (
           <AnimatePresence>
             {sortedMessages.map(msg => {
@@ -737,6 +768,11 @@ export function ChatView({ projectName, onClose, messages, pendingHint, onSubmit
           </AnimatePresence>
         )}
       </div>
+
+      {/* MCP Bridge Chat Input */}
+      {mcpEnabled && onSendMcpMessage && (
+        <ChatInput onSend={onSendMcpMessage} />
+      )}
     </div>
   );
 }
