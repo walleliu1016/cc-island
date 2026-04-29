@@ -36,6 +36,7 @@
 - **Mobile Remote** - 手机端实时查看状态、远程审批权限
 - **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
 - **多实例高可用** - Cloud Server 多实例部署，跨实例消息路由，负载分担
+- **CC-MCP-Bridge** - Claude Channel MCP Server，Mobile → Claude Code 双向消息传递
 
 ### 界面特点
 
@@ -392,10 +393,31 @@ Mobile 支持订阅多个 Desktop 设备：
 
 ---
 
+## 文档
+
+详细文档请参阅：
+
+- [Claude Channel 概念](docs/channels.md) - Claude Channel 功能介绍
+- [CC-MCP-Bridge 使用指南](docs/cc-mcp-bridge.md) - MCP Bridge 配置和使用方法
+- [Hooks 配置](docs/HOOKS.md) - Claude Code Hooks 配置说明
+- [Hook 参考](docs/hook-reference.md) - 所有 Hook 事件详细说明
+- [Claude Hooks 配置](docs/hooks-claude.md) - Claude Code 官方 hooks.json 配置
+- [Jump 实现](docs/jump-implementation.md) - 终端窗口跳转功能实现
+- [Cloud Relay 协议](docs/cloud-relay-protocol.md) - 云服务器通信协议
+- [Mobile 集成](docs/mobile-integration.md) - 手机端集成说明
+- [多实例架构](docs/multi-instance-architecture.md) - Cloud Server 多实例部署
+- [架构审查](docs/architecture-review-2026-04-17.md) - 项目架构分析
+- [iOS 构建](docs/ios-build-setup.md) - iOS 应用构建配置
+- [构建发布指南](docs/build-release-guide.md) - 应用构建和发布流程
+- [Roadmap](docs/roadmap.md) - 项目路线图
+
+---
+
 ## Roadmap
 
 ### 已完成
 
+- ✅ **CC-MCP-Bridge** - Claude Channel MCP Server，Mobile → Claude Code 双向消息传递
 - ✅ **Popup Resolved 同步** - Desktop UI 点击后实时通知 Mobile，避免 Mobile 停留在等待页面
 - ✅ **多实例 Cloud Server** - PostgreSQL LISTEN/NOTIFY 跨实例消息路由，高可用架构
 - ✅ **Cloud Relay** - 云服务器远程监控和权限审批
