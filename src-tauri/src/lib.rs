@@ -11,6 +11,7 @@ pub mod machine_id;
 pub mod cloud_client;
 pub mod conversation_parser;
 pub mod jsonl_watcher;
+pub mod ws_server;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -783,6 +784,14 @@ pub fn run() {
                 tokio::spawn(async move {
                     if let Err(e) = server.run().await {
                         tracing::error!("HTTP server error: {}", e);
+                    }
+                });
+
+                // Start MCP Bridge WebSocket Server in background
+                let ws_server = ws_server::WsServer::new(17530);
+                tokio::spawn(async move {
+                    if let Err(e) = ws_server.run().await {
+                        tracing::error!("MCP Bridge WebSocket Server error: {}", e);
                     }
                 });
 
