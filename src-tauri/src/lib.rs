@@ -820,3 +820,75 @@ pub fn run() {
             .expect("error while running tauri application");
     });
 }
+
+/// Run in background mode (no UI)
+/// Suitable for server/headless deployment
+pub fn run_background() {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+
+    tracing::info!("CC-Island starting in background mode...");
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+
+    rt.block_on(async {
+        // Initialize logging flag from saved settings
+        {
+            let state = SHARED_STATE.read();
+            set_logging_enabled(state.settings.enable_logging);
+            tracing::info!("Logging enabled: {}", state.settings.enable_logging);
+        }
+
+        // Auto-setup hooks on startup
+        config::auto_setup_hooks();
+
+        // Start HTTP server
+        tracing::info!("Starting HTTP server on port 17527...");
+        let server = HttpServer::new(17527);
+        tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                tracing::error!("HTTP server error: {}", e);
+            }
+        });
+
+        // Initialize and start JSONL watcher
+        {
+            let mut state = SHARED_STATE.write();
+            let mut watcher = JsonlWatcherHandle::new(SHARED_STATE.clone());
+            watcher.start();
+            state.jsonl_watcher = Some(watcher);
+            tracing::info!("JSONL watcher initialized");
+        }
+
+        // Start Cloud client (if configured)
+        {
+            let state = SHARED_STATE.read();
+            if state.settings.cloud_mode {
+                if let Some(ref url) = state.settings.cloud_server_url {
+                    let url_clone = url.clone();
+                    let device_name = state.settings.device_name.clone();
+                    drop(state);
+
+                    tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
+                    start_cloud_with_reconnect(url_clone, device_name);
+                } else {
+                    tracing::warn!("Cloud mode enabled but no server URL configured");
+                }
+            } else {
+                tracing::info!("Cloud mode disabled");
+            }
+        }
+
+        tracing::info!("CC-Island background mode started successfully");
+        tracing::info!("Press Ctrl+C to stop...");
+
+        // Wait for termination signal
+        tokio::signal::ctrl_c().await.ok();
+        tracing::info!("Received Ctrl+C, shutting down...");
+
+        // Cleanup
+        stop_cloud_client();
+
+        tracing::info!("CC-Island background mode stopped");
+    });
+}
