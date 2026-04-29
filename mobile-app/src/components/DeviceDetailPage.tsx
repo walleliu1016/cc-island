@@ -2,7 +2,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useState, useEffect, useRef } from 'react'
-import { ClaudeSession, HookHint, ChatMessageData } from '../types'
+import { ClaudeSession, HookHint, ChatMessageData, LocalChatMessage } from '../types'
 import { ChatView } from './ChatView'
 
 // Terminal-style colors (matching desktop)
@@ -118,6 +118,9 @@ interface DeviceDetailPageProps {
   onRespondHook: (sessionId: string, decision: string | null, answers?: string[][]) => void
   onRequestChatHistory: (sessionId: string) => void
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void
+  // MCP Bridge: full messages map and send function (keyed by session_id)
+  mcpChatMessagesMap: Record<string, LocalChatMessage[]>
+  onSendMcpMessage: (sessionId: string, text: string) => void
 }
 
 export function DeviceDetailPage({
@@ -130,6 +133,8 @@ export function DeviceDetailPage({
   onRespondHook,
   onRequestChatHistory,
   showToast,
+  mcpChatMessagesMap,
+  onSendMcpMessage,
 }: DeviceDetailPageProps) {
   const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null)
   const [dismissingPopups, setDismissingPopups] = useState<string[]>([])
@@ -177,6 +182,8 @@ export function DeviceDetailPage({
   // If viewing chat, show ChatView
   if (chatSession) {
     const sessionPendingHint = pendingHints.find(h => h.session_id === chatSession.sessionId)
+    const sessionMcpMessages = mcpChatMessagesMap[chatSession.sessionId] || []
+    const sessionActive = sessions.some(s => s.sessionId === chatSession.sessionId && s.status !== 'ended')
     return (
       <ChatView
         projectName={chatSession.projectName}
@@ -184,6 +191,9 @@ export function DeviceDetailPage({
         messages={chatMessages[chatSession.sessionId] || []}
         pendingHint={sessionPendingHint}
         onSubmitAnswers={(sessionId, answers) => handleRespond(sessionId, null, answers)}
+        mcpChatMessages={sessionMcpMessages}
+        onSendMcpMessage={(text) => onSendMcpMessage(chatSession.sessionId, text)}
+        mcpEnabled={sessionActive}
       />
     )
   }

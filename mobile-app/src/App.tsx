@@ -49,7 +49,7 @@ function App() {
   const [view, setView] = useState<View>('devices');
 
   // WebSocket connection
-  const { state, sendHookResponse, requestChatHistory, forceSubscribe } = useAllDevicesWebSocket({
+  const { state, sendHookResponse, requestChatHistory, forceSubscribe, sendChatMessage } = useAllDevicesWebSocket({
     devices,
     serverUrl,
   });
@@ -160,6 +160,8 @@ function App() {
           onRespondHook={(sessionId, decision, answers) => sendHookResponse(activeDevice, sessionId, decision, answers)}
           onRequestChatHistory={(sessionId) => requestChatHistory(activeDevice, sessionId)}
           showToast={showToast}
+          mcpChatMessagesMap={state.mcpChatMessages}
+          onSendMcpMessage={(sessionId, text) => sendChatMessage(activeDevice, sessionId, text)}
         />
         <Toast visible={toast.visible} message={toast.message} type={toast.type} />
       </div>

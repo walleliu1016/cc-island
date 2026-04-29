@@ -16,14 +16,17 @@ use serde::{Deserialize, Serialize};
 
 /// MCP Bridge connection state
 pub struct McpBridgeState {
-    /// session_id -> WebSocket sender
+    /// bridge_id → WebSocket sender (for direct messaging)
     bridges: HashMap<String, broadcast::Sender<Message>>,
+    /// session_id → bridge_id mapping (for routing)
+    session_bindings: HashMap<String, String>,
 }
 
 impl McpBridgeState {
     pub fn new() -> Self {
         Self {
             bridges: HashMap::new(),
+            session_bindings: HashMap::new(),
         }
     }
 }
@@ -32,14 +35,17 @@ impl McpBridgeState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum McpBridgeMessage {
-    #[serde(rename = "auth")]
-    Auth { session_id: String },
+    #[serde(rename = "bridge_register")]
+    BridgeRegister { bridge_id: String },
 
-    #[serde(rename = "auth_success")]
-    AuthSuccess,
+    #[serde(rename = "bridge_registered")]
+    BridgeRegistered { bridge_id: String },
 
-    #[serde(rename = "auth_failed")]
-    AuthFailed { reason: String },
+    #[serde(rename = "bind_session")]
+    BindSession { bridge_id: String, session_id: String },
+
+    #[serde(rename = "session_bound")]
+    SessionBound { session_id: String },
 
     #[serde(rename = "chat_message")]
     ChatMessage {
@@ -93,28 +99,23 @@ async fn handle_ws_upgrade(ws: WebSocketUpgrade) -> Response {
 async fn handle_socket(socket: WebSocket) {
     let (mut tx, mut rx) = socket.split();
 
-    // Wait for auth message
-    let auth_msg = match rx.next().await {
+    // Wait for bridge_register message
+    let bridge_id = match rx.next().await {
         Some(Ok(Message::Text(text))) => {
             match serde_json::from_str::<McpBridgeMessage>(&text) {
-                Ok(McpBridgeMessage::Auth { session_id }) => session_id,
+                Ok(McpBridgeMessage::BridgeRegister { bridge_id }) => bridge_id,
                 Ok(other) => {
-                    tracing::warn!("Expected auth message, got: {:?}", other);
-                    let _ = tx.send(Message::Text(
-                        serde_json::to_string(&McpBridgeMessage::AuthFailed {
-                            reason: "Expected auth message first".to_string()
-                        }).unwrap_or_default()
-                    )).await;
+                    tracing::warn!("Expected bridge_register, got: {:?}", other);
                     return;
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to parse auth message: {}", e);
+                    tracing::warn!("Failed to parse bridge_register: {}", e);
                     return;
                 }
             }
         },
         _ => {
-            tracing::warn!("No auth message received");
+            tracing::warn!("No bridge_register received");
             return;
         }
     };
@@ -123,19 +124,22 @@ async fn handle_socket(socket: WebSocket) {
     let (bridge_tx, mut bridge_rx) = broadcast::channel::<Message>(16);
     {
         let mut state = MCP_BRIDGE_STATE.write();
-        state.bridges.insert(auth_msg.clone(), bridge_tx.clone());
-        tracing::info!("MCP Bridge registered: session {}", auth_msg);
+        state.bridges.insert(bridge_id.clone(), bridge_tx.clone());
+        tracing::info!("MCP Bridge registered: {}", bridge_id);
     }
 
-    // Send auth success
-    let auth_success = serde_json::to_string(&McpBridgeMessage::AuthSuccess).unwrap_or_default();
-    if tx.send(Message::Text(auth_success)).await.is_err() {
-        tracing::warn!("Failed to send auth_success");
+    // Send bridge_registered confirmation
+    let confirmation = serde_json::to_string(&McpBridgeMessage::BridgeRegistered {
+        bridge_id: bridge_id.clone()
+    }).unwrap_or_default();
+    if tx.send(Message::Text(confirmation)).await.is_err() {
+        cleanup_bridge(&bridge_id);
         return;
     }
 
+    tracing::info!("MCP Bridge {} ready, waiting for session binding", bridge_id);
+
     // Handle messages
-    let session_id = auth_msg.clone();
     loop {
         tokio::select! {
             // Receive from MCP Bridge
@@ -143,34 +147,50 @@ async fn handle_socket(socket: WebSocket) {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<McpBridgeMessage>(&text) {
+                            Ok(McpBridgeMessage::BindSession { bridge_id, session_id }) => {
+                                // Bind session to this bridge
+                                {
+                                    let mut state = MCP_BRIDGE_STATE.write();
+                                    state.session_bindings.insert(session_id.clone(), bridge_id.clone());
+                                    tracing::info!("Session {} bound to bridge {}", session_id, bridge_id);
+                                }
+                                // Send confirmation
+                                let bound_msg = serde_json::to_string(&McpBridgeMessage::SessionBound {
+                                    session_id: session_id.clone()
+                                }).unwrap_or_default();
+                                if tx.send(Message::Text(bound_msg)).await.is_err() {
+                                    tracing::warn!("Failed to send session_bound");
+                                    break;
+                                }
+                            }
                             Ok(McpBridgeMessage::ChatReply { session_id, text, reply_to }) => {
                                 // Forward to Cloud Client
                                 crate::cloud_client::send_chat_reply_from_bridge(&session_id, &text, reply_to.as_deref());
                             }
                             Ok(other) => {
-                                tracing::debug!("Received message from MCP Bridge: {:?}", other);
+                                tracing::debug!("Received from MCP Bridge: {:?}", other);
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to parse message from MCP Bridge: {}", e);
+                                tracing::warn!("Failed to parse MCP Bridge message: {}", e);
                             }
                         }
                     },
                     Some(Ok(Message::Close(_))) | None => {
-                        tracing::info!("MCP Bridge disconnected: session {}", session_id);
+                        tracing::info!("MCP Bridge {} disconnected", bridge_id);
                         break;
                     },
                     Some(Err(e)) => {
-                        tracing::error!("MCP Bridge WebSocket error: {}", e);
+                        tracing::error!("MCP Bridge {} WebSocket error: {}", bridge_id, e);
                         break;
                     },
                     _ => {}
                 }
             }
-            // Receive from bridge_tx (chat_message from Mobile)
+            // Receive from bridge_tx (chat_message routed to this bridge)
             msg = bridge_rx.recv() => {
                 if let Ok(msg) = msg {
                     if tx.send(msg).await.is_err() {
-                        tracing::warn!("Failed to send to MCP Bridge");
+                        tracing::warn!("Failed to send to MCP Bridge {}", bridge_id);
                         break;
                     }
                 }
@@ -178,30 +198,42 @@ async fn handle_socket(socket: WebSocket) {
         }
     }
 
-    // Cleanup
-    {
-        let mut state = MCP_BRIDGE_STATE.write();
-        state.bridges.remove(&session_id);
-        tracing::info!("MCP Bridge unregistered: session {}", session_id);
-    }
+    cleanup_bridge(&bridge_id);
 }
 
-/// Send chat_message to MCP Bridge (called by Cloud Client)
+/// Cleanup MCP Bridge
+fn cleanup_bridge(bridge_id: &str) {
+    let mut state = MCP_BRIDGE_STATE.write();
+    state.bridges.remove(bridge_id);
+    // Remove any session bindings for this bridge
+    state.session_bindings.retain(|_, bid| bid != bridge_id);
+    tracing::info!("MCP Bridge {} unregistered", bridge_id);
+}
+
+/// Route chat_message to specific MCP Bridge by session_id (called by Cloud Client)
 pub fn send_to_mcp_bridge(session_id: &str, text: &str, message_id: &str) {
     let state = MCP_BRIDGE_STATE.read();
-    if let Some(bridge_tx) = state.bridges.get(session_id) {
-        let msg = McpBridgeMessage::ChatMessage {
-            session_id: session_id.to_string(),
-            text: text.to_string(),
-            message_id: message_id.to_string(),
-        };
-        let json = serde_json::to_string(&msg).unwrap_or_default();
-        if let Err(e) = bridge_tx.send(Message::Text(json)) {
-            tracing::warn!("Failed to send chat_message to MCP Bridge {}: {}", session_id, e);
+
+    // Find bridge_id for this session
+    let bridge_id = state.session_bindings.get(session_id);
+
+    if let Some(bridge_id) = bridge_id {
+        if let Some(bridge_tx) = state.bridges.get(bridge_id) {
+            let msg = McpBridgeMessage::ChatMessage {
+                session_id: session_id.to_string(),
+                text: text.to_string(),
+                message_id: message_id.to_string(),
+            };
+            let json = serde_json::to_string(&msg).unwrap_or_default();
+            if let Err(e) = bridge_tx.send(Message::Text(json)) {
+                tracing::warn!("Failed to send to MCP Bridge {}: {}", bridge_id, e);
+            } else {
+                tracing::info!("Sent chat_message to MCP Bridge {} (session {})", bridge_id, session_id);
+            }
         } else {
-            tracing::info!("Sent chat_message to MCP Bridge {}", session_id);
+            tracing::warn!("Bridge {} not found for session {}", bridge_id, session_id);
         }
     } else {
-        tracing::warn!("No MCP Bridge for session {}", session_id);
+        tracing::warn!("No bridge bound for session {}", session_id);
     }
 }
