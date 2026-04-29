@@ -29,6 +29,14 @@ use tauri::Manager;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock as AsyncRwLock;
 
+/// Ensure device_name has a value (use hostname if empty)
+fn ensure_device_name(settings: &mut config::AppSettings) {
+    if settings.device_name.is_none() || settings.device_name.as_ref().map(|n| n.is_empty()).unwrap_or(true) {
+        settings.device_name = Some(machine_id::get_hostname());
+        tracing::info!("Device name set to: {:?}", settings.device_name);
+    }
+}
+
 /// Global atomic flag for logging (no lock needed)
 pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
@@ -739,6 +747,15 @@ pub fn run() {
                 generate_device_qrcode
             ])
             .setup(|app| {
+                // Ensure device_name has value (use hostname if empty)
+                {
+                    let mut state = SHARED_STATE.write();
+                    ensure_device_name(&mut state.settings);
+                    if let Err(e) = config::save_settings(&state.settings) {
+                        tracing::warn!("Failed to save device_name: {}", e);
+                    }
+                }
+
                 // Initialize logging flag from saved settings
                 {
                     let state = SHARED_STATE.read();
@@ -828,6 +845,15 @@ pub fn run_background() {
     tracing_subscriber::fmt::init();
 
     tracing::info!("CC-Island starting in background mode...");
+
+    // Ensure device_name has value (use hostname if empty)
+    {
+        let mut state = SHARED_STATE.write();
+        ensure_device_name(&mut state.settings);
+        if let Err(e) = config::save_settings(&state.settings) {
+            tracing::warn!("Failed to save device_name: {}", e);
+        }
+    }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
@@ -1028,7 +1054,10 @@ pub fn run_config(args: &[String]) {
 /// Run in background mode with command line argument overrides
 pub fn run_background_with_args(args: &[String]) {
     // Apply command line overrides to settings
-    let settings = parse_config_args(args);
+    let mut settings = parse_config_args(args);
+
+    // Ensure device_name has value (use hostname if empty)
+    ensure_device_name(&mut settings);
 
     // Save the overridden settings
     if let Err(e) = config::save_settings(&settings) {

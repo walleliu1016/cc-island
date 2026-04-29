@@ -210,6 +210,14 @@ fn fallback_machine_id() -> String {
     hostname
 }
 
+/// Get the hostname of this machine
+pub fn get_hostname() -> String {
+    hostname::get()
+        .ok()
+        .and_then(|h| h.into_string().ok())
+        .unwrap_or_else(|| "Unknown".to_string())
+}
+
 /// Format two 64-bit hashes as a 32-char hex string (not UUID format, just unique identifier)
 fn format_device_token(hash1: u64, hash2: u64) -> String {
     let bytes1 = hash1.to_be_bytes();
