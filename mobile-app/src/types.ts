@@ -133,6 +133,20 @@ export interface CloudMessage {
   // Popup resolved
   popup_id?: string
   source?: string  // 'desktop' or 'mobile'
+
+  // Chat messaging (Mobile → Cloud → Desktop → MCP Bridge)
+  text?: string
+  message_id?: string
+  reply_to?: string
+}
+
+// Local chat message for display
+export interface LocalChatMessage {
+  id: string
+  from: 'user' | 'assistant'
+  text: string
+  reply_to?: string
+  timestamp: number
 }
 
 // Chat message data
