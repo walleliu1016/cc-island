@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cc-mcp-bridge": {
+      "command": "bun",
+      "args": ["run", "server.ts"],
+      "env": {
+        "SESSION_ID": "${session_id}"
+      }
+    }
+  }
+}
