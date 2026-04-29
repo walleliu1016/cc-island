@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
+import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType, LocalChatMessage } from '../types'
 
 // Connection timeout in milliseconds
 const CONNECTION_TIMEOUT = 10000
@@ -23,6 +23,7 @@ interface WsState {
   sessions: Record<string, ClaudeSession[]>  // keyed by device_token
   hookHints: Record<string, HookHint[]>      // keyed by device_token
   chatMessages: Record<string, ChatMessageData[]>  // keyed by session_id
+  mcpChatMessages: Record<string, LocalChatMessage[]>  // keyed by session_id (MCP Bridge)
 }
 
 export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebSocketOptions) {
@@ -49,6 +50,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     sessions: {},
     hookHints: {},
     chatMessages: {},
+    mcpChatMessages: {},
   })
 
   // Start heartbeat mechanism (called after auth_success)
@@ -387,6 +389,34 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
               return { ...s, hookHints, sessions }
             })
+            break
+          }
+
+          case 'chat_reply': {
+            const sessionId = msg.session_id
+            const text = msg.text
+            const replyTo = msg.reply_to
+            console.log('[WebSocket] chat_reply received:', sessionId, text)
+
+            if (sessionId) {
+              setState(s => {
+                const existing = s.mcpChatMessages[sessionId] || []
+                const replyMessage: LocalChatMessage = {
+                  id: `r-${Date.now()}`,
+                  from: 'assistant',
+                  text: text,
+                  reply_to: replyTo,
+                  timestamp: Date.now()
+                }
+                return {
+                  ...s,
+                  mcpChatMessages: {
+                    ...s.mcpChatMessages,
+                    [sessionId]: [...existing, replyMessage]
+                  }
+                }
+              })
+            }
             break
           }
         }
@@ -870,7 +900,45 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     }
   }, [serverUrl])  // Only depend on serverUrl, not connect
 
-  return { state, sendHookResponse, requestChatHistory, forceSubscribe }
+  // Send chat message to MCP Bridge via Cloud
+  const sendChatMessage = useCallback((deviceToken: string, sessionId: string, text: string) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn('Cannot send chat message: not connected')
+      return
+    }
+
+    const messageId = `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    console.log('[WebSocket] sendChatMessage:', sessionId, text)
+
+    ws.send(JSON.stringify({
+      type: 'chat_message',
+      device_token: deviceToken,
+      session_id: sessionId,
+      text: text,
+      message_id: messageId
+    }))
+
+    // Add to local messages (user message)
+    setState(s => {
+      const existing = s.mcpChatMessages[sessionId] || []
+      const userMessage: LocalChatMessage = {
+        id: messageId,
+        from: 'user',
+        text: text,
+        timestamp: Date.now()
+      }
+      return {
+        ...s,
+        mcpChatMessages: {
+          ...s.mcpChatMessages,
+          [sessionId]: [...existing, userMessage]
+        }
+      }
+    })
+  }, [])
+
+  return { state, sendHookResponse, requestChatHistory, forceSubscribe, sendChatMessage }
 }
 
 // Helper: extract project name from cwd
