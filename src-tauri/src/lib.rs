@@ -892,3 +892,155 @@ pub fn run_background() {
         tracing::info!("CC-Island background mode stopped");
     });
 }
+
+/// Show current configuration
+pub fn show_config() {
+    let settings = config::load_settings();
+    println!("Current CC-Island Configuration:");
+    println!("==================");
+    println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+}
+
+/// Parse command line arguments and update settings
+/// Returns updated settings
+fn parse_config_args(args: &[String]) -> config::AppSettings {
+    let mut settings = config::load_settings();
+
+    // Helper to find argument value
+    fn get_arg_value(args: &[String], flag: &str) -> Option<String> {
+        for i in 0..args.len() {
+            if args[i] == flag && i + 1 < args.len() {
+                return Some(args[i + 1].clone());
+            }
+            // Support --flag=value format
+            if args[i].starts_with(flag) && args[i].contains('=') {
+                return Some(args[i].split('=').nth(1).unwrap_or("").to_string());
+            }
+        }
+        None
+    }
+
+    // Helper to check boolean flag
+    fn has_flag(args: &[String], flag: &str) -> bool {
+        args.contains(&flag.to_string())
+    }
+
+    // Parse numeric values
+    if let Some(v) = get_arg_value(args, "--permission-timeout") {
+        settings.permission_timeout = v.parse().unwrap_or(300);
+    }
+    if let Some(v) = get_arg_value(args, "--ask-timeout") {
+        settings.ask_timeout = v.parse().unwrap_or(120);
+    }
+    if let Some(v) = get_arg_value(args, "--poll-interval") {
+        settings.poll_interval = v.parse().unwrap_or(500);
+    }
+    if let Some(v) = get_arg_value(args, "--max-instances") {
+        settings.max_instances = v.parse().unwrap_or(10);
+    }
+    if let Some(v) = get_arg_value(args, "--max-popup-queue") {
+        settings.max_popup_queue = v.parse().unwrap_or(5);
+    }
+    if let Some(v) = get_arg_value(args, "--warning-time") {
+        settings.warning_time = v.parse().unwrap_or(30);
+    }
+    if let Some(v) = get_arg_value(args, "--critical-time") {
+        settings.critical_time = v.parse().unwrap_or(10);
+    }
+    if let Some(v) = get_arg_value(args, "--notification-auto-close") {
+        settings.notification_auto_close = v.parse().unwrap_or(5000);
+    }
+
+    // Parse boolean flags
+    if has_flag(args, "--auto-deny-on-timeout") {
+        settings.auto_deny_on_timeout = true;
+    }
+    if has_flag(args, "--no-auto-deny-on-timeout") {
+        settings.auto_deny_on_timeout = false;
+    }
+    if has_flag(args, "--auto-allow-permissions") {
+        settings.auto_allow_permissions = true;
+    }
+    if has_flag(args, "--no-auto-allow-permissions") {
+        settings.auto_allow_permissions = false;
+    }
+    if has_flag(args, "--enable-logging") {
+        settings.enable_logging = true;
+    }
+    if has_flag(args, "--no-enable-logging") {
+        settings.enable_logging = false;
+    }
+    if has_flag(args, "--show-notifications") {
+        settings.show_notifications = true;
+    }
+    if has_flag(args, "--no-show-notifications") {
+        settings.show_notifications = false;
+    }
+    if has_flag(args, "--cloud-mode") {
+        settings.cloud_mode = true;
+    }
+    if has_flag(args, "--no-cloud-mode") {
+        settings.cloud_mode = false;
+    }
+    if has_flag(args, "--show-thinking-messages") {
+        settings.show_thinking_messages = true;
+    }
+    if has_flag(args, "--no-show-thinking-messages") {
+        settings.show_thinking_messages = false;
+    }
+
+    // Parse string values
+    if let Some(v) = get_arg_value(args, "--hook-forward-url") {
+        settings.hook_forward_url = Some(v);
+    }
+    if let Some(v) = get_arg_value(args, "--cloud-server-url") {
+        settings.cloud_server_url = Some(v);
+    }
+    if let Some(v) = get_arg_value(args, "--device-name") {
+        settings.device_name = Some(v);
+    }
+
+    // Parse enabled hooks (comma-separated)
+    if let Some(v) = get_arg_value(args, "--enabled-hooks") {
+        settings.enabled_hooks = v.split(',').map(|s| s.trim().to_string()).collect();
+    }
+
+    settings
+}
+
+/// Run in config mode: parse args and save settings
+pub fn run_config(args: &[String]) {
+    let settings = parse_config_args(args);
+
+    // Save settings
+    match config::save_settings(&settings) {
+        Ok(_) => {
+            println!("Configuration saved successfully!");
+            println!("\nNew configuration:");
+            println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to save configuration: {}", e);
+        }
+    }
+}
+
+/// Run in background mode with command line argument overrides
+pub fn run_background_with_args(args: &[String]) {
+    // Apply command line overrides to settings
+    let settings = parse_config_args(args);
+
+    // Save the overridden settings
+    if let Err(e) = config::save_settings(&settings) {
+        tracing::warn!("Failed to save overridden settings: {}", e);
+    }
+
+    // Update global state with new settings
+    {
+        let mut state = SHARED_STATE.write();
+        state.settings = settings.clone();
+    }
+
+    // Run background mode
+    run_background();
+}
