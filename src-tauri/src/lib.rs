@@ -906,6 +906,24 @@ pub fn run_background() {
         }
 
         tracing::info!("CC-Island background mode started successfully");
+
+        // Print pairing info for Mobile
+        {
+            let state = SHARED_STATE.read();
+            let device_token = machine_id::get_machine_token();
+            tracing::info!("=== Pairing Info for Mobile App ===");
+            tracing::info!("Device Token: {}", device_token);
+            tracing::info!("Device Name: {}", state.settings.device_name.clone().unwrap_or_default());
+            if let Some(url) = &state.settings.cloud_server_url {
+                tracing::info!("Server URL: {}", url);
+                tracing::info!("Status: Cloud mode enabled ✓");
+            } else {
+                tracing::info!("Server URL: (not configured)");
+                tracing::info!("Status: Cloud mode disabled - run 'cc-island --config --cloud-mode' to enable");
+            }
+            tracing::info!("====================================");
+        }
+
         tracing::info!("Press Ctrl+C to stop...");
 
         // Wait for termination signal
@@ -925,6 +943,46 @@ pub fn show_config() {
     println!("Current CC-Island Configuration:");
     println!("==================");
     println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+}
+
+/// Show pairing info for Mobile App
+pub fn show_pair_info() {
+    let settings = config::load_settings();
+    let device_token = machine_id::get_machine_token();
+    let device_name = settings.device_name.clone().unwrap_or_else(|| machine_id::get_hostname());
+    let server_url = settings.cloud_server_url.clone();
+
+    println!("CC-Island Pairing Information");
+    println!("==============================");
+    println!();
+    println!("Device Token: {}", device_token);
+    println!("Device Name:  {}", device_name);
+    if let Some(url) = &server_url {
+        println!("Server URL:   {}", url);
+    } else {
+        println!("Server URL:   (not configured)");
+    }
+    println!();
+
+    if settings.cloud_mode && server_url.is_some() {
+        println!("✓ Cloud mode enabled and server configured");
+        println!();
+        println!("使用方法：");
+        println!("1. 在 Mobile App Settings 中点击 '+' 添加设备");
+        println!("2. 输入 Device Token: {}", device_token);
+        println!("3. 输入 Server URL: {}", server_url.unwrap());
+        println!("4. 确保本程序在后台运行 (cc-island --background)");
+    } else if !settings.cloud_mode {
+        println!("⚠ Cloud mode is DISABLED");
+        println!();
+        println!("请先启用 cloud mode:");
+        println!("  cc-island --config --cloud-mode --cloud-server-url ws://your-server:17528");
+    } else {
+        println!("⚠ Server URL not configured");
+        println!();
+        println!("请先配置 server URL:");
+        println!("  cc-island --config --cloud-server-url ws://your-server:17528");
+    }
 }
 
 /// Parse command line arguments and update settings

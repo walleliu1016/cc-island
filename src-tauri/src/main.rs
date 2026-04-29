@@ -16,6 +16,25 @@ fn main() {
         return;
     }
 
+    // 显示 device_token（用于 Mobile 配对）
+    if args.contains(&"--device-token".to_string()) {
+        let token = cc_island_lib::machine_id::get_machine_token();
+        println!("Device Token: {}", token);
+        println!();
+        println!("使用方法：");
+        println!("1. 在 Mobile App Settings 中点击 '+'");
+        println!("2. 输入此 Device Token");
+        println!("3. 确保 Cloud Server 正在运行");
+        println!("4. Desktop 需要启用 cloud_mode");
+        return;
+    }
+
+    // 显示配对信息（包含 token 和 server_url）
+    if args.contains(&"--pair-info".to_string()) {
+        cc_island_lib::show_pair_info();
+        return;
+    }
+
     // 检查是否是配置模式
     if args.contains(&"--config".to_string()) {
         // 配置模式：更新 settings.json 并退出
@@ -49,6 +68,10 @@ fn print_help() {
     println!("  (no flags)          Run with UI (default)");
     println!("  --background        Run in background mode (no UI)");
     println!();
+    println!("PAIRING (Mobile App):");
+    println!("  --device-token      Show device token for Mobile pairing");
+    println!("  --pair-info         Show full pairing info (token + server URL)");
+    println!();
     println!("CONFIGURATION:");
     println!("  --show-config       Show current configuration");
     println!("  --config [OPTIONS]  Update configuration and save");
@@ -73,15 +96,16 @@ fn print_help() {
     println!("  --no-show-thinking-messages     Hide thinking messages");
     println!();
     println!("EXAMPLES:");
+    println!("  # Show device token for Mobile pairing");
+    println!("  cc-island --device-token");
+    println!();
+    println!("  # Show full pairing info");
+    println!("  cc-island --pair-info");
+    println!();
+    println!("  # Configure and run in background");
+    println!("  cc-island --config --cloud-mode --cloud-server-url ws://server:17528");
+    println!("  cc-island --background");
+    println!();
     println!("  # Show current config");
     println!("  cc-island --show-config");
-    println!();
-    println!("  # Configure cloud mode");
-    println!("  cc-island --config --cloud-mode --cloud-server-url ws://server:17528");
-    println!();
-    println!("  # Run in background with cloud mode");
-    println!("  cc-island --background --cloud-mode --cloud-server-url ws://server:17528");
-    println!();
-    println!("  # Configure auto-allow permissions");
-    println!("  cc-island --config --auto-allow-permissions");
 }
