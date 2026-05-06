@@ -604,13 +604,13 @@ jobs:
         run: |
           PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
           mkdir -p binary-dist
-          if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
-          elif [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
-            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
-          else
-            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
+          BINARY_PATH="src-tauri/target/${{ matrix.target }}/release/cc-island"
+          if [ ! -f "$BINARY_PATH" ]; then
+            echo "::error::Binary not found at $BINARY_PATH"
+            ls -la src-tauri/target/*/release/ 2>/dev/null || echo "No release directories found"
+            exit 1
           fi
+          cp "$BINARY_PATH" binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
           chmod +x binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
           cd binary-dist
           tar -czvf ${PRODUCT_NAME}-${{ matrix.name }}-${{ steps.version.outputs.VERSION }}.tar.gz *
