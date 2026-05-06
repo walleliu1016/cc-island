@@ -424,7 +424,6 @@ jobs:
           releaseName: ''
           releaseBody: ''
           target: ${{ matrix.target }}
-          args: '--release'
 
       - name: Get version
         id: version
