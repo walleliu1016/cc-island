@@ -498,14 +498,128 @@ jobs:
             ${{ steps.find-linux.outputs.APPIMAGE }}
           retention-days: 7
 
+  # ===== Desktop Binary Build (standalone executable) =====
+  build-binary:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            name: 'macOS-arm64'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            name: 'macOS-x64'
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            name: 'Windows-x64'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            name: 'Linux-x64'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set product name
+        shell: bash
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
+          perl -pi -e 's/"productName": ".*"/"productName": "'"$PRODUCT_NAME"'"/' src-tauri/tauri.conf.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm run build
+
+      - name: Build binary
+        run: |
+          cd src-tauri
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Prepare binary (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
+          mkdir -p binary-dist
+          if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
+          elif [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
+            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
+          else
+            cp src-tauri/target/${{ matrix.target }}/release/cc-island binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
+          fi
+          chmod +x binary-dist/${PRODUCT_NAME}-${{ matrix.name }}
+          cd binary-dist
+          tar -czvf ${PRODUCT_NAME}-${{ matrix.name }}-${{ steps.version.outputs.VERSION }}.tar.gz *
+
+      - name: Prepare binary (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $PRODUCT_NAME = "${{ inputs.product_name || 'Ease-Island' }}"
+          mkdir binary-dist
+          cp src-tauri/target/${{ matrix.target }}/release/cc-island.exe binary-dist/${PRODUCT_NAME}-${{ matrix.name }}.exe
+          cd binary-dist
+          Compress-Archive -Path ${PRODUCT_NAME}-${{ matrix.name }}.exe -DestinationPath ${PRODUCT_NAME}-${{ matrix.name }}-${{ steps.version.outputs.VERSION }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-binary_${{ matrix.name }}_${{ steps.version.outputs.VERSION }}
+          path: |
+            binary-dist/*.tar.gz
+            binary-dist/*.zip
+          retention-days: 7
+
   release:
-    needs: [build-cloud-server, build-desktop, build-mobile-h5, build-mobile-android, build-mobile-ios]
+    needs: [build-cloud-server, build-desktop, build-binary, build-mobile-h5, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: |
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
       needs.build-cloud-server.result == 'success' &&
       needs.build-desktop.result == 'success' &&
+      needs.build-binary.result == 'success' &&
       needs.build-mobile-h5.result == 'success' &&
       needs.build-mobile-android.result == 'success' &&
       (needs.build-mobile-ios.result == 'success' || needs.build-mobile-ios.result == 'skipped')
@@ -567,6 +681,27 @@ jobs:
             - DEB for Debian/Ubuntu
             - RPM for CentOS/RHEL/Fedora
             - AppImage for universal Linux (recommended)
+
+            ### Standalone Binary
+
+            可直接运行的可执行文件，无需安装：
+
+            - `cc-island-binary_macOS-arm64_*.tar.gz` - macOS Apple Silicon
+            - `cc-island-binary_macOS-x64_*.tar.gz` - macOS Intel
+            - `cc-island-binary_Windows-x64_*.zip` - Windows x64
+            - `cc-island-binary_Linux-x64_*.tar.gz` - Linux x64
+
+            **使用方法：**
+            ```bash
+            # macOS/Linux
+            tar -xzf cc-island-binary_*.tar.gz
+            chmod +x Ease-Island-*
+            ./Ease-Island-*
+
+            # Windows: 解压 zip 后直接运行 Ease-Island-Windows-x64.exe
+            ```
+
+            **注意：** 可执行文件为后台模式，无 UI 界面，适合服务器部署。
 
             ### Cloud Server
 
