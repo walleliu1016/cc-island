@@ -402,7 +402,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev rpm
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -462,8 +462,10 @@ jobs:
         id: find-linux
         run: |
           DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f | head -1)
+          RPM=$(find src-tauri/target/release/bundle/rpm -name "*.rpm" -type f | head -1 || echo "")
           APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
           echo "DEB=$DEB" >> $GITHUB_OUTPUT
+          echo "RPM=$RPM" >> $GITHUB_OUTPUT
           echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT
         shell: bash
 
@@ -492,6 +494,7 @@ jobs:
           name: ${{ steps.product.outputs.NAME }}_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
           path: |
             ${{ steps.find-linux.outputs.DEB }}
+            ${{ steps.find-linux.outputs.RPM }}
             ${{ steps.find-linux.outputs.APPIMAGE }}
           retention-days: 7
 
@@ -561,7 +564,9 @@ jobs:
             - MSI installer and portable EXE
 
             #### Linux
-            - DEB for Debian/Ubuntu and AppImage for universal Linux
+            - DEB for Debian/Ubuntu
+            - RPM for CentOS/RHEL/Fedora
+            - AppImage for universal Linux (recommended)
 
             ### Cloud Server
 
