@@ -226,6 +226,31 @@ Cloud Server 使用三层防护确保僵尸连接被及时清理：
 xattr -cr /Applications/Ease-Island.app
 ```
 
+### Linux 安装注意事项
+
+Linux 版本依赖 webkit2gtk 库。请先安装依赖：
+
+**Ubuntu/Debian：**
+```bash
+sudo apt-get install libwebkit2gtk-4.1-0
+```
+
+**CentOS/RHEL/Fedora：**
+```bash
+sudo dnf install webkit2gtk4.1
+```
+
+**Arch Linux：**
+```bash
+sudo pacman -S webkit2gtk-4.1
+```
+
+安装依赖后，选择以下方式安装：
+
+- **DEB (推荐)**：`sudo dpkg -i ease-island_*.deb`
+- **RPM**：`sudo rpm -i ease-island_*.rpm`
+- **AppImage**：`chmod +x ease-island_*.AppImage && ./ease-island_*.AppImage`
+
 ---
 
 ## 快速开始
