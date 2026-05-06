@@ -1,8 +1,5 @@
 -- migrations/001_init.sql
 
--- Ensure pgcrypto extension for gen_random_uuid() (required for PG < 13)
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
 CREATE TABLE devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     device_token TEXT UNIQUE NOT NULL,
