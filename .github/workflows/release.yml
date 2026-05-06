@@ -455,19 +455,43 @@ jobs:
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          $MSI_DIR = "src-tauri\target\release\bundle\msi"
-          $EXE_DIR = "src-tauri\target\release\bundle\nsis"
-          if (Test-Path $MSI_DIR) {
-            $MSI = (Get-ChildItem -Path $MSI_DIR -Filter *.msi -File | Select-Object -First 1).FullName
-          } else {
-            Write-Error "MSI directory not found: $MSI_DIR"
+          # Debug: list all bundle directories
+          Get-ChildItem -Path "src-tauri\target" -Recurse -Directory -Filter "bundle" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "Found bundle dir: $_"
+            Get-ChildItem -Path $_.FullName -Recurse -File | ForEach-Object { Write-Host "  $_" }
+          }
+
+          # Try multiple possible paths for MSI
+          $MSI_PATHS = @(
+            "src-tauri\target\release\bundle\msi",
+            "src-tauri\target\${{ matrix.target }}\release\bundle\msi"
+          )
+          $MSI = ""
+          foreach ($path in $MSI_PATHS) {
+            if (Test-Path $path) {
+              $MSI = (Get-ChildItem -Path $path -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+              if ($MSI) { break }
+            }
+          }
+
+          # Try multiple possible paths for EXE (NSIS)
+          $EXE_PATHS = @(
+            "src-tauri\target\release\bundle\nsis",
+            "src-tauri\target\${{ matrix.target }}\release\bundle\nsis"
+          )
+          $EXE = ""
+          foreach ($path in $EXE_PATHS) {
+            if (Test-Path $path) {
+              $EXE = (Get-ChildItem -Path $path -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+              if ($EXE) { break }
+            }
+          }
+
+          if (-not $MSI) {
+            Write-Error "MSI file not found in any expected location"
             exit 1
           }
-          if (Test-Path $EXE_DIR) {
-            $EXE = (Get-ChildItem -Path $EXE_DIR -Filter *.exe -File | Select-Object -First 1).FullName
-          } else {
-            $EXE = ""
-          }
+
           echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
           echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
         shell: pwsh
