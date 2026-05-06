@@ -422,7 +422,9 @@ jobs:
           # Don't create release here - let release job handle it
           tagName: ''
           releaseName: ''
+          releaseBody: ''
           target: ${{ matrix.target }}
+          args: '--release'
 
       - name: Get version
         id: version
@@ -439,20 +441,34 @@ jobs:
         id: find-macos
         run: |
           if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1 || find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1)
           else
-            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1 || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1)
           fi
+          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
+            echo "::error::DMG file not found for ${{ matrix.target }}"
+            exit 1
+          fi
+          echo "DMG=$DMG" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Find artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          $MSI = (Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
-          $EXE = (Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
+          $MSI_DIR = "src-tauri\target\release\bundle\msi"
+          $EXE_DIR = "src-tauri\target\release\bundle\nsis"
+          if (Test-Path $MSI_DIR) {
+            $MSI = (Get-ChildItem -Path $MSI_DIR -Filter *.msi -File | Select-Object -First 1).FullName
+          } else {
+            Write-Error "MSI directory not found: $MSI_DIR"
+            exit 1
+          }
+          if (Test-Path $EXE_DIR) {
+            $EXE = (Get-ChildItem -Path $EXE_DIR -Filter *.exe -File | Select-Object -First 1).FullName
+          } else {
+            $EXE = ""
+          }
           echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
           echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
         shell: pwsh
@@ -461,9 +477,17 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         id: find-linux
         run: |
-          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f | head -1)
-          RPM=$(find src-tauri/target/release/bundle/rpm -name "*.rpm" -type f | head -1 || echo "")
-          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f 2>/dev/null | head -1)
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f 2>/dev/null | head -1)
+          RPM=$(find src-tauri/target/release/bundle/rpm -name "*.rpm" -type f 2>/dev/null | head -1 || echo "")
+          if [ -z "$DEB" ] || [ ! -f "$DEB" ]; then
+            echo "::error::DEB file not found"
+            exit 1
+          fi
+          if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
+            echo "::error::AppImage file not found"
+            exit 1
+          fi
           echo "DEB=$DEB" >> $GITHUB_OUTPUT
           echo "RPM=$RPM" >> $GITHUB_OUTPUT
           echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT
