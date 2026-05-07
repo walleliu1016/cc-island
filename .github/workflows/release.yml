@@ -439,62 +439,80 @@ jobs:
         if: matrix.platform == 'macos-latest'
         id: find-macos
         run: |
+          # macOS build output location depends on target
           if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1 || find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1)
+            BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle"
           else
-            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1 || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null | head -1)
+            BUNDLE_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle"
           fi
+
+          # Fallback to default release directory if target-specific doesn't exist
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" -type f 2>/dev/null | head -1)
+
           if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
-            echo "::error::DMG file not found for ${{ matrix.target }}"
+            echo "::error::DMG file not found in $BUNDLE_DIR/dmg"
+            echo "Directory contents:"
+            find "$BUNDLE_DIR" -type f 2>/dev/null || echo "No files found"
             exit 1
           fi
+
+          echo "Found DMG: $DMG"
           echo "DMG=$DMG" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Find artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         id: find-windows
+        shell: pwsh
         run: |
-          # Debug: list all bundle directories
-          Get-ChildItem -Path "src-tauri\target" -Recurse -Directory -Filter "bundle" -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "Found bundle dir: $_"
-            Get-ChildItem -Path $_.FullName -Recurse -File | ForEach-Object { Write-Host "  $_" }
+          # Windows build output location - Tauri uses default target path
+          $BUNDLE_DIR = "src-tauri\target\release\bundle"
+
+          Write-Host "Searching in: $BUNDLE_DIR"
+          if (Test-Path $BUNDLE_DIR) {
+            Get-ChildItem -Path $BUNDLE_DIR -Recurse -Directory | ForEach-Object {
+              Write-Host "Directory: $_"
+              Get-ChildItem -Path $_.FullName -File | ForEach-Object { Write-Host "  File: $_" }
+            }
+          } else {
+            Write-Host "Bundle directory not found at $BUNDLE_DIR"
           }
 
-          # Try multiple possible paths for MSI
-          $MSI_PATHS = @(
-            "src-tauri\target\release\bundle\msi",
-            "src-tauri\target\${{ matrix.target }}\release\bundle\msi"
-          )
+          # MSI path - Tauri creates MSI in msi subdirectory
+          $MSI_PATH = "$BUNDLE_DIR\msi"
           $MSI = ""
-          foreach ($path in $MSI_PATHS) {
-            if (Test-Path $path) {
-              $MSI = (Get-ChildItem -Path $path -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-              if ($MSI) { break }
-            }
+          if (Test-Path $MSI_PATH) {
+            $MSI = (Get-ChildItem -Path $MSI_PATH -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           }
 
-          # Try multiple possible paths for EXE (NSIS)
-          $EXE_PATHS = @(
-            "src-tauri\target\release\bundle\nsis",
-            "src-tauri\target\${{ matrix.target }}\release\bundle\nsis"
-          )
+          # NSIS EXE path (if exists)
+          $NSIS_PATH = "$BUNDLE_DIR\nsis"
           $EXE = ""
-          foreach ($path in $EXE_PATHS) {
-            if (Test-Path $path) {
-              $EXE = (Get-ChildItem -Path $path -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-              if ($EXE) { break }
-            }
+          if (Test-Path $NSIS_PATH) {
+            $EXE = (Get-ChildItem -Path $NSIS_PATH -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           }
 
           if (-not $MSI) {
-            Write-Error "MSI file not found in any expected location"
+            Write-Error "MSI file not found in $MSI_PATH"
             exit 1
           }
 
+          Write-Host "Found MSI: $MSI"
+          if ($EXE) {
+            Write-Host "Found EXE: $EXE"
+          }
+
           echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
-          echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
-        shell: pwsh
+          if ($EXE) {
+            echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Find artifacts (Linux)
         if: matrix.platform == 'ubuntu-20.04'
