@@ -67,6 +67,10 @@ qrcode = "0.14"
 hostname = "0.4"
 notify = { version = "8", features = ["macos_kqueue"] }
 
+# OpenSSL configuration for server mode (vendored for static linking)
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }
+
 # macOS dependencies (optional, only for desktop GUI)
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = { version = "0.26", optional = true }
