@@ -1,0 +1,1527 @@
+{
+  "total_count": 13,
+  "jobs": [
+    {
+      "id": 74790936370,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfMg",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936370",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936370",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:37Z",
+      "completed_at": "2026-05-07T09:52:43Z",
+      "name": "build-mobile-ios",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:38Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Check iOS secrets",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Setup Ruby",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Install mobile dependencies",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Build web app",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Sync Capacitor",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Install fastlane",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Setup Apple credentials",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Build and upload to TestFlight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 12,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Upload TestFlight info",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936370",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000000487,
+      "runner_name": "GitHub Actions 1000000487",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936387,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfQw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936387",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936387",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:34Z",
+      "completed_at": "2026-05-07T09:57:04Z",
+      "name": "build-binary (macos-latest, x86_64-apple-darwin, macOS-x64)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:34Z",
+          "completed_at": "2026-05-07T09:52:37Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:37Z",
+          "completed_at": "2026-05-07T09:52:39Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:39Z",
+          "completed_at": "2026-05-07T09:52:39Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:39Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:41Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:41Z",
+          "completed_at": "2026-05-07T09:52:44Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:44Z",
+          "completed_at": "2026-05-07T09:52:45Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:45Z",
+          "completed_at": "2026-05-07T09:52:45Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:45Z",
+          "completed_at": "2026-05-07T09:52:49Z"
+        },
+        {
+          "name": "Build frontend",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:52:49Z",
+          "completed_at": "2026-05-07T09:52:53Z"
+        },
+        {
+          "name": "Build binary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:52:53Z",
+          "completed_at": "2026-05-07T09:56:57Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T09:56:57Z",
+          "completed_at": "2026-05-07T09:56:58Z"
+        },
+        {
+          "name": "Prepare binary (macOS/Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-05-07T09:56:58Z",
+          "completed_at": "2026-05-07T09:56:59Z"
+        },
+        {
+          "name": "Prepare binary (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-05-07T09:56:59Z",
+          "completed_at": "2026-05-07T09:56:59Z"
+        },
+        {
+          "name": "Upload artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-05-07T09:56:59Z",
+          "completed_at": "2026-05-07T09:57:00Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-05-07T09:57:00Z",
+          "completed_at": "2026-05-07T09:57:00Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-05-07T09:57:00Z",
+          "completed_at": "2026-05-07T09:57:01Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-05-07T09:57:01Z",
+          "completed_at": "2026-05-07T09:57:01Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-05-07T09:57:01Z",
+          "completed_at": "2026-05-07T09:57:01Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-05-07T09:57:01Z",
+          "completed_at": "2026-05-07T09:57:02Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936387",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000000484,
+      "runner_name": "GitHub Actions 1000000484",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936399,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfTw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936399",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936399",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:36Z",
+      "completed_at": "2026-05-07T09:58:20Z",
+      "name": "build-desktop (macos-latest, aarch64-apple-darwin, macOS (Apple Silicon), .dmg)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:37Z",
+          "completed_at": "2026-05-07T09:52:41Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:41Z",
+          "completed_at": "2026-05-07T09:52:43Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:43Z",
+          "completed_at": "2026-05-07T09:52:43Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:43Z",
+          "completed_at": "2026-05-07T09:52:44Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:44Z",
+          "completed_at": "2026-05-07T09:52:46Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:46Z",
+          "completed_at": "2026-05-07T09:52:47Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:47Z",
+          "completed_at": "2026-05-07T09:52:49Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:49Z",
+          "completed_at": "2026-05-07T09:52:49Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:49Z",
+          "completed_at": "2026-05-07T09:52:57Z"
+        },
+        {
+          "name": "Get product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:52:57Z",
+          "completed_at": "2026-05-07T09:52:57Z"
+        },
+        {
+          "name": "Build Tauri app",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:52:57Z",
+          "completed_at": "2026-05-07T09:58:13Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T09:58:13Z",
+          "completed_at": "2026-05-07T09:58:14Z"
+        },
+        {
+          "name": "Find artifacts (macOS)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-05-07T09:58:14Z",
+          "completed_at": "2026-05-07T09:58:14Z"
+        },
+        {
+          "name": "Find artifacts (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-05-07T09:58:14Z",
+          "completed_at": "2026-05-07T09:58:14Z"
+        },
+        {
+          "name": "Find artifacts (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-05-07T09:58:14Z",
+          "completed_at": "2026-05-07T09:58:14Z"
+        },
+        {
+          "name": "Upload artifact (macOS)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-05-07T09:58:14Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Upload artifact (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 17,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Upload artifact (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 18,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 34,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:16Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36,
+          "started_at": "2026-05-07T09:58:16Z",
+          "completed_at": "2026-05-07T09:58:17Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37,
+          "started_at": "2026-05-07T09:58:17Z",
+          "completed_at": "2026-05-07T09:58:18Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936399",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000000483,
+      "runner_name": "GitHub Actions 1000000483",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936415,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfXw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936415",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936415",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-desktop (ubuntu-20.04, x86_64-unknown-linux-gnu, Linux, .deb)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936415",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936427,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfaw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936427",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936427",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:35Z",
+      "completed_at": "2026-05-07T10:02:25Z",
+      "name": "build-binary (windows-latest, x86_64-pc-windows-msvc, Windows-x64)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:36Z",
+          "completed_at": "2026-05-07T09:52:38Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:38Z",
+          "completed_at": "2026-05-07T09:52:42Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:42Z",
+          "completed_at": "2026-05-07T09:52:44Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:44Z",
+          "completed_at": "2026-05-07T09:53:00Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:53:00Z",
+          "completed_at": "2026-05-07T09:53:04Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:53:04Z",
+          "completed_at": "2026-05-07T09:53:27Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:53:27Z",
+          "completed_at": "2026-05-07T09:53:36Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:53:36Z",
+          "completed_at": "2026-05-07T09:53:36Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:53:36Z",
+          "completed_at": "2026-05-07T09:53:52Z"
+        },
+        {
+          "name": "Build frontend",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:53:52Z",
+          "completed_at": "2026-05-07T09:54:04Z"
+        },
+        {
+          "name": "Build binary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:54:04Z",
+          "completed_at": "2026-05-07T10:02:17Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T10:02:17Z",
+          "completed_at": "2026-05-07T10:02:17Z"
+        },
+        {
+          "name": "Prepare binary (macOS/Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-05-07T10:02:17Z",
+          "completed_at": "2026-05-07T10:02:17Z"
+        },
+        {
+          "name": "Prepare binary (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-05-07T10:02:17Z",
+          "completed_at": "2026-05-07T10:02:20Z"
+        },
+        {
+          "name": "Upload artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-05-07T10:02:20Z",
+          "completed_at": "2026-05-07T10:02:21Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-05-07T10:02:21Z",
+          "completed_at": "2026-05-07T10:02:21Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-05-07T10:02:21Z",
+          "completed_at": "2026-05-07T10:02:21Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-05-07T10:02:21Z",
+          "completed_at": "2026-05-07T10:02:22Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-05-07T10:02:22Z",
+          "completed_at": "2026-05-07T10:02:24Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-05-07T10:02:24Z",
+          "completed_at": "2026-05-07T10:02:24Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936427",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000000486,
+      "runner_name": "GitHub Actions 1000000486",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936436,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfdA",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936436",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936436",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-mobile-android",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936436",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936437,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfdQ",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936437",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936437",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-mobile-h5",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936437",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936438,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfdg",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936438",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936438",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-binary (ubuntu-20.04, x86_64-unknown-linux-gnu, Linux-x64)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936438",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936453,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfhQ",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936453",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936453",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:35Z",
+      "completed_at": "2026-05-07T10:01:16Z",
+      "name": "build-desktop (windows-latest, x86_64-pc-windows-msvc, Windows, .msi)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:35Z",
+          "completed_at": "2026-05-07T09:52:37Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:37Z",
+          "completed_at": "2026-05-07T09:52:42Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:42Z",
+          "completed_at": "2026-05-07T09:52:43Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:43Z",
+          "completed_at": "2026-05-07T09:52:48Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:48Z",
+          "completed_at": "2026-05-07T09:52:52Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:52Z",
+          "completed_at": "2026-05-07T09:52:57Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:57Z",
+          "completed_at": "2026-05-07T09:52:59Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:59Z",
+          "completed_at": "2026-05-07T09:52:59Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:59Z",
+          "completed_at": "2026-05-07T09:53:09Z"
+        },
+        {
+          "name": "Get product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:53:09Z",
+          "completed_at": "2026-05-07T09:53:09Z"
+        },
+        {
+          "name": "Build Tauri app",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:53:09Z",
+          "completed_at": "2026-05-07T10:01:07Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T10:01:07Z",
+          "completed_at": "2026-05-07T10:01:07Z"
+        },
+        {
+          "name": "Find artifacts (macOS)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 13,
+          "started_at": "2026-05-07T10:01:07Z",
+          "completed_at": "2026-05-07T10:01:07Z"
+        },
+        {
+          "name": "Find artifacts (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-05-07T10:01:07Z",
+          "completed_at": "2026-05-07T10:01:10Z"
+        },
+        {
+          "name": "Find artifacts (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-05-07T10:01:10Z",
+          "completed_at": "2026-05-07T10:01:10Z"
+        },
+        {
+          "name": "Upload artifact (macOS)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 16,
+          "started_at": "2026-05-07T10:01:10Z",
+          "completed_at": "2026-05-07T10:01:10Z"
+        },
+        {
+          "name": "Upload artifact (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-05-07T10:01:10Z",
+          "completed_at": "2026-05-07T10:01:11Z"
+        },
+        {
+          "name": "Upload artifact (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 18,
+          "started_at": "2026-05-07T10:01:11Z",
+          "completed_at": "2026-05-07T10:01:11Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-05-07T10:01:11Z",
+          "completed_at": "2026-05-07T10:01:12Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 34,
+          "started_at": "2026-05-07T10:01:12Z",
+          "completed_at": "2026-05-07T10:01:12Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-05-07T10:01:12Z",
+          "completed_at": "2026-05-07T10:01:12Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36,
+          "started_at": "2026-05-07T10:01:12Z",
+          "completed_at": "2026-05-07T10:01:14Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37,
+          "started_at": "2026-05-07T10:01:14Z",
+          "completed_at": "2026-05-07T10:01:14Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936453",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000000489,
+      "runner_name": "GitHub Actions 1000000489",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936455,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfhw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936455",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936455",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:36Z",
+      "completed_at": "2026-05-07T09:58:04Z",
+      "name": "build-binary (macos-latest, aarch64-apple-darwin, macOS-arm64)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:36Z",
+          "completed_at": "2026-05-07T09:52:39Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:39Z",
+          "completed_at": "2026-05-07T09:52:41Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:41Z",
+          "completed_at": "2026-05-07T09:52:41Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:41Z",
+          "completed_at": "2026-05-07T09:52:42Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:42Z",
+          "completed_at": "2026-05-07T09:52:44Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:44Z",
+          "completed_at": "2026-05-07T09:52:45Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:45Z",
+          "completed_at": "2026-05-07T09:52:47Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:47Z",
+          "completed_at": "2026-05-07T09:52:47Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:47Z",
+          "completed_at": "2026-05-07T09:52:55Z"
+        },
+        {
+          "name": "Build frontend",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:52:55Z",
+          "completed_at": "2026-05-07T09:53:02Z"
+        },
+        {
+          "name": "Build binary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:53:02Z",
+          "completed_at": "2026-05-07T09:57:54Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T09:57:54Z",
+          "completed_at": "2026-05-07T09:57:54Z"
+        },
+        {
+          "name": "Prepare binary (macOS/Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-05-07T09:57:54Z",
+          "completed_at": "2026-05-07T09:57:55Z"
+        },
+        {
+          "name": "Prepare binary (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-05-07T09:57:55Z",
+          "completed_at": "2026-05-07T09:57:55Z"
+        },
+        {
+          "name": "Upload artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-05-07T09:57:55Z",
+          "completed_at": "2026-05-07T09:57:58Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-05-07T09:57:58Z",
+          "completed_at": "2026-05-07T09:57:58Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-05-07T09:57:58Z",
+          "completed_at": "2026-05-07T09:57:59Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-05-07T09:57:59Z",
+          "completed_at": "2026-05-07T09:57:59Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-05-07T09:57:59Z",
+          "completed_at": "2026-05-07T09:58:00Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-05-07T09:58:00Z",
+          "completed_at": "2026-05-07T09:58:03Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936455",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000000485,
+      "runner_name": "GitHub Actions 1000000485",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 74790936475,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfmw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936475",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936475",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-cloud-server (aarch64-unknown-linux-gnu, Linux ARM64, ubuntu-20.04)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936475",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936488,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMfqA",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936488",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936488",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:32Z",
+      "completed_at": null,
+      "name": "build-cloud-server (x86_64-unknown-linux-gnu, Linux x86_64, ubuntu-20.04)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936488",
+      "labels": [
+        "ubuntu-20.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 74790936503,
+      "run_id": 25488722507,
+      "workflow_name": "Build and Release",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/walleliu1016/cc-island/actions/runs/25488722507",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOR7Ezns8AAAARaeMftw",
+      "head_sha": "265a7cf457679ca7c34ebe5b8f6686960741b35c",
+      "url": "https://api.github.com/repos/walleliu1016/cc-island/actions/jobs/74790936503",
+      "html_url": "https://github.com/walleliu1016/cc-island/actions/runs/25488722507/job/74790936503",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-05-07T09:52:32Z",
+      "started_at": "2026-05-07T09:52:35Z",
+      "completed_at": "2026-05-07T09:56:19Z",
+      "name": "build-desktop (macos-latest, x86_64-apple-darwin, macOS (Intel), .dmg)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-07T09:52:35Z",
+          "completed_at": "2026-05-07T09:52:38Z"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-07T09:52:38Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Set product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:40Z"
+        },
+        {
+          "name": "Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-05-07T09:52:40Z",
+          "completed_at": "2026-05-07T09:52:41Z"
+        },
+        {
+          "name": "Setup Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-05-07T09:52:41Z",
+          "completed_at": "2026-05-07T09:52:44Z"
+        },
+        {
+          "name": "Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-05-07T09:52:44Z",
+          "completed_at": "2026-05-07T09:52:46Z"
+        },
+        {
+          "name": "Install dependencies (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-05-07T09:52:46Z",
+          "completed_at": "2026-05-07T09:52:46Z"
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-05-07T09:52:46Z",
+          "completed_at": "2026-05-07T09:52:51Z"
+        },
+        {
+          "name": "Get product name",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-05-07T09:52:51Z",
+          "completed_at": "2026-05-07T09:52:51Z"
+        },
+        {
+          "name": "Build Tauri app",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-05-07T09:52:51Z",
+          "completed_at": "2026-05-07T09:56:12Z"
+        },
+        {
+          "name": "Get version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-07T09:56:12Z",
+          "completed_at": "2026-05-07T09:56:12Z"
+        },
+        {
+          "name": "Find artifacts (macOS)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-05-07T09:56:12Z",
+          "completed_at": "2026-05-07T09:56:12Z"
+        },
+        {
+          "name": "Find artifacts (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 14,
+          "started_at": "2026-05-07T09:56:12Z",
+          "completed_at": "2026-05-07T09:56:12Z"
+        },
+        {
+          "name": "Find artifacts (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-05-07T09:56:12Z",
+          "completed_at": "2026-05-07T09:56:12Z"
+        },
+        {
+          "name": "Upload artifact (macOS)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-05-07T09:56:12Z",
+          "completed_at": "2026-05-07T09:56:14Z"
+        },
+        {
+          "name": "Upload artifact (Windows)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 17,
+          "started_at": "2026-05-07T09:56:14Z",
+          "completed_at": "2026-05-07T09:56:14Z"
+        },
+        {
+          "name": "Upload artifact (Linux)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 18,
+          "started_at": "2026-05-07T09:56:14Z",
+          "completed_at": "2026-05-07T09:56:14Z"
+        },
+        {
+          "name": "Post Cache Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-05-07T09:56:14Z",
+          "completed_at": "2026-05-07T09:56:15Z"
+        },
+        {
+          "name": "Post Install pnpm",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 34,
+          "started_at": "2026-05-07T09:56:15Z",
+          "completed_at": "2026-05-07T09:56:15Z"
+        },
+        {
+          "name": "Post Setup Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-05-07T09:56:15Z",
+          "completed_at": "2026-05-07T09:56:15Z"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36,
+          "started_at": "2026-05-07T09:56:15Z",
+          "completed_at": "2026-05-07T09:56:15Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37,
+          "started_at": "2026-05-07T09:56:15Z",
+          "completed_at": "2026-05-07T09:56:16Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/walleliu1016/cc-island/check-runs/74790936503",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000000488,
+      "runner_name": "GitHub Actions 1000000488",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

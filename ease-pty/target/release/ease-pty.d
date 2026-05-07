@@ -1,0 +1,1 @@
+G:\work\cc-island\ease-pty\target\release\ease-pty.exe: G:\work\cc-island\ease-pty\src\main.rs G:\work\cc-island\ease-pty\src\pty.rs G:\work\cc-island\ease-pty\src\register.rs G:\work\cc-island\ease-pty\src\session.rs G:\work\cc-island\ease-pty\src\socket.rs G:\work\cc-island\ease-pty\src\terminal.rs

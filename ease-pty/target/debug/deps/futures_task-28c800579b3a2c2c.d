@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\debug\deps\futures_task-28c800579b3a2c2c.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\spawn.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\arc_wake.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker_ref.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\future_obj.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\noop_waker.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libfutures_task-28c800579b3a2c2c.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\spawn.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\arc_wake.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker_ref.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\future_obj.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\noop_waker.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\spawn.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\arc_wake.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\waker_ref.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\future_obj.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-task-0.3.32\src\noop_waker.rs:

@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\debug\deps\portable_pty-416a29b8484e6da3.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\cmdbuilder.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\conpty.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\procthreadattr.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\psuedocon.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\serial.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libportable_pty-416a29b8484e6da3.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\cmdbuilder.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\conpty.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\procthreadattr.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\psuedocon.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\serial.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\cmdbuilder.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\conpty.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\procthreadattr.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\win\psuedocon.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\portable-pty-0.9.0\src\serial.rs:

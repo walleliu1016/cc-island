@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\debug\deps\serde_urlencoded-3b51c3903956d7e3.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\de.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\key.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\pair.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\part.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\value.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libserde_urlencoded-3b51c3903956d7e3.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\de.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\key.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\pair.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\part.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\value.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\de.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\key.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\pair.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\part.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serde_urlencoded-0.7.1\src\ser\value.rs:

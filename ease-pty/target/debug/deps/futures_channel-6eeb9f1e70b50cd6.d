@@ -1,0 +1,10 @@
+G:\work\cc-island\ease-pty\target\debug\deps\futures_channel-6eeb9f1e70b50cd6.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lock.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\queue.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\sink_impl.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\oneshot.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libfutures_channel-6eeb9f1e70b50cd6.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lock.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\queue.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\sink_impl.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\oneshot.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\lock.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\queue.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\mpsc\sink_impl.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\futures-channel-0.3.32\src\oneshot.rs:

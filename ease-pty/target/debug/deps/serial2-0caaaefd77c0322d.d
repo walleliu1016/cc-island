@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\debug\deps\serial2-0caaaefd77c0322d.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\windows\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\into_settings.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\serial_port.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\settings.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\os.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libserial2-0caaaefd77c0322d.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\windows\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\into_settings.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\serial_port.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\settings.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\os.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\sys\windows\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\into_settings.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\serial_port.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\settings.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\serial2-0.2.36\src\os.rs:

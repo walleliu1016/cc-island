@@ -1,0 +1,12 @@
+G:\work\cc-island\ease-pty\target\debug\deps\tinystr-9aa006ca843d6aee.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ascii.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\asciibyte.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\error.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\int_ops.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\unvalidated.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ule.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libtinystr-9aa006ca843d6aee.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ascii.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\asciibyte.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\error.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\int_ops.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\unvalidated.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ule.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\macros.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ascii.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\asciibyte.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\error.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\int_ops.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\unvalidated.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tinystr-0.8.3\src\ule.rs:

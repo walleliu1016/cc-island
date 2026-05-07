@@ -9,17 +9,10 @@ edition = "2021"
 name = "cc_island_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Binary targets
 # Desktop GUI binary (default, compiled with default "desktop" feature)
 [[bin]]
 name = "cc-island"
 path = "src/main.rs"
-
-# Server binary (only compiled with "server" feature, no GUI)
-[[bin]]
-name = "cc-island-server"
-path = "src/bin/server.rs"
-required-features = ["server"]
 
 [features]
 default = ["desktop"]
@@ -34,7 +27,6 @@ desktop = [
     "dep:gtk",
     "dep:tauri-build",
 ]
-server = []
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true }

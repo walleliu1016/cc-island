@@ -1,0 +1,12 @@
+G:\work\cc-island\ease-pty\target\release\deps\anstyle-53e8543d0c65618d.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\color.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\effect.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\reset.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\style.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libanstyle-53e8543d0c65618d.rlib: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\color.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\effect.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\reset.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\style.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libanstyle-53e8543d0c65618d.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\color.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\effect.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\reset.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\style.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\macros.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\color.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\effect.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\reset.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-1.0.14\src\style.rs:

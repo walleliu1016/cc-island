@@ -1,9 +1,4 @@
 fn main() {
-    // Tauri build script only needed for desktop mode
-    #[cfg(feature = "desktop")]
+    // Tauri build script for desktop mode
     tauri_build::build();
-
-    // Server mode doesn't need special build script
-    #[cfg(not(feature = "desktop"))]
-    println!("cargo:rerun-if-changed=Cargo.toml");
 }

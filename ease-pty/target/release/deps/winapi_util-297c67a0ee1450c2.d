@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\release\deps\winapi_util-297c67a0ee1450c2.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\console.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\file.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\sysinfo.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\win.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libwinapi_util-297c67a0ee1450c2.rlib: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\console.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\file.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\sysinfo.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\win.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libwinapi_util-297c67a0ee1450c2.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\console.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\file.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\sysinfo.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\win.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\console.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\file.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\sysinfo.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\winapi-util-0.1.11\src\win.rs:

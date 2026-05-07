@@ -1,0 +1,12 @@
+G:\work\cc-island\ease-pty\target\debug\deps\httparse-8f162e4e97fad23a.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\iter.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\swar.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\sse42.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\avx2.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\runtime.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libhttparse-8f162e4e97fad23a.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\iter.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\swar.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\sse42.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\avx2.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\runtime.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\iter.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\macros.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\swar.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\sse42.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\avx2.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\httparse-1.10.1\src\simd\runtime.rs:

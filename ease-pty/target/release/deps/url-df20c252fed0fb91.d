@@ -1,0 +1,13 @@
+G:\work\cc-island\ease-pty\target\release\deps\url-df20c252fed0fb91.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\host.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\origin.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\parser.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\path_segments.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\slicing.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\quirks.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\liburl-df20c252fed0fb91.rlib: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\host.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\origin.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\parser.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\path_segments.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\slicing.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\quirks.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\liburl-df20c252fed0fb91.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\host.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\origin.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\parser.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\path_segments.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\slicing.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\quirks.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\host.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\origin.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\parser.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\path_segments.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\slicing.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\url-2.5.8\src\quirks.rs:

@@ -1,0 +1,11 @@
+G:\work\cc-island\ease-pty\target\release\deps\anstyle_parse-f7a9b0049e4e6a07.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\params.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\definitions.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\table.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libanstyle_parse-f7a9b0049e4e6a07.rlib: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\params.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\definitions.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\table.rs
+
+G:\work\cc-island\ease-pty\target\release\deps\libanstyle_parse-f7a9b0049e4e6a07.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\params.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\definitions.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\table.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\params.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\definitions.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\anstyle-parse-1.0.0\src\state\table.rs:

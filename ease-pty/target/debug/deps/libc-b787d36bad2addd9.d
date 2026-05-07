@@ -1,0 +1,13 @@
+G:\work\cc-island\ease-pty\target\debug\deps\libc-b787d36bad2addd9.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\common\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\ucrt\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\primitives.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\gnu\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\types.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\liblibc-b787d36bad2addd9.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\common\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\ucrt\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\primitives.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\gnu\mod.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\types.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\macros.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\common\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\new\ucrt\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\primitives.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\windows\gnu\mod.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\libc-0.2.185\src\types.rs:

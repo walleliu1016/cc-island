@@ -1,0 +1,12 @@
+G:\work\cc-island\ease-pty\target\debug\deps\tracing-32192f50d0116f48.d: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\dispatcher.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\field.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\instrument.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\level_filters.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\span.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\subscriber.rs
+
+G:\work\cc-island\ease-pty\target\debug\deps\libtracing-32192f50d0116f48.rmeta: C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\lib.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\macros.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\dispatcher.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\field.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\instrument.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\level_filters.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\span.rs C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\subscriber.rs
+
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\lib.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\macros.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\dispatcher.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\field.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\instrument.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\level_filters.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\span.rs:
+C:\Users\bruceliu\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tracing-0.1.44\src\subscriber.rs:

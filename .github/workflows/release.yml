@@ -407,22 +407,6 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Clean server binary artifacts
-        shell: bash
-        run: |
-          # Remove any existing server binary to prevent Tauri bundling it
-          rm -f src-tauri/target/release/cc-island-server
-          rm -f src-tauri/target/release/cc-island-server.exe
-          rm -f src-tauri/target/${{ matrix.target }}/release/cc-island-server
-          rm -f src-tauri/target/${{ matrix.target }}/release/cc-island-server.exe
-
-      - name: Pre-build desktop binary
-        shell: bash
-        run: |
-          cd src-tauri
-          # Explicitly build only desktop binary (not server)
-          cargo build --release --bin cc-island --target ${{ matrix.target }} --features desktop
-
       - name: Get product name
         id: product
         run: |
@@ -528,7 +512,9 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           target: x86_64-unknown-linux-musl
-          workspaces: 'src-tauri -> src-tauri/target'
+          workspaces: |
+            src-tauri -> src-tauri/target
+            src-tauri-server -> src-tauri-server/target
 
       - name: Install musl tools
         run: |
@@ -544,12 +530,10 @@ jobs:
 
       - name: Build server binary (musl static)
         run: |
-          cd src-tauri
+          cd src-tauri-server
           cargo build --release \
             --bin cc-island-server \
-            --target x86_64-unknown-linux-musl \
-            --no-default-features \
-            --features server
+            --target x86_64-unknown-linux-musl
 
       - name: Get version
         id: version
@@ -565,10 +549,10 @@ jobs:
         run: |
           PRODUCT_NAME="${{ steps.product.outputs.NAME }}"
           mkdir -p server-dist
-          BINARY_PATH="src-tauri/target/x86_64-unknown-linux-musl/release/cc-island-server"
+          BINARY_PATH="src-tauri-server/target/x86_64-unknown-linux-musl/release/cc-island-server"
           if [ ! -f "$BINARY_PATH" ]; then
             echo "::error::Server binary not found at $BINARY_PATH"
-            ls -la src-tauri/target/*/release/ 2>/dev/null || echo "No release directories found"
+            ls -la src-tauri-server/target/*/release/ 2>/dev/null || echo "No release directories found"
             exit 1
           fi
           cp "$BINARY_PATH" server-dist/${PRODUCT_NAME}-server-x86_64-musl
