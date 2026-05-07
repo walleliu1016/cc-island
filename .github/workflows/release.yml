@@ -438,7 +438,7 @@ jobs:
           # Don't create release here - let release job handle it
           tagName: ''
           releaseName: ''
-          target: ${{ matrix.target }}
+          args: --target ${{ matrix.target }}
 
       - name: Get version
         id: version
