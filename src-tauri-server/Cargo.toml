@@ -10,8 +10,8 @@ name = "cc-island-server"
 path = "src/main.rs"
 
 [dependencies]
-# Import shared library from main package
-cc-island-lib = { path = "../src-tauri" }
+# Import shared library from main package (注意：lib 名是 cc_island_lib，不是 cc-island-lib)
+cc_island_lib = { path = "../src-tauri" }
 
 # Core dependencies (minimal, no GUI)
 serde = { version = "1", features = ["derive"] }

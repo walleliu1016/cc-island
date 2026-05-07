@@ -438,31 +438,98 @@ jobs:
         if: matrix.platform == 'macos-latest'
         id: find-macos
         run: |
+          # Determine bundle directory based on target
           if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle"
           else
-            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            BUNDLE_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle"
           fi
+
+          # Fallback to default release directory
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          # Find DMG or app bundle
+          DMG=$(find "$BUNDLE_DIR" -name "*.dmg" -type f 2>/dev/null | head -1)
+          if [ -z "$DMG" ]; then
+            # Fallback: find .app bundle and create zip
+            APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
+            if [ -n "$APP" ]; then
+              APP_NAME=$(basename "$APP")
+              ZIP_NAME="${APP_NAME%.app}_${{ matrix.target }}.zip"
+              cd "$BUNDLE_DIR/macos"
+              zip -r "$ZIP_NAME" "$APP_NAME"
+              DMG="$BUNDLE_DIR/macos/$ZIP_NAME"
+            fi
+          fi
+
+          if [ -z "$DMG" ]; then
+            echo "::error::No DMG or app bundle found"
+            exit 1
+          fi
+
+          echo "Found artifact: $DMG"
+          echo "DMG=$DMG" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Find artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          $MSI = (Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
-          $EXE = (Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
-          echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
-          echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
+          $BundleDir = "src-tauri\target\release\bundle"
+
+          Write-Host "Searching in: $BundleDir"
+          if (Test-Path $BundleDir) {
+            Get-ChildItem -Path $BundleDir -Recurse | ForEach-Object { Write-Host $_ }
+          }
+
+          # Find MSI
+          $MSI = Get-ChildItem -Path "$BundleDir\msi" -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $MSI) {
+            Write-Error "MSI not found in $BundleDir\msi"
+            exit 1
+          }
+
+          # Find NSIS EXE (optional)
+          $EXE = Get-ChildItem -Path "$BundleDir\nsis" -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          Write-Host "Found MSI: $($MSI.FullName)"
+          if ($EXE) { Write-Host "Found EXE: $($EXE.FullName)" }
+
+          echo "MSI=$($MSI.FullName)" >> $env:GITHUB_OUTPUT
+          if ($EXE) { echo "EXE=$($EXE.FullName)" >> $env:GITHUB_OUTPUT }
         shell: pwsh
 
       - name: Find artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         id: find-linux
         run: |
-          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f | head -1)
-          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          # Determine bundle directory based on target
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          # Find DEB
+          DEB=$(find "$BUNDLE_DIR/deb" -name "*.deb" -type f 2>/dev/null | head -1)
+
+          # Find AppImage
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" -type f 2>/dev/null | head -1)
+
+          if [ -z "$DEB" ] && [ -z "$APPIMAGE" ]; then
+            echo "::error::No DEB or AppImage found"
+            exit 1
+          fi
+
+          echo "Found DEB: $DEB"
+          echo "Found AppImage: $APPIMAGE"
           echo "DEB=$DEB" >> $GITHUB_OUTPUT
           echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT
         shell: bash
