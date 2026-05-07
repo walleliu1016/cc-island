@@ -407,6 +407,22 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Clean server binary artifacts
+        shell: bash
+        run: |
+          # Remove any existing server binary to prevent Tauri bundling it
+          rm -f src-tauri/target/release/cc-island-server
+          rm -f src-tauri/target/release/cc-island-server.exe
+          rm -f src-tauri/target/${{ matrix.target }}/release/cc-island-server
+          rm -f src-tauri/target/${{ matrix.target }}/release/cc-island-server.exe
+
+      - name: Pre-build desktop binary
+        shell: bash
+        run: |
+          cd src-tauri
+          # Explicitly build only desktop binary (not server)
+          cargo build --release --bin cc-island --target ${{ matrix.target }} --features desktop
+
       - name: Get product name
         id: product
         run: |
