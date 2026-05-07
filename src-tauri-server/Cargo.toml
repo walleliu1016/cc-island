@@ -20,6 +20,10 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# OpenSSL configuration for musl static linking (vendored for server binary)
+[target.'cfg(target_env = "musl")'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }
+
 [profile.release]
 lto = true
 codegen-units = 1

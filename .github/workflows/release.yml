@@ -456,14 +456,15 @@ jobs:
           # Find DMG or app bundle
           DMG=$(find "$BUNDLE_DIR" -name "*.dmg" -type f 2>/dev/null | head -1)
           if [ -z "$DMG" ]; then
-            # Fallback: find .app bundle and create zip
+            # Fallback: find .app bundle and create tar.gz (tar is always available on macOS)
             APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
             if [ -n "$APP" ]; then
               APP_NAME=$(basename "$APP")
-              ZIP_NAME="${APP_NAME%.app}_${{ matrix.target }}.zip"
+              TAR_NAME="${APP_NAME%.app}_${{ matrix.target }}.tar.gz"
               cd "$BUNDLE_DIR/macos"
-              zip -r "$ZIP_NAME" "$APP_NAME"
-              DMG="$BUNDLE_DIR/macos/$ZIP_NAME"
+              tar -czf "$TAR_NAME" "$APP_NAME"
+              DMG="$BUNDLE_DIR/macos/$TAR_NAME"
+              echo "Created tar.gz from app bundle: $DMG"
             fi
           fi
 
@@ -480,11 +481,24 @@ jobs:
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          $BundleDir = "src-tauri\target\release\bundle"
+          # Determine bundle directory based on target (优先target-specific目录)
+          $TargetBundleDir = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $DefaultBundleDir = "src-tauri\target\release\bundle"
 
-          Write-Host "Searching in: $BundleDir"
+          Write-Host "Checking target-specific bundle: $TargetBundleDir"
+          if (Test-Path $TargetBundleDir) {
+            $BundleDir = $TargetBundleDir
+          } else {
+            Write-Host "Target-specific not found, checking default: $DefaultBundleDir"
+            $BundleDir = $DefaultBundleDir
+          }
+
+          Write-Host "Using bundle directory: $BundleDir"
           if (Test-Path $BundleDir) {
             Get-ChildItem -Path $BundleDir -Recurse | ForEach-Object { Write-Host $_ }
+          } else {
+            Write-Error "Bundle directory not found: $BundleDir"
+            exit 1
           }
 
           # Find MSI
