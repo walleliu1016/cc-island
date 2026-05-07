@@ -17,6 +17,7 @@ jobs:
   build-cloud-server:
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include:
           - target: 'x86_64-unknown-linux-gnu'
@@ -343,6 +344,7 @@ jobs:
   build-desktop:
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include:
           - platform: 'macos-latest'
@@ -567,6 +569,7 @@ jobs:
   build-binary:
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include:
           - platform: 'macos-latest'
