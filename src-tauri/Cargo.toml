@@ -9,13 +9,40 @@ edition = "2021"
 name = "cc_island_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Binary targets
+[[bin]]
+name = "cc-island"
+path = "src/main.rs"
+
+[[bin]]
+name = "cc-island-server"
+path = "src/bin/server.rs"
+required-features = ["server"]
+
+[features]
+default = ["desktop"]
+desktop = [
+    "tauri",
+    "tauri-plugin-shell",
+    "tauri-plugin-single-instance",
+    "dep:cocoa",
+    "dep:objc",
+    "dep:winreg",
+    "dep:windows",
+    "dep:gtk",
+]
+server = []
+
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = [], optional = true }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
-tauri-plugin-shell = "2"
-tauri-plugin-single-instance = "2"
+# Tauri dependencies (optional for server mode)
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"], optional = true }
+tauri-plugin-shell = { version = "2", optional = true }
+tauri-plugin-single-instance = { version = "2", optional = true }
+
+# Core dependencies (always required)
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
@@ -39,22 +66,30 @@ qrcode = "0.14"
 hostname = "0.4"
 notify = { version = "8", features = ["macos_kqueue"] }
 
+# macOS dependencies (optional, only for desktop)
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.26"
-objc = "0.2"
+cocoa = { version = "0.26", optional = true }
+objc = { version = "0.2", optional = true }
 
+# Windows dependencies (optional, only for desktop)
 [target.'cfg(target_os = "windows")'.dependencies]
-winreg = "0.52"
-windows = { version = "0.58", features = [
+winreg = { version = "0.52", optional = true }
+windows = { version = "0.58", optional = true, features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
     "Win32_Foundation"
 ] }
 
+# Linux dependencies (optional, only for desktop)
 [target.'cfg(target_os = "linux")'.dependencies]
-gtk = "0.18"
+gtk = { version = "0.18", optional = true }
 
 # Reduce export symbols for MinGW linker (fixes "export ordinal too large" error)
 [profile.dev]
 lto = false
 codegen-units = 256
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"

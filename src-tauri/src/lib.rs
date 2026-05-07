@@ -20,12 +20,17 @@ use cloud_client::{CloudClient, CloudConfig};
 use conversation_parser::ConversationParser;
 use jsonl_watcher::JsonlWatcherHandle;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "desktop")]
 use tauri::menu::{Menu, MenuItem};
 
 use std::sync::Arc;
 use parking_lot::RwLock;
 use once_cell::sync::Lazy;
+
+#[cfg(feature = "desktop")]
 use tauri::Manager;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock as AsyncRwLock;
 
@@ -184,11 +189,13 @@ pub fn write_log(content: &str) {
 }
 
 // Tauri commands
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn start_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
     use tauri::{Size, Position};
@@ -235,30 +242,35 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
     state.instances.get_all_instances_display()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_popups() -> Vec<popup_queue::PopupItem> {
     let state = SHARED_STATE.read();
     state.popups.get_all()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_recent_activities() -> Vec<ToolActivity> {
     let state = SHARED_STATE.read();
     state.get_display_activities().into_iter().cloned().collect()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_session_notification() -> Option<SessionNotification> {
     let mut state = SHARED_STATE.write();
     state.get_session_notification()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     // First get cwd with read lock (no mutation needed)
@@ -296,6 +308,7 @@ fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     state.chat_history.get_messages(&session_id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn respond_popup(
     popup_id: String,
@@ -407,6 +420,7 @@ fn respond_popup(
     }
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn jump_to_instance(session_id: String) -> Result<(), String> {
     // First, try to refresh process info in case terminal detection failed
@@ -460,42 +474,50 @@ fn refresh_instance_process_internal(session_id: &str) -> Result<(), String> {
     }
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn refresh_instance_process(session_id: String) -> Result<(), String> {
     refresh_instance_process_internal(&session_id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn check_claude_hooks() -> config::HooksCheckResult {
     config::check_claude_hooks_config()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn update_claude_hooks(hooks: Vec<String>) -> Result<(), String> {
     config::update_claude_hooks_config(hooks)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_settings() -> config::AppSettings {
     let state = SHARED_STATE.read();
     state.settings.clone()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_product_name(app: tauri::AppHandle) -> String {
     app.config().product_name.clone().unwrap_or_else(|| "CC-Island".to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_device_token() -> String {
     machine_id::get_machine_token()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_cloud_connection_status() -> CloudConnectionStatus {
     SHARED_STATE.read().cloud_connection_status.clone()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn generate_device_qrcode(server_url: String) -> Result<String, String> {
     let device_token = machine_id::get_machine_token();
@@ -521,6 +543,7 @@ fn generate_device_qrcode(server_url: String) -> Result<String, String> {
     Ok(svg)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
@@ -710,6 +733,8 @@ fn stop_cloud_client() {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Run with Tauri UI (desktop mode)
+#[cfg(feature = "desktop")]
 pub fn run() {
     // Initialize tracing
     tracing_subscriber::fmt::init();

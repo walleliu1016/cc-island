@@ -697,8 +697,73 @@ jobs:
             binary-dist/*.zip
           retention-days: 7
 
+  # ===== Server Binary Build (musl static, no UI) =====
+  build-server-binary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: x86_64-unknown-linux-musl
+          workspaces: 'src-tauri -> src-tauri/target'
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools musl-dev
+
+      - name: Build server binary (musl static)
+        run: |
+          cd src-tauri
+          cargo build --release \
+            --bin cc-island-server \
+            --target x86_64-unknown-linux-musl \
+            --no-default-features \
+            --features server
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Prepare server binary
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
+          mkdir -p server-dist
+          BINARY_PATH="src-tauri/target/x86_64-unknown-linux-musl/release/cc-island-server"
+          if [ ! -f "$BINARY_PATH" ]; then
+            echo "::error::Server binary not found at $BINARY_PATH"
+            ls -la src-tauri/target/*/release/ 2>/dev/null || echo "No release directories found"
+            exit 1
+          fi
+          cp "$BINARY_PATH" server-dist/${PRODUCT_NAME}-server-x86_64-musl
+          chmod +x server-dist/${PRODUCT_NAME}-server-x86_64-musl
+          cd server-dist
+          tar -czvf ${PRODUCT_NAME}-server-x86_64-musl-${{ steps.version.outputs.VERSION }}.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-server_x86_64-musl_${{ steps.version.outputs.VERSION }}
+          path: server-dist/*.tar.gz
+          retention-days: 7
+
   release:
-    needs: [build-cloud-server, build-desktop, build-binary, build-mobile-h5, build-mobile-android, build-mobile-ios]
+    needs: [build-cloud-server, build-desktop, build-binary, build-server-binary, build-mobile-h5, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: |
       always() &&
@@ -794,6 +859,40 @@ jobs:
             ```
 
             **注意：** 可执行文件为后台模式，无 UI 界面，适合服务器部署。
+
+            ### Server Binary (静态链接)
+
+            完全静态链接的可执行文件，无任何系统依赖：
+
+            - `cc-island-server_x86_64-musl_*.tar.gz` - Linux x86_64 (musl 静态)
+
+            **兼容性：**
+            - ✅ CentOS 7+ (glibc 2.17)
+            - ✅ Ubuntu 18.04+ (glibc 2.27)
+            - ✅ Alpine Linux (musl libc)
+            - ✅ 所有 Linux 发行版
+
+            **特点：**
+            - 零依赖，无需安装任何系统库
+            - 后台模式运行，无 UI
+            - 支持 Mobile 配对、Cloud Relay 等所有后台功能
+            - 适合服务器、容器、嵌入式设备部署
+
+            **使用方法：**
+            ```bash
+            # 解压
+            tar -xzf Ease-Island-server-x86_64-musl-*.tar.gz
+
+            # 查看帮助
+            ./Ease-Island-server-x86_64-musl --help
+
+            # 显示设备 Token（用于 Mobile 配对）
+            ./Ease-Island-server-x86_64-musl --device-token
+
+            # 配置并运行
+            ./Ease-Island-server-x86_64-musl --config --cloud-mode --cloud-server-url ws://server:17528
+            ./Ease-Island-server-x86_64-musl
+            ```
 
             ### Cloud Server
 
