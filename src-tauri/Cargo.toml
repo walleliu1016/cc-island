@@ -10,11 +10,12 @@ name = "cc_island_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 # Binary targets
+# Desktop GUI binary (default, compiled with default "desktop" feature)
 [[bin]]
 name = "cc-island"
 path = "src/main.rs"
-required-features = ["desktop"]
 
+# Server binary (only compiled with "server" feature, no GUI)
 [[bin]]
 name = "cc-island-server"
 path = "src/bin/server.rs"
