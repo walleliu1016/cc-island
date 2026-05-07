@@ -456,17 +456,28 @@ jobs:
           echo "Searching in: $BUNDLE_DIR"
           ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
 
-          DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" -type f 2>/dev/null | head -1)
+          # Find .app bundle (not DMG anymore)
+          APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
 
-          if [ -z "$DMG" ] || [ ! -f "$DMG" ]; then
-            echo "::error::DMG file not found in $BUNDLE_DIR/dmg"
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            echo "::error::.app bundle not found in $BUNDLE_DIR/macos"
             echo "Directory contents:"
             find "$BUNDLE_DIR" -type f 2>/dev/null || echo "No files found"
             exit 1
           fi
 
-          echo "Found DMG: $DMG"
-          echo "DMG=$DMG" >> $GITHUB_OUTPUT
+          echo "Found .app bundle: $APP"
+
+          # Create zip from .app bundle
+          APP_NAME=$(basename "$APP")
+          ZIP_NAME="${APP_NAME%.app}_${{ matrix.target }}.zip"
+          cd "$BUNDLE_DIR/macos"
+          zip -r "$ZIP_NAME" "$APP_NAME"
+          ZIP_PATH="$BUNDLE_DIR/macos/$ZIP_NAME"
+
+          echo "Created zip: $ZIP_PATH"
+          echo "APP=$APP" >> $GITHUB_OUTPUT
+          echo "ZIP=$ZIP_PATH" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Find artifacts (Windows)
@@ -541,7 +552,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.product.outputs.NAME }}_${{ steps.version.outputs.VERSION }}_${{ matrix.target }}
-          path: ${{ steps.find-macos.outputs.DMG }}
+          path: ${{ steps.find-macos.outputs.ZIP }}
           retention-days: 7
 
       - name: Upload artifact (Windows)
@@ -596,8 +607,13 @@ jobs:
       - name: Install build tools (Linux container)
         if: matrix.container != ''
         run: |
+          # Set non-interactive mode to prevent timezone selection
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update
-          apt-get install -y curl build-essential pkg-config libssl-dev perl
+          apt-get install -y curl build-essential pkg-config libssl-dev perl tzdata
+          # Set timezone to UTC
+          ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+          dpkg-reconfigure --frontend noninteractive tzdata
 
       - name: Set product name
         shell: bash
@@ -736,11 +752,17 @@ jobs:
             ### Desktop App
 
             #### macOS
-            - DMG for Apple Silicon (M1/M2/M3) and Intel Mac
+            - ZIP containing .app bundle for Apple Silicon (M1/M2/M3) and Intel Mac
+            - 解压后直接双击 .app 文件即可运行
 
-            **注意：macOS 用户安装后如果提示"文件已损坏"，请运行以下命令：**
+            **注意：macOS 用户如果提示"文件已损坏"，请运行以下命令：**
             ```bash
-            xattr -cr /Applications/Ease-Island.app
+            # 解压 zip 文件
+            unzip Ease-Island_*.zip
+            # 移除 quarantine 属性
+            xattr -cr Ease-Island.app
+            # 将 .app 移动到 Applications 目录
+            mv Ease-Island.app /Applications/
             ```
             或前往 系统设置 > 隐私与安全 > 安全性，点击"仍要打开"。
 
