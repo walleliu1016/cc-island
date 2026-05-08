@@ -254,19 +254,52 @@ xattr -cr /Applications/Ease-Island.app
 
 CC-Island 支持无 UI 的后台运行模式，适合服务器部署或无桌面环境使用。
 
-### 启动方式
+### Desktop 后台模式（带 UI）
+
+Desktop 应用支持 `--background` 标志运行无窗口模式：
 
 ```bash
-# UI 模式（默认）
+# UI 模式（默认，启动GUI窗口）
 cc-island
 
-# 后台模式
+# 后台模式（无窗口，仍依赖桌面环境）
 cc-island --background
 ```
 
+### Server Binary 后台模式（无 UI）
+
+Server Binary (`cc-island-server`) 是独立的静态链接二进制文件，完全无 UI 依赖，适合服务器/容器部署。
+
+**子命令模式（推荐）**：
+
+```bash
+# 临时启动（参数不保存，优先级：CLI > config > defaults）
+cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
+
+# 简写模式（默认 run 子命令）
+cc-island-server --cloud-mode --cloud-server-url ws://server:17528
+
+# 配置管理（持久化）
+cc-island-server config show                          # 显示当前配置
+cc-island-server config set --cloud-mode              # 设置并保存
+cc-island-server config reset                         # 重置为默认
+
+# 配对信息
+cc-island-server pair-info                            # 显示完整配对信息
+cc-island-server device-token                         # 仅显示 token
+```
+
+**参数优先级规则**：
+
+| 子命令 | 优先级 | 持久化 |
+|--------|--------|--------|
+| `run` | CLI参数 > 配置文件 > 默认值 | ❌ 不保存 |
+| `config set` | CLI参数直接保存 | ✅ 永久保存 |
+| 无子命令 | 等同于 `run` | ❌ 不保存 |
+
 ### 命令行配置
 
-所有配置项都可通过命令行设置：
+**Desktop 模式**（使用 flag）：
 
 ```bash
 # 查看帮助
@@ -280,6 +313,22 @@ cc-island --config --cloud-mode --cloud-server-url ws://server:17528
 
 # 后台启动（可同时配置）
 cc-island --background --cloud-mode --cloud-server-url ws://server:17528
+```
+
+**Server Binary 模式**（使用子命令）：
+
+```bash
+# 查看帮助
+cc-island-server --help
+
+# 显示当前配置
+cc-island-server config show
+
+# 持久化配置（保存到配置文件）
+cc-island-server config set --cloud-mode --cloud-server-url ws://server:17528
+
+# 临时启动（不修改配置文件）
+cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
 ```
 
 ### 可配置项
@@ -297,7 +346,7 @@ cc-island --background --cloud-mode --cloud-server-url ws://server:17528
 
 ### Mobile 配对
 
-后台模式下通过命令行获取配对信息：
+**Desktop 模式**：
 
 ```bash
 # 查看 device token
@@ -305,6 +354,16 @@ cc-island --device-token
 
 # 查看完整配对信息（推荐）
 cc-island --pair-info
+```
+
+**Server Binary 模式**：
+
+```bash
+# 查看完整配对信息（推荐）
+cc-island-server pair-info
+
+# 仅查看 device token
+cc-island-server device-token
 ```
 
 输出示例：
@@ -322,13 +381,20 @@ Server URL:   ws://cloud.example.com:17528
 3. 输入 Server URL: ws://cloud.example.com:17528
 ```
 
-### 后台模式完整流程
+### Server Binary 完整流程
 
 ```bash
-# 一步启动（配置 + 后台运行）
-cc-island --background --cloud-mode --cloud-server-url ws://your-server:17528
+# 方式 1：临时启动（推荐用于测试）
+cc-island-server --cloud-mode --cloud-server-url ws://your-server:17528
 
-# 后台启动时会自动打印配对信息，用于 Mobile 配对
+# 方式 2：持久配置（推荐用于生产）
+cc-island-server config set --cloud-mode --cloud-server-url ws://your-server:17528
+cc-island-server
+
+# 方式 3：查看配对信息后启动
+cc-island-server pair-info
+cc-island-server
+
 # 按 Ctrl+C 停止
 ```
 
