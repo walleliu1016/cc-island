@@ -14,21 +14,20 @@
 //! # Usage
 //!
 //! ```bash
-//! # Show help
-//! cc-island-server --help
+//! # Run with temporary parameters (not saved to config)
+//! cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
 //!
-//! # Show device token for Mobile pairing
-//! cc-island-server --device-token
+//! # Shorthand (default subcommand = run)
+//! cc-island-server --cloud-mode --cloud-server-url ws://server:17528
 //!
-//! # Show full pairing info (token + server URL)
-//! cc-island-server --pair-info
+//! # Configuration management (persistent)
+//! cc-island-server config show                          # Show current config
+//! cc-island-server config set --cloud-mode              # Set and save
+//! cc-island-server config reset                         # Reset to defaults
 //!
-//! # Configure and run
-//! cc-island-server --config --cloud-mode --cloud-server-url ws://server:17528
-//! cc-island-server
-//!
-//! # Show current config
-//! cc-island-server --show-config
+//! # Pairing info
+//! cc-island-server pair-info                            # Show full pairing info
+//! cc-island-server device-token                         # Show device token only
 //! ```
 
 use std::env;
@@ -36,54 +35,127 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    // Show help
-    if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
-        print_help();
+    // No arguments -> default run
+    if args.len() == 1 {
+        run_server(&args[1..]);
         return;
     }
 
-    // Show version
-    if args.contains(&"--version".to_string()) || args.contains(&"-V".to_string()) {
+    let first_arg = &args[1];
+
+    // Global flags (handled before subcommands)
+    if first_arg == "--help" || first_arg == "-h" {
+        print_help();
+        return;
+    }
+    if first_arg == "--version" || first_arg == "-V" {
         println!("cc-island-server {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 
-    // Show device token
-    if args.contains(&"--device-token".to_string()) {
-        let token = cc_island_lib::machine_id::get_machine_token();
-        println!("Device Token: {}", token);
+    // Subcommand parsing
+    match first_arg.as_str() {
+        "run" => {
+            // run subcommand: temporary startup, parameters NOT saved
+            run_server(&args[2..]);
+        }
+        "config" => {
+            handle_config_subcommand(&args[2..]);
+        }
+        "pair-info" => {
+            cc_island_lib::show_pair_info();
+        }
+        "device-token" => {
+            show_device_token();
+        }
+        _ => {
+            // Shorthand mode: treat as run arguments
+            // e.g., cc-island-server --cloud-mode -> run --cloud-mode
+            run_server(&args[1..]);
+        }
+    }
+}
+
+/// Handle config subcommand: show, set, reset
+fn handle_config_subcommand(args: &[String]) {
+    if args.is_empty() {
+        println!("Usage: cc-island-server config <show|set|reset> [OPTIONS]");
         println!();
-        println!("Usage:");
-        println!("1. In Mobile App Settings, click '+'");
-        println!("2. Enter this Device Token");
-        println!("3. Ensure Cloud Server is running");
-        println!("4. Desktop needs cloud_mode enabled");
+        println!("Subcommands:");
+        println!("  show          Show current configuration");
+        println!("  set [OPTIONS] Set configuration options and save");
+        println!("  reset         Reset to default configuration");
         return;
     }
 
-    // Show pairing info
-    if args.contains(&"--pair-info".to_string()) {
-        cc_island_lib::show_pair_info();
-        return;
+    let subcmd = &args[0];
+    match subcmd.as_str() {
+        "show" => {
+            cc_island_lib::show_config();
+        }
+        "set" => {
+            // config set: parse args and save to config file
+            cc_island_lib::config_set(&args[1..]);
+        }
+        "reset" => {
+            cc_island_lib::config_reset();
+        }
+        "--help" | "-h" => {
+            println!("Config subcommand - manage persistent configuration");
+            println!();
+            println!("Usage:");
+            println!("  cc-island-server config show                      Show current config");
+            println!("  cc-island-server config set [OPTIONS]             Set and save");
+            println!("  cc-island-server config reset                     Reset to defaults");
+            println!();
+            println!("Available OPTIONS for 'set':");
+            println!("  --cloud-mode                      Enable cloud relay mode");
+            println!("  --no-cloud-mode                   Disable cloud relay mode");
+            println!("  --cloud-server-url <URL>          Cloud server WebSocket URL");
+            println!("  --device-name <NAME>              Device name");
+            println!("  --enable-logging                  Enable file logging");
+            println!("  --no-enable-logging               Disable file logging");
+            println!("  --permission-timeout <SECS>       Permission timeout (default: 300)");
+            println!("  --ask-timeout <SECS>              Ask timeout (default: 120)");
+            println!("  --auto-deny-on-timeout            Auto deny on timeout");
+            println!("  --no-auto-deny-on-timeout         Disable auto deny");
+            println!("  --auto-allow-permissions          Auto allow all permissions");
+            println!("  --no-auto-allow-permissions       Disable auto allow");
+            println!("  --poll-interval <MS>              Poll interval (default: 500)");
+            println!("  --max-instances <N>               Max instances (default: 10)");
+            println!("  --max-popup-queue <N>             Max popup queue (default: 5)");
+            println!("  --hook-forward-url <URL>          Forward hooks to URL");
+            println!("  --enabled-hooks <HOOKS>           Enabled hooks (comma-separated)");
+            println!("  --show-thinking-messages          Show thinking messages");
+            println!("  --no-show-thinking-messages       Hide thinking messages");
+        }
+        _ => {
+            println!("Unknown config subcommand: {}", subcmd);
+            println!("Available: show, set, reset");
+        }
     }
+}
 
-    // Show config
-    if args.contains(&"--show-config".to_string()) {
-        cc_island_lib::show_config();
-        return;
-    }
-
-    // Config mode
-    if args.contains(&"--config".to_string()) {
-        cc_island_lib::run_config(&args);
-        return;
-    }
-
-    // Default: run in background mode
+/// Run server with temporary parameters (not saved to config file)
+fn run_server(args: &[String]) {
     println!("Starting CC-Island Server in background mode...");
     println!("Press Ctrl+C to stop.");
     println!();
-    cc_island_lib::run_background_with_args(&args);
+
+    // Use temporary parameters (priority: CLI args > config file > defaults)
+    cc_island_lib::run_background_temporary(args);
+}
+
+/// Show device token only
+fn show_device_token() {
+    let token = cc_island_lib::machine_id::get_machine_token();
+    println!("Device Token: {}", token);
+    println!();
+    println!("Usage:");
+    println!("1. In Mobile App Settings, click '+'");
+    println!("2. Enter this Device Token");
+    println!("3. Ensure Cloud Server is running");
+    println!("4. Desktop needs cloud_mode enabled");
 }
 
 fn print_help() {
@@ -91,55 +163,61 @@ fn print_help() {
     println!("Version: {}", env!("CARGO_PKG_VERSION"));
     println!();
     println!("USAGE:");
-    println!("  cc-island-server [OPTIONS]");
+    println!("  cc-island-server [SUBCOMMAND] [OPTIONS]");
     println!();
-    println!("RUN MODE:");
-    println!("  (no flags)            Run in background mode (no UI)");
+    println!("SUBCOMMANDS:");
+    println!("  run [OPTIONS]              Run in background mode (default subcommand)");
+    println!("  config <show|set|reset>    Manage configuration");
+    println!("  pair-info                  Show full pairing info (token + server URL)");
+    println!("  device-token               Show device token only");
     println!();
-    println!("PAIRING (Mobile App):");
-    println!("  --device-token        Show device token for Mobile pairing");
-    println!("  --pair-info           Show full pairing info (token + server URL)");
+    println!("RUN OPTIONS (temporary, not saved):");
+    println!("  --cloud-mode                      Enable cloud relay mode");
+    println!("  --no-cloud-mode                   Disable cloud relay mode");
+    println!("  --cloud-server-url <URL>          Cloud server WebSocket URL");
+    println!("  --device-name <NAME>              Device name");
+    println!("  --enable-logging                  Enable file logging");
+    println!("  --no-enable-logging               Disable file logging");
+    println!("  --permission-timeout <SECS>       Permission timeout (default: 300)");
+    println!("  --ask-timeout <SECS>              Ask timeout (default: 120)");
+    println!("  --auto-deny-on-timeout            Auto deny on timeout");
+    println!("  --no-auto-deny-on-timeout         Disable auto deny");
+    println!("  --auto-allow-permissions          Auto allow all permissions");
+    println!("  --no-auto-allow-permissions       Disable auto allow");
+    println!("  --poll-interval <MS>              Poll interval (default: 500)");
+    println!("  --max-instances <N>               Max instances (default: 10)");
+    println!("  --max-popup-queue <N>             Max popup queue (default: 5)");
+    println!("  --hook-forward-url <URL>          Forward hooks to URL");
+    println!("  --enabled-hooks <HOOKS>           Enabled hooks (comma-separated)");
+    println!("  --show-thinking-messages          Show thinking messages");
+    println!("  --no-show-thinking-messages       Hide thinking messages");
     println!();
-    println!("CONFIGURATION:");
-    println!("  --show-config         Show current configuration");
-    println!("  --config [OPTIONS]    Update configuration and save");
-    println!();
-    println!("CONFIG OPTIONS:");
-    println!("  --cloud-mode                    Enable cloud relay mode");
-    println!("  --no-cloud-mode                 Disable cloud relay mode");
-    println!("  --cloud-server-url <URL>        Cloud server WebSocket URL");
-    println!("  --device-name <NAME>            Device name for identification");
-    println!("  --enable-logging                Enable file logging");
-    println!("  --permission-timeout <SECS>     Permission request timeout (default: 300)");
-    println!("  --ask-timeout <SECS>            Ask question timeout (default: 120)");
-    println!("  --auto-deny-on-timeout          Auto deny on timeout (default: true)");
-    println!("  --no-auto-deny-on-timeout       Disable auto deny on timeout");
-    println!("  --auto-allow-permissions        Auto allow all permissions");
-    println!("  --poll-interval <MS>            Poll interval (default: 500)");
-    println!("  --max-instances <N>             Max concurrent instances (default: 10)");
-    println!("  --max-popup-queue <N>           Max pending popups (default: 5)");
-    println!("  --hook-forward-url <URL>        Forward hooks to HTTP URL");
-    println!("  --enabled-hooks <HOOKS>         Enabled hooks (comma-separated)");
-    println!("  --show-thinking-messages        Show thinking messages");
-    println!("  --no-show-thinking-messages     Hide thinking messages");
-    println!();
-    println!("OTHER OPTIONS:");
-    println!("  --help, -h                      Show this help message");
-    println!("  --version, -V                   Show version");
+    println!("GLOBAL OPTIONS:");
+    println!("  --help, -h                        Show this help message");
+    println!("  --version, -V                     Show version");
     println!();
     println!("EXAMPLES:");
-    println!("  # Show device token for Mobile pairing");
-    println!("  cc-island-server --device-token");
+    println!("  # Run with temporary parameters");
+    println!("  cc-island-server --cloud-mode --cloud-server-url ws://server:17528");
     println!();
-    println!("  # Show full pairing info");
-    println!("  cc-island-server --pair-info");
+    println!("  # Run with explicit subcommand");
+    println!("  cc-island-server run --cloud-mode");
     println!();
-    println!("  # Configure and run");
-    println!("  cc-island-server --config --cloud-mode --cloud-server-url ws://server:17528");
-    println!("  cc-island-server");
+    println!("  # Show current configuration");
+    println!("  cc-island-server config show");
     println!();
-    println!("  # Show current config");
-    println!("  cc-island-server --show-config");
+    println!("  # Set configuration (persistent)");
+    println!("  cc-island-server config set --cloud-mode --cloud-server-url ws://server:17528");
+    println!();
+    println!("  # Reset to default configuration");
+    println!("  cc-island-server config reset");
+    println!();
+    println!("  # Show pairing info");
+    println!("  cc-island-server pair-info");
+    println!();
+    println!("PARAMETER PRIORITY:");
+    println!("  run subcommand:   CLI args > config file > defaults (temporary)");
+    println!("  config set:       Save to config file (persistent)");
     println!();
     println!("COMPATIBILITY:");
     println!("  This binary can be built with:");

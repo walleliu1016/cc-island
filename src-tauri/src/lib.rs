@@ -1133,25 +1133,54 @@ pub fn run_config(args: &[String]) {
     }
 }
 
-/// Run in background mode with command line argument overrides
-pub fn run_background_with_args(args: &[String]) {
-    // Apply command line overrides to settings
+/// Run in background mode with command line argument overrides (temporary, NOT saved)
+/// Priority: CLI args > config file > defaults
+pub fn run_background_temporary(args: &[String]) {
+    // Apply command line overrides to settings (DO NOT save)
     let mut settings = parse_config_args(args);
 
     // Ensure device_name has value (use hostname if empty)
     ensure_device_name(&mut settings);
 
-    // Save the overridden settings
-    if let Err(e) = config::save_settings(&settings) {
-        tracing::warn!("Failed to save overridden settings: {}", e);
-    }
-
-    // Update global state with new settings
+    // Update global state with temporary settings
     {
         let mut state = SHARED_STATE.write();
         state.settings = settings.clone();
     }
 
-    // Run background mode
+    // Run background mode (settings not saved to file)
     run_background();
+}
+
+/// Configuration management: set and save settings (persistent)
+pub fn config_set(args: &[String]) {
+    let settings = parse_config_args(args);
+
+    // Save settings permanently
+    match config::save_settings(&settings) {
+        Ok(_) => {
+            println!("Configuration saved successfully!");
+            println!("\nNew configuration:");
+            println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to save configuration: {}", e);
+        }
+    }
+}
+
+/// Configuration management: reset to defaults
+pub fn config_reset() {
+    let default_settings = config::AppSettings::default();
+
+    match config::save_settings(&default_settings) {
+        Ok(_) => {
+            println!("Configuration reset to defaults!");
+            println!("\nDefault configuration:");
+            println!("{}", serde_json::to_string_pretty(&default_settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to reset configuration: {}", e);
+        }
+    }
 }
