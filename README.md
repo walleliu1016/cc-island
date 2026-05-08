@@ -36,6 +36,8 @@
 - **Mobile Remote** - 手机端实时查看状态、远程审批权限
 - **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
 - **多实例高可用** - Cloud Server 多实例部署，跨实例消息路由，负载分担
+- **后台模式** - 支持无 UI 后台运行，适合服务器部署
+- **命令行配置** - 所有配置项可通过命令行设置，无需 UI
 - **CC-MCP-Bridge** - Claude Channel MCP Server，Mobile → Claude Code 双向消息传递
 
 ### 界面特点
@@ -246,6 +248,156 @@ xattr -cr /Applications/Ease-Island.app
 1. 启动云服务器
 2. Desktop Settings → Cloud → 填写服务器地址并复制 Token
 3. Mobile Settings → 添加服务器地址 + Token
+
+---
+
+## 后台模式
+
+CC-Island 支持无 UI 的后台运行模式，适合服务器部署或无桌面环境使用。
+
+### Desktop 后台模式（带 UI）
+
+Desktop 应用支持 `--background` 标志运行无窗口模式：
+
+```bash
+# UI 模式（默认，启动GUI窗口）
+cc-island
+
+# 后台模式（无窗口，仍依赖桌面环境）
+cc-island --background
+```
+
+### Server Binary 后台模式（无 UI）
+
+Server Binary (`cc-island-server`) 是独立的静态链接二进制文件，完全无 UI 依赖，适合服务器/容器部署。
+
+**子命令模式（推荐）**：
+
+```bash
+# 临时启动（参数不保存，优先级：CLI > config > defaults）
+cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
+
+# 简写模式（默认 run 子命令）
+cc-island-server --cloud-mode --cloud-server-url ws://server:17528
+
+# 配置管理（持久化）
+cc-island-server config show                          # 显示当前配置
+cc-island-server config set --cloud-mode              # 设置并保存
+cc-island-server config reset                         # 重置为默认
+
+# 配对信息
+cc-island-server pair-info                            # 显示完整配对信息
+cc-island-server device-token                         # 仅显示 token
+```
+
+**参数优先级规则**：
+
+| 子命令 | 优先级 | 持久化 |
+|--------|--------|--------|
+| `run` | CLI参数 > 配置文件 > 默认值 | ❌ 不保存 |
+| `config set` | CLI参数直接保存 | ✅ 永久保存 |
+| 无子命令 | 等同于 `run` | ❌ 不保存 |
+
+### 命令行配置
+
+**Desktop 模式**（使用 flag）：
+
+```bash
+# 查看帮助
+cc-island --help
+
+# 查看当前配置
+cc-island --show-config
+
+# 更新配置
+cc-island --config --cloud-mode --cloud-server-url ws://server:17528
+
+# 后台启动（可同时配置）
+cc-island --background --cloud-mode --cloud-server-url ws://server:17528
+```
+
+**Server Binary 模式**（使用子命令）：
+
+```bash
+# 查看帮助
+cc-island-server --help
+
+# 显示当前配置
+cc-island-server config show
+
+# 持久化配置（保存到配置文件）
+cc-island-server config set --cloud-mode --cloud-server-url ws://server:17528
+
+# 临时启动（不修改配置文件）
+cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
+```
+
+### 可配置项
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--cloud-mode` | 启用云转发 | false |
+| `--cloud-server-url <URL>` | 云服务器地址 | - |
+| `--device-name <NAME>` | 设备名称 | 自动获取 hostname |
+| `--enable-logging` | 启用日志 | false |
+| `--permission-timeout <SECS>` | 权限超时 | 300 |
+| `--ask-timeout <SECS>` | Ask 超时 | 120 |
+| `--auto-deny-on-timeout` | 超时自动拒绝 | true |
+| `--auto-allow-permissions` | 自动允许权限 | false |
+
+### Mobile 配对
+
+**Desktop 模式**：
+
+```bash
+# 查看 device token
+cc-island --device-token
+
+# 查看完整配对信息（推荐）
+cc-island --pair-info
+```
+
+**Server Binary 模式**：
+
+```bash
+# 查看完整配对信息（推荐）
+cc-island-server pair-info
+
+# 仅查看 device token
+cc-island-server device-token
+```
+
+输出示例：
+```
+CC-Island Pairing Information
+==============================
+Device Token: d8ba913a09bf93daaf73dfe78d2de4ae
+Device Name:  my-server
+Server URL:   ws://cloud.example.com:17528
+✓ Cloud mode enabled and server configured
+
+使用方法：
+1. 在 Mobile App Settings 中点击 '+' 添加设备
+2. 输入 Device Token: d8ba913a09bf93daaf73dfe78d2de4ae
+3. 输入 Server URL: ws://cloud.example.com:17528
+```
+
+### Server Binary 完整流程
+
+```bash
+# 方式 1：临时启动（推荐用于测试）
+cc-island-server --cloud-mode --cloud-server-url ws://your-server:17528
+
+# 方式 2：持久配置（推荐用于生产）
+cc-island-server config set --cloud-mode --cloud-server-url ws://your-server:17528
+cc-island-server
+
+# 方式 3：查看配对信息后启动
+cc-island-server pair-info
+cc-island-server
+
+# 按 Ctrl+C 停止
+```
 
 ---
 

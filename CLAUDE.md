@@ -249,3 +249,38 @@ Cloud Server 使用三层超时防护确保僵尸连接被及时清理：
 | `cloud-server/src/ws/connection.rs` | AUTH_TIMEOUT/READ_TIMEOUT 常量，超时检测逻辑 |
 | `cloud-server/src/ws/server.rs` | TCP Keepalive 设置 (socket2) |
 | `cloud-server/docs/fd-leak-fix.md` | FD 泄漏修复方案文档 |
+
+## Server Binary (子命令模式)
+
+Server Binary (`cc-island-server`) 是独立的静态链接二进制文件，完全无 UI 依赖，使用子命令模式 CLI。
+
+**子命令设计**：
+
+| 子命令 | 用途 | 持久化 |
+|--------|------|--------|
+| `run` | 临时启动 | ❌ 不保存配置 |
+| `config` | 配置管理 | ✅ 持久化 |
+| `pair-info` | 显示配对信息 | - |
+| `device-token` | 仅显示token | - |
+
+**参数优先级**：
+- `run`: CLI参数 > 配置文件 > 默认值（临时，不修改配置文件）
+- `config set`: CLI参数直接保存（永久）
+- 无子命令: 默认为 `run`
+
+**关键文件**：
+| 文件 | 作用 |
+|------|------|
+| `src-tauri-server/src/main.rs` | 子命令解析逻辑 |
+| `src-tauri/src/lib.rs` | `run_background_temporary`, `config_set`, `config_reset` 函数 |
+
+**构建命令**：
+```bash
+# musl static build (推荐用于服务器)
+cargo build --release --bin cc-island-server --target x86_64-unknown-linux-musl
+```
+
+**注意**：
+- Server 构建需要禁用 default features（避免 GTK 依赖）
+- build.rs 使用 `#[cfg(feature = "desktop")]` 条件编译
+- Desktop 模式保持 flag 模式（不改动）

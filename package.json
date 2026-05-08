@@ -1,6 +1,6 @@
 {
   "name": "cc-island",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Dynamic Island for Claude Code - monitor and manage multiple Claude terminal instances",
   "type": "module",
   "scripts": {
@@ -12,8 +12,8 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-shell": "^2.3.0",
     "framer-motion": "^11.15.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,7 +22,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.11.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

@@ -422,7 +422,7 @@ jobs:
           # Don't create release here - let release job handle it
           tagName: ''
           releaseName: ''
-          target: ${{ matrix.target }}
+          args: --target ${{ matrix.target }}
 
       - name: Get version
         id: version
@@ -438,31 +438,112 @@ jobs:
         if: matrix.platform == 'macos-latest'
         id: find-macos
         run: |
+          # Determine bundle directory based on target
           if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle"
           else
-            DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -type f 2>/dev/null || find src-tauri/target/release/bundle/dmg -name "*.dmg" -type f | head -1)
-            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+            BUNDLE_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle"
           fi
+
+          # Fallback to default release directory
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          # Find DMG or app bundle
+          DMG=$(find "$BUNDLE_DIR" -name "*.dmg" -type f 2>/dev/null | head -1)
+          if [ -z "$DMG" ]; then
+            # Fallback: find .app bundle and create tar.gz (tar is always available on macOS)
+            APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
+            if [ -n "$APP" ]; then
+              APP_NAME=$(basename "$APP")
+              TAR_NAME="${APP_NAME%.app}_${{ matrix.target }}.tar.gz"
+              cd "$BUNDLE_DIR/macos"
+              tar -czf "$TAR_NAME" "$APP_NAME"
+              DMG="$BUNDLE_DIR/macos/$TAR_NAME"
+              echo "Created tar.gz from app bundle: $DMG"
+            fi
+          fi
+
+          if [ -z "$DMG" ]; then
+            echo "::error::No DMG or app bundle found"
+            exit 1
+          fi
+
+          echo "Found artifact: $DMG"
+          echo "DMG=$DMG" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Find artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         id: find-windows
         run: |
-          $MSI = (Get-ChildItem -Path src-tauri\target\release\bundle\msi -Filter *.msi -File | Select-Object -First 1).FullName
-          $EXE = (Get-ChildItem -Path src-tauri\target\release\bundle\nsis -Filter *.exe -File | Select-Object -First 1).FullName
-          echo "MSI=$MSI" >> $env:GITHUB_OUTPUT
-          echo "EXE=$EXE" >> $env:GITHUB_OUTPUT
+          # Determine bundle directory based on target (优先target-specific目录)
+          $TargetBundleDir = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $DefaultBundleDir = "src-tauri\target\release\bundle"
+
+          Write-Host "Checking target-specific bundle: $TargetBundleDir"
+          if (Test-Path $TargetBundleDir) {
+            $BundleDir = $TargetBundleDir
+          } else {
+            Write-Host "Target-specific not found, checking default: $DefaultBundleDir"
+            $BundleDir = $DefaultBundleDir
+          }
+
+          Write-Host "Using bundle directory: $BundleDir"
+          if (Test-Path $BundleDir) {
+            Get-ChildItem -Path $BundleDir -Recurse | ForEach-Object { Write-Host $_ }
+          } else {
+            Write-Error "Bundle directory not found: $BundleDir"
+            exit 1
+          }
+
+          # Find MSI
+          $MSI = Get-ChildItem -Path "$BundleDir\msi" -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $MSI) {
+            Write-Error "MSI not found in $BundleDir\msi"
+            exit 1
+          }
+
+          # Find NSIS EXE (optional)
+          $EXE = Get-ChildItem -Path "$BundleDir\nsis" -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          Write-Host "Found MSI: $($MSI.FullName)"
+          if ($EXE) { Write-Host "Found EXE: $($EXE.FullName)" }
+
+          echo "MSI=$($MSI.FullName)" >> $env:GITHUB_OUTPUT
+          if ($EXE) { echo "EXE=$($EXE.FullName)" >> $env:GITHUB_OUTPUT }
         shell: pwsh
 
       - name: Find artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         id: find-linux
         run: |
-          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" -type f | head -1)
-          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -1)
+          # Determine bundle directory based on target
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          # Find DEB
+          DEB=$(find "$BUNDLE_DIR/deb" -name "*.deb" -type f 2>/dev/null | head -1)
+
+          # Find AppImage
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" -type f 2>/dev/null | head -1)
+
+          if [ -z "$DEB" ] && [ -z "$APPIMAGE" ]; then
+            echo "::error::No DEB or AppImage found"
+            exit 1
+          fi
+
+          echo "Found DEB: $DEB"
+          echo "Found AppImage: $APPIMAGE"
           echo "DEB=$DEB" >> $GITHUB_OUTPUT
           echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT
         shell: bash
@@ -495,14 +576,87 @@ jobs:
             ${{ steps.find-linux.outputs.APPIMAGE }}
           retention-days: 7
 
+  # ===== Server Binary Build (musl static, no UI) =====
+  build-server-binary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: x86_64-unknown-linux-musl
+          workspaces: |
+            src-tauri -> src-tauri/target
+            src-tauri-server -> src-tauri-server/target
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools musl-dev perl make
+
+      - name: Get product name
+        id: product
+        run: |
+          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
+          echo "NAME=$PRODUCT_NAME" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build server binary (musl static)
+        run: |
+          cd src-tauri-server
+          cargo build --release \
+            --bin cc-island-server \
+            --target x86_64-unknown-linux-musl
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Prepare server binary
+        run: |
+          PRODUCT_NAME="${{ steps.product.outputs.NAME }}"
+          mkdir -p server-dist
+          BINARY_PATH="src-tauri-server/target/x86_64-unknown-linux-musl/release/cc-island-server"
+          if [ ! -f "$BINARY_PATH" ]; then
+            echo "::error::Server binary not found at $BINARY_PATH"
+            ls -la src-tauri-server/target/*/release/ 2>/dev/null || echo "No release directories found"
+            exit 1
+          fi
+          cp "$BINARY_PATH" server-dist/${PRODUCT_NAME}-server-x86_64-musl
+          chmod +x server-dist/${PRODUCT_NAME}-server-x86_64-musl
+          cd server-dist
+          tar -czvf ${PRODUCT_NAME}-server-x86_64-musl-${{ steps.version.outputs.VERSION }}.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cc-island-server_x86_64-musl_${{ steps.version.outputs.VERSION }}
+          path: server-dist/*.tar.gz
+          retention-days: 7
+
   release:
-    needs: [build-cloud-server, build-desktop, build-mobile-h5, build-mobile-android, build-mobile-ios]
+    needs: [build-cloud-server, build-desktop, build-server-binary, build-mobile-h5, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: |
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
       needs.build-cloud-server.result == 'success' &&
       needs.build-desktop.result == 'success' &&
+      needs.build-server-binary.result == 'success' &&
       needs.build-mobile-h5.result == 'success' &&
       needs.build-mobile-android.result == 'success' &&
       (needs.build-mobile-ios.result == 'success' || needs.build-mobile-ios.result == 'skipped')
@@ -573,6 +727,40 @@ jobs:
             2. 启动 PostgreSQL: `docker-compose up -d`
             3. 配置 `.env` 文件 (参考 `.env.example`)
             4. 运行: `./cc-island-cloud`
+
+            ### Server Binary (静态链接)
+
+            完全静态链接的后台模式可执行文件，无任何系统依赖：
+
+            - `Ease-Island-server_x86_64-musl_*.tar.gz` - Linux x86_64 (musl 静态)
+
+            **兼容性：**
+            - ✅ CentOS 7+ (glibc 2.17)
+            - ✅ Ubuntu 18.04+ (glibc 2.27)
+            - ✅ Alpine Linux (musl libc)
+            - ✅ 所有 Linux 发行版
+
+            **特点：**
+            - 零依赖，无需安装任何系统库
+            - 后台模式运行，无 UI
+            - 支持 HTTP Server、JSONL Watcher、Cloud Client 等所有后台功能
+            - 适合服务器、容器、嵌入式设备部署
+
+            **使用方法：**
+            ```bash
+            # 解压
+            tar -xzf Ease-Island-server-x86_64-musl-*.tar.gz
+
+            # 查看帮助
+            ./Ease-Island-server-x86_64-musl --help
+
+            # 显示设备 Token（用于 Mobile 配对）
+            ./Ease-Island-server-x86_64-musl --device-token
+
+            # 配置并运行
+            ./Ease-Island-server-x86_64-musl --config --cloud-mode --cloud-server-url ws://server:17528
+            ./Ease-Island-server-x86_64-musl
+            ```
 
             ### Mobile App
 

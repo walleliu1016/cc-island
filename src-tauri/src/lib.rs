@@ -21,14 +21,26 @@ use cloud_client::{CloudClient, CloudConfig};
 use conversation_parser::ConversationParser;
 use jsonl_watcher::JsonlWatcherHandle;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "desktop")]
 use tauri::menu::{Menu, MenuItem};
+
+#[cfg(feature = "desktop")]
+use tauri::Manager;
 
 use std::sync::Arc;
 use parking_lot::RwLock;
 use once_cell::sync::Lazy;
-use tauri::Manager;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock as AsyncRwLock;
+
+/// Ensure device_name has a value (use hostname if empty)
+fn ensure_device_name(settings: &mut config::AppSettings) {
+    if settings.device_name.is_none() || settings.device_name.as_ref().map(|n| n.is_empty()).unwrap_or(true) {
+        settings.device_name = Some(machine_id::get_hostname());
+        tracing::info!("Device name set to: {:?}", settings.device_name);
+    }
+}
 
 /// Global atomic flag for logging (no lock needed)
 pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -176,12 +188,14 @@ pub fn write_log(content: &str) {
         .and_then(|mut f| std::io::Write::write_all(&mut f, content.as_bytes()));
 }
 
-// Tauri commands
+// Tauri commands (only available in desktop mode)
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn start_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
     use tauri::{Size, Position};
@@ -228,30 +242,35 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
     state.instances.get_all_instances_display()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_popups() -> Vec<popup_queue::PopupItem> {
     let state = SHARED_STATE.read();
     state.popups.get_all()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_recent_activities() -> Vec<ToolActivity> {
     let state = SHARED_STATE.read();
     state.get_display_activities().into_iter().cloned().collect()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_session_notification() -> Option<SessionNotification> {
     let mut state = SHARED_STATE.write();
     state.get_session_notification()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     // First get cwd with read lock (no mutation needed)
@@ -289,6 +308,7 @@ fn get_chat_messages(session_id: String) -> Vec<chat_messages::ChatMessage> {
     state.chat_history.get_messages(&session_id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn respond_popup(
     popup_id: String,
@@ -400,6 +420,7 @@ fn respond_popup(
     }
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn jump_to_instance(session_id: String) -> Result<(), String> {
     // First, try to refresh process info in case terminal detection failed
@@ -453,42 +474,50 @@ fn refresh_instance_process_internal(session_id: &str) -> Result<(), String> {
     }
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn refresh_instance_process(session_id: String) -> Result<(), String> {
     refresh_instance_process_internal(&session_id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn check_claude_hooks() -> config::HooksCheckResult {
     config::check_claude_hooks_config()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn update_claude_hooks(hooks: Vec<String>) -> Result<(), String> {
     config::update_claude_hooks_config(hooks)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_settings() -> config::AppSettings {
     let state = SHARED_STATE.read();
     state.settings.clone()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_product_name(app: tauri::AppHandle) -> String {
     app.config().product_name.clone().unwrap_or_else(|| "CC-Island".to_string())
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_device_token() -> String {
     machine_id::get_machine_token()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_cloud_connection_status() -> CloudConnectionStatus {
     SHARED_STATE.read().cloud_connection_status.clone()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn generate_device_qrcode(server_url: String) -> Result<String, String> {
     let device_token = machine_id::get_machine_token();
@@ -514,6 +543,7 @@ fn generate_device_qrcode(server_url: String) -> Result<String, String> {
     Ok(svg)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
@@ -702,6 +732,8 @@ fn stop_cloud_client() {
     SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
 }
 
+/// Run with Tauri UI (desktop mode only)
+#[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize tracing
@@ -740,6 +772,15 @@ pub fn run() {
                 generate_device_qrcode
             ])
             .setup(|app| {
+                // Ensure device_name has value (use hostname if empty)
+                {
+                    let mut state = SHARED_STATE.write();
+                    ensure_device_name(&mut state.settings);
+                    if let Err(e) = config::save_settings(&state.settings) {
+                        tracing::warn!("Failed to save device_name: {}", e);
+                    }
+                }
+
                 // Initialize logging flag from saved settings
                 {
                     let state = SHARED_STATE.read();
@@ -828,4 +869,327 @@ pub fn run() {
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
     });
+}
+
+/// Run in background mode (no UI)
+/// Suitable for server/headless deployment
+pub fn run_background() {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+
+    tracing::info!("CC-Island starting in background mode...");
+
+    // Ensure device_name has value (use hostname if empty)
+    {
+        let mut state = SHARED_STATE.write();
+        ensure_device_name(&mut state.settings);
+        if let Err(e) = config::save_settings(&state.settings) {
+            tracing::warn!("Failed to save device_name: {}", e);
+        }
+    }
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+
+    rt.block_on(async {
+        // Initialize logging flag from saved settings
+        {
+            let state = SHARED_STATE.read();
+            set_logging_enabled(state.settings.enable_logging);
+            tracing::info!("Logging enabled: {}", state.settings.enable_logging);
+        }
+
+        // Auto-setup hooks on startup
+        config::auto_setup_hooks();
+
+        // Start HTTP server
+        tracing::info!("Starting HTTP server on port 17527...");
+        let server = HttpServer::new(17527);
+        tokio::spawn(async move {
+            if let Err(e) = server.run().await {
+                tracing::error!("HTTP server error: {}", e);
+            }
+        });
+
+        // Initialize and start JSONL watcher
+        {
+            let mut state = SHARED_STATE.write();
+            let mut watcher = JsonlWatcherHandle::new(SHARED_STATE.clone());
+            watcher.start();
+            state.jsonl_watcher = Some(watcher);
+            tracing::info!("JSONL watcher initialized");
+        }
+
+        // Start Cloud client (if configured)
+        {
+            let state = SHARED_STATE.read();
+            if state.settings.cloud_mode {
+                if let Some(ref url) = state.settings.cloud_server_url {
+                    let url_clone = url.clone();
+                    let device_name = state.settings.device_name.clone();
+                    drop(state);
+
+                    tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
+                    start_cloud_with_reconnect(url_clone, device_name);
+                } else {
+                    tracing::warn!("Cloud mode enabled but no server URL configured");
+                }
+            } else {
+                tracing::info!("Cloud mode disabled");
+            }
+        }
+
+        tracing::info!("CC-Island background mode started successfully");
+
+        // Print pairing info for Mobile
+        {
+            let state = SHARED_STATE.read();
+            let device_token = machine_id::get_machine_token();
+            tracing::info!("=== Pairing Info for Mobile App ===");
+            tracing::info!("Device Token: {}", device_token);
+            tracing::info!("Device Name: {}", state.settings.device_name.clone().unwrap_or_default());
+            if let Some(url) = &state.settings.cloud_server_url {
+                tracing::info!("Server URL: {}", url);
+                tracing::info!("Status: Cloud mode enabled ✓");
+            } else {
+                tracing::info!("Server URL: (not configured)");
+                tracing::info!("Status: Cloud mode disabled - run 'cc-island --config --cloud-mode' to enable");
+            }
+            tracing::info!("====================================");
+        }
+
+        tracing::info!("Press Ctrl+C to stop...");
+
+        // Wait for termination signal
+        tokio::signal::ctrl_c().await.ok();
+        tracing::info!("Received Ctrl+C, shutting down...");
+
+        // Cleanup
+        stop_cloud_client();
+
+        tracing::info!("CC-Island background mode stopped");
+    });
+}
+
+/// Show current configuration
+pub fn show_config() {
+    let settings = config::load_settings();
+    println!("Current CC-Island Configuration:");
+    println!("==================");
+    println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+}
+
+/// Show pairing info for Mobile App
+pub fn show_pair_info() {
+    let settings = config::load_settings();
+    let device_token = machine_id::get_machine_token();
+    let device_name = settings.device_name.clone().unwrap_or_else(|| machine_id::get_hostname());
+    let server_url = settings.cloud_server_url.clone();
+
+    println!("CC-Island Pairing Information");
+    println!("==============================");
+    println!();
+    println!("Device Token: {}", device_token);
+    println!("Device Name:  {}", device_name);
+    if let Some(url) = &server_url {
+        println!("Server URL:   {}", url);
+    } else {
+        println!("Server URL:   (not configured)");
+    }
+    println!();
+
+    if settings.cloud_mode && server_url.is_some() {
+        println!("✓ Cloud mode enabled and server configured");
+        println!();
+        println!("使用方法：");
+        println!("1. 在 Mobile App Settings 中点击 '+' 添加设备");
+        println!("2. 输入 Device Token: {}", device_token);
+        println!("3. 输入 Server URL: {}", server_url.unwrap());
+        println!("4. 确保本程序在后台运行 (cc-island --background)");
+    } else if !settings.cloud_mode {
+        println!("⚠ Cloud mode is DISABLED");
+        println!();
+        println!("请先启用 cloud mode:");
+        println!("  cc-island --config --cloud-mode --cloud-server-url ws://your-server:17528");
+    } else {
+        println!("⚠ Server URL not configured");
+        println!();
+        println!("请先配置 server URL:");
+        println!("  cc-island --config --cloud-server-url ws://your-server:17528");
+    }
+}
+
+/// Parse command line arguments and update settings
+/// Returns updated settings
+fn parse_config_args(args: &[String]) -> config::AppSettings {
+    let mut settings = config::load_settings();
+
+    // Helper to find argument value
+    fn get_arg_value(args: &[String], flag: &str) -> Option<String> {
+        for i in 0..args.len() {
+            if args[i] == flag && i + 1 < args.len() {
+                return Some(args[i + 1].clone());
+            }
+            // Support --flag=value format
+            if args[i].starts_with(flag) && args[i].contains('=') {
+                return Some(args[i].split('=').nth(1).unwrap_or("").to_string());
+            }
+        }
+        None
+    }
+
+    // Helper to check boolean flag
+    fn has_flag(args: &[String], flag: &str) -> bool {
+        args.contains(&flag.to_string())
+    }
+
+    // Parse numeric values
+    if let Some(v) = get_arg_value(args, "--permission-timeout") {
+        settings.permission_timeout = v.parse().unwrap_or(300);
+    }
+    if let Some(v) = get_arg_value(args, "--ask-timeout") {
+        settings.ask_timeout = v.parse().unwrap_or(120);
+    }
+    if let Some(v) = get_arg_value(args, "--poll-interval") {
+        settings.poll_interval = v.parse().unwrap_or(500);
+    }
+    if let Some(v) = get_arg_value(args, "--max-instances") {
+        settings.max_instances = v.parse().unwrap_or(10);
+    }
+    if let Some(v) = get_arg_value(args, "--max-popup-queue") {
+        settings.max_popup_queue = v.parse().unwrap_or(5);
+    }
+    if let Some(v) = get_arg_value(args, "--warning-time") {
+        settings.warning_time = v.parse().unwrap_or(30);
+    }
+    if let Some(v) = get_arg_value(args, "--critical-time") {
+        settings.critical_time = v.parse().unwrap_or(10);
+    }
+    if let Some(v) = get_arg_value(args, "--notification-auto-close") {
+        settings.notification_auto_close = v.parse().unwrap_or(5000);
+    }
+
+    // Parse boolean flags
+    if has_flag(args, "--auto-deny-on-timeout") {
+        settings.auto_deny_on_timeout = true;
+    }
+    if has_flag(args, "--no-auto-deny-on-timeout") {
+        settings.auto_deny_on_timeout = false;
+    }
+    if has_flag(args, "--auto-allow-permissions") {
+        settings.auto_allow_permissions = true;
+    }
+    if has_flag(args, "--no-auto-allow-permissions") {
+        settings.auto_allow_permissions = false;
+    }
+    if has_flag(args, "--enable-logging") {
+        settings.enable_logging = true;
+    }
+    if has_flag(args, "--no-enable-logging") {
+        settings.enable_logging = false;
+    }
+    if has_flag(args, "--show-notifications") {
+        settings.show_notifications = true;
+    }
+    if has_flag(args, "--no-show-notifications") {
+        settings.show_notifications = false;
+    }
+    if has_flag(args, "--cloud-mode") {
+        settings.cloud_mode = true;
+    }
+    if has_flag(args, "--no-cloud-mode") {
+        settings.cloud_mode = false;
+    }
+    if has_flag(args, "--show-thinking-messages") {
+        settings.show_thinking_messages = true;
+    }
+    if has_flag(args, "--no-show-thinking-messages") {
+        settings.show_thinking_messages = false;
+    }
+
+    // Parse string values
+    if let Some(v) = get_arg_value(args, "--hook-forward-url") {
+        settings.hook_forward_url = Some(v);
+    }
+    if let Some(v) = get_arg_value(args, "--cloud-server-url") {
+        settings.cloud_server_url = Some(v);
+    }
+    if let Some(v) = get_arg_value(args, "--device-name") {
+        settings.device_name = Some(v);
+    }
+
+    // Parse enabled hooks (comma-separated)
+    if let Some(v) = get_arg_value(args, "--enabled-hooks") {
+        settings.enabled_hooks = v.split(',').map(|s| s.trim().to_string()).collect();
+    }
+
+    settings
+}
+
+/// Run in config mode: parse args and save settings
+pub fn run_config(args: &[String]) {
+    let settings = parse_config_args(args);
+
+    // Save settings
+    match config::save_settings(&settings) {
+        Ok(_) => {
+            println!("Configuration saved successfully!");
+            println!("\nNew configuration:");
+            println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to save configuration: {}", e);
+        }
+    }
+}
+
+/// Run in background mode with command line argument overrides (temporary, NOT saved)
+/// Priority: CLI args > config file > defaults
+pub fn run_background_temporary(args: &[String]) {
+    // Apply command line overrides to settings (DO NOT save)
+    let mut settings = parse_config_args(args);
+
+    // Ensure device_name has value (use hostname if empty)
+    ensure_device_name(&mut settings);
+
+    // Update global state with temporary settings
+    {
+        let mut state = SHARED_STATE.write();
+        state.settings = settings.clone();
+    }
+
+    // Run background mode (settings not saved to file)
+    run_background();
+}
+
+/// Configuration management: set and save settings (persistent)
+pub fn config_set(args: &[String]) {
+    let settings = parse_config_args(args);
+
+    // Save settings permanently
+    match config::save_settings(&settings) {
+        Ok(_) => {
+            println!("Configuration saved successfully!");
+            println!("\nNew configuration:");
+            println!("{}", serde_json::to_string_pretty(&settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to save configuration: {}", e);
+        }
+    }
+}
+
+/// Configuration management: reset to defaults
+pub fn config_reset() {
+    let default_settings = config::AppSettings::default();
+
+    match config::save_settings(&default_settings) {
+        Ok(_) => {
+            println!("Configuration reset to defaults!");
+            println!("\nDefault configuration:");
+            println!("{}", serde_json::to_string_pretty(&default_settings).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        }
+        Err(e) => {
+            eprintln!("Failed to reset configuration: {}", e);
+        }
+    }
 }
