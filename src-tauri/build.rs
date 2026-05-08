@@ -1,4 +1,4 @@
 fn main() {
-    // Tauri build script for desktop mode
+    #[cfg(feature = "desktop")]
     tauri_build::build();
 }
