@@ -8,10 +8,7 @@
 //! # Build
 //!
 //! ```bash
-//! cargo build --release \
-//!   --bin cc-island-server \
-//!   --no-default-features \
-//!   --features server
+//! cargo build --release --bin cc-island-server
 //! ```
 //!
 //! # Usage
@@ -53,7 +50,7 @@ fn main() {
 
     // Show device token
     if args.contains(&"--device-token".to_string()) {
-        let token = cc_island_lib::machine_id::get_machine_token();
+        let token = cc_island::machine_id::get_machine_token();
         println!("Device Token: {}", token);
         println!();
         println!("Usage:");
@@ -66,19 +63,19 @@ fn main() {
 
     // Show pairing info
     if args.contains(&"--pair-info".to_string()) {
-        cc_island_lib::show_pair_info();
+        cc_island::show_pair_info();
         return;
     }
 
     // Show config
     if args.contains(&"--show-config".to_string()) {
-        cc_island_lib::show_config();
+        cc_island::show_config();
         return;
     }
 
     // Config mode
     if args.contains(&"--config".to_string()) {
-        cc_island_lib::run_config(&args);
+        cc_island::run_config(&args);
         return;
     }
 
@@ -86,7 +83,7 @@ fn main() {
     println!("Starting CC-Island Server in background mode...");
     println!("Press Ctrl+C to stop.");
     println!();
-    cc_island_lib::run_background_with_args(&args);
+    cc_island::run_background_with_args(&args);
 }
 
 fn print_help() {
