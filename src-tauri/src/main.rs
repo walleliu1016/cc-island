@@ -50,8 +50,8 @@ fn main() {
 
     // 运行模式
     if args.contains(&"--background".to_string()) {
-        // 后台模式：无 UI，应用命令行参数覆盖
-        cc_island_lib::run_background_with_args(&args);
+        // 后台模式：无 UI，应用命令行参数覆盖（临时，不保存）
+        cc_island_lib::run_background_temporary(&args);
     } else {
         // 默认模式：带 UI
         cc_island_lib::run();
