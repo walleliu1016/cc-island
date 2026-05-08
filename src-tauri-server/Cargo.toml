@@ -10,8 +10,8 @@ name = "cc-island-server"
 path = "src/main.rs"
 
 [dependencies]
-# Import shared library from main package (Cargo uses package.name for path deps)
-cc-island = { path = "../src-tauri" }
+# Import shared library from main package (disable default features to avoid GUI deps)
+cc-island = { path = "../src-tauri", default-features = false }
 
 # Core dependencies (minimal, no GUI)
 serde = { version = "1", features = ["derive"] }
