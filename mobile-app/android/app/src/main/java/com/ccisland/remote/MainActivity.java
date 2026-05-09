@@ -1,8 +1,10 @@
 package com.ccisland.remote;
 
 import android.os.Bundle;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.net.http.SslError;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -22,6 +24,16 @@ public class MainActivity extends BridgeActivity {
             // Allow universal access from file URLs
             settings.setAllowUniversalAccessFromFileURLs(true);
             settings.setAllowFileAccessFromFileURLs(true);
+
+            // Ignore SSL certificate errors (for self-signed certificates in internal network)
+            webView.setWebViewClient(new com.getcapacitor.BridgeWebViewClient(this) {
+                @Override
+                public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                    // Proceed anyway (ignore SSL certificate error)
+                    // WARNING: This reduces security, only use for trusted internal networks
+                    handler.proceed();
+                }
+            });
         }
     }
 }
