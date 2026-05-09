@@ -6,6 +6,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.net.http.SslError;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -26,7 +27,7 @@ public class MainActivity extends BridgeActivity {
             settings.setAllowFileAccessFromFileURLs(true);
 
             // Ignore SSL certificate errors (for self-signed certificates in internal network)
-            webView.setWebViewClient(new com.getcapacitor.BridgeWebViewClient(this) {
+            webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
                 @Override
                 public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                     // Proceed anyway (ignore SSL certificate error)
