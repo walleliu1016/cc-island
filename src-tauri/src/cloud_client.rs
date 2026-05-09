@@ -3,7 +3,8 @@
 use std::sync::Arc;
 use parking_lot::RwLock;
 use tokio::sync::mpsc::{Sender, Receiver, channel};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use tokio_tungstenite::{connect_async_tls_with_config, tungstenite::protocol::Message, Connector};
+use native_tls::TlsConnector;
 use futures_util::{SinkExt, StreamExt};
 use std::time::{Duration, Instant};
 use axum::body::Bytes;
@@ -85,10 +86,23 @@ impl CloudClient {
 
         tracing::info!("Connecting to cloud server: {}", server_url);
 
-        // Connect WebSocket with 5 second timeout (don't block app startup)
+        // Create TLS connector that accepts invalid certificates (for self-signed certs)
+        let connector = if server_url.starts_with("wss://") {
+            let tls_connector = TlsConnector::builder()
+                .danger_accept_invalid_certs(true)  // Allow invalid certificates
+                .danger_accept_invalid_hostnames(true)  // Allow invalid hostnames
+                .build()
+                .expect("Failed to create TLS connector");
+
+            Some(Connector::NativeTls(tls_connector))
+        } else {
+            None  // ws:// connections don't need TLS
+        };
+
+        // Connect WebSocket with custom TLS config and 5 second timeout
         let connect_result = tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            connect_async(&server_url)
+            connect_async_tls_with_config(&server_url, None, false, connector)
         ).await;
 
         let (ws_stream, _) = match connect_result {

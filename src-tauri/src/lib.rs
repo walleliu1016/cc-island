@@ -670,9 +670,19 @@ fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -
 
                 attempt += 1;
 
-                // Update status immediately on failure (简洁的用户友好提示)
+                // Update status immediately on failure (show detailed error message)
+                let error_display = if error_msg.contains("certificate") || error_msg.contains("SSL") || error_msg.contains("TLS") {
+                    "证书验证失败".to_string()
+                } else if error_msg.contains("timeout") {
+                    "连接超时".to_string()
+                } else if error_msg.contains("refused") || error_msg.contains("connection") {
+                    "网络连接失败".to_string()
+                } else {
+                    error_msg.clone()
+                };
+
                 SHARED_STATE.write().cloud_connection_status =
-                    CloudConnectionStatus::Failed(format!("连接失败，正在重试... (第{}次)", attempt));
+                    CloudConnectionStatus::Failed(format!("{} (第{}次)", error_display, attempt));
 
                 // Wait before retry (no max limit - keep retrying forever)
                 tokio::time::sleep(RECONNECT_INTERVAL).await;
