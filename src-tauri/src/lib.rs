@@ -745,8 +745,14 @@ fn stop_cloud_client() {
 #[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing with file output
+    let log_dir = config::get_cc_island_dir();
+    let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
+
+    tracing_subscriber::fmt()
+        .with_writer(file_appender)
+        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
+        .init();
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
@@ -875,8 +881,14 @@ pub fn run() {
 /// Run in background mode (no UI)
 /// Suitable for server/headless deployment
 pub fn run_background() {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing with file output
+    let log_dir = config::get_cc_island_dir();
+    let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
+
+    tracing_subscriber::fmt()
+        .with_writer(file_appender)
+        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
+        .init();
 
     tracing::info!("CC-Island starting in background mode...");
 
