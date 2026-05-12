@@ -744,11 +744,8 @@ fn stop_cloud_client() {
     SHARED_STATE.write().cloud_connection_status = CloudConnectionStatus::Disconnected;
 }
 
-/// Run with Tauri UI (desktop mode only)
-#[cfg(feature = "desktop")]
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    // Initialize tracing with file output
+/// Initialize tracing with file output (call once at startup)
+fn init_tracing() {
     let log_dir = config::get_cc_island_dir();
     let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
 
@@ -756,6 +753,16 @@ pub fn run() {
         .with_writer(file_appender)
         .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
         .init();
+}
+
+/// Run with Tauri UI (desktop mode only)
+#[cfg(feature = "desktop")]
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // Initialize tracing with file output
+    init_tracing();
+
+    tracing::info!("CC-Island starting in UI mode...");
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
@@ -885,13 +892,7 @@ pub fn run() {
 /// Suitable for server/headless deployment
 pub fn run_background() {
     // Initialize tracing with file output
-    let log_dir = config::get_cc_island_dir();
-    let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
-
-    tracing_subscriber::fmt()
-        .with_writer(file_appender)
-        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
-        .init();
+    init_tracing();
 
     tracing::info!("CC-Island starting in background mode...");
 
@@ -1170,14 +1171,8 @@ pub fn run_config(args: &[String]) {
 /// Run in background mode with command line argument overrides (temporary, NOT saved)
 /// Priority: CLI args > config file > defaults
 pub fn run_background_temporary(args: &[String]) {
-    // Initialize tracing FIRST (before any logging)
-    let log_dir = config::get_cc_island_dir();
-    let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
-
-    tracing_subscriber::fmt()
-        .with_writer(file_appender)
-        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
-        .init();
+    // Initialize tracing with file output
+    init_tracing();
 
     tracing::info!("CC-Island starting in background mode (temporary)...");
 

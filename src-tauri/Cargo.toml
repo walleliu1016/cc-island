@@ -29,7 +29,7 @@ desktop = [
 ]
 
 [build-dependencies]
-tauri-build = { version = "2", optional = true }
+tauri-build = { version = "2", optional = true , features = [] }
 
 [dependencies]
 # Tauri dependencies (optional for server mode)
