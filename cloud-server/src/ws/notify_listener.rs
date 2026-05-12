@@ -87,8 +87,8 @@ impl NotifyListener {
         Ok(())
     }
 
-    /// Handle a NOTIFY notification payload
-    fn handle_notification(&self, payload: &str) {
+    /// Handle a NOTIFY notification payload (public for testing)
+    pub fn handle_notification(&self, payload: &str) {
         // Parse NOTIFY payload
         let notify_data: NotifyPayload = match serde_json::from_str(payload) {
             Ok(data) => data,

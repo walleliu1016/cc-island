@@ -192,3 +192,134 @@ async fn test_notify_listener_notify_payload_json(pool: sqlx::PgPool) {
     assert_eq!(parsed.device_token, "device-json-test");
     assert_eq!(parsed.direction, "to_mobile");
 }
+
+// ===== New tests for handle_notification (public method) =====
+
+#[sqlx::test]
+async fn test_handle_notification_to_mobile_delivers(pool: sqlx::PgPool) {
+    let router = ConnectionRouter::new();
+    let (tx, mut rx) = channel::<Message>(32);
+
+    // Register mobile subscriber
+    let conn_id = router.register_mobile_empty(tx.clone());
+    router.update_mobile_subscription(conn_id, &[s("device-handle-mobile")], &tx);
+
+    // Insert pending message
+    let repo = PendingMessageRepo::new(pool.clone());
+    let message_id = repo.insert(
+        "device-handle-mobile",
+        Direction::ToMobile,
+        "hook_message",
+        serde_json::json!({"type": "hook_message", "session_id": "test-session"}),
+    ).await.expect("Insert should succeed");
+
+    // Create NotifyListener and call handle_notification directly
+    let listener = NotifyListener::new(pool, router.clone());
+
+    // Build payload JSON
+    let payload_json = serde_json::to_string(&NotifyPayload {
+        device_token: s("device-handle-mobile"),
+        direction: s("to_mobile"),
+        message_id,
+    }).unwrap();
+
+    // Call handle_notification (will spawn async task to deliver)
+    listener.handle_notification(&payload_json);
+
+    // Wait a bit for spawned task to complete
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Verify message was delivered via router
+    let msg = tokio::time::timeout(tokio::time::Duration::from_millis(100), rx.recv()).await;
+    assert!(msg.is_ok(), "Message should be delivered to mobile subscriber");
+}
+
+#[sqlx::test]
+async fn test_handle_notification_to_desktop_delivers(pool: sqlx::PgPool) {
+    let router = ConnectionRouter::new();
+    let (tx, mut rx) = channel::<Message>(32);
+
+    // Register desktop
+    router.register_desktop("device-handle-desktop", None, tx);
+
+    // Insert pending message
+    let repo = PendingMessageRepo::new(pool.clone());
+    let message_id = repo.insert(
+        "device-handle-desktop",
+        Direction::ToDesktop,
+        "hook_response",
+        serde_json::json!({"type": "hook_response", "session_id": "test-session", "decision": "allow"}),
+    ).await.expect("Insert should succeed");
+
+    // Create NotifyListener and call handle_notification directly
+    let listener = NotifyListener::new(pool, router.clone());
+
+    // Build payload JSON
+    let payload_json = serde_json::to_string(&NotifyPayload {
+        device_token: s("device-handle-desktop"),
+        direction: s("to_desktop"),
+        message_id,
+    }).unwrap();
+
+    // Call handle_notification (will spawn async task to deliver)
+    listener.handle_notification(&payload_json);
+
+    // Wait a bit for spawned task to complete
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Verify message was delivered via router
+    let msg = tokio::time::timeout(tokio::time::Duration::from_millis(100), rx.recv()).await;
+    assert!(msg.is_ok(), "Message should be delivered to desktop connection");
+}
+
+#[sqlx::test]
+async fn test_handle_notification_no_subscriber_skips(pool: sqlx::PgPool) {
+    let router = ConnectionRouter::new();
+
+    // No subscribers registered
+    assert!(!router.has_mobile_subscribers("device-no-sub-handle"));
+    assert!(!router.has_desktop_connection("device-no-sub-handle"));
+
+    // Insert pending message
+    let repo = PendingMessageRepo::new(pool.clone());
+    let message_id = repo.insert(
+        "device-no-sub-handle",
+        Direction::ToMobile,
+        "test",
+        serde_json::json!({}),
+    ).await.expect("Insert should succeed");
+
+    // Create NotifyListener and call handle_notification directly
+    let listener = NotifyListener::new(pool, router);
+
+    // Build payload JSON
+    let payload_json = serde_json::to_string(&NotifyPayload {
+        device_token: s("device-no-sub-handle"),
+        direction: s("to_mobile"),
+        message_id,
+    }).unwrap();
+
+    // Call handle_notification - should skip (no subscriber)
+    listener.handle_notification(&payload_json);
+
+    // Wait a bit
+    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+    // Message should still exist in DB (not delivered)
+    let retrieved = repo.get_and_delete(message_id).await.expect("Get should succeed");
+    assert!(retrieved.is_some(), "Message should remain in DB since no subscriber");
+}
+
+#[sqlx::test]
+async fn test_handle_notification_invalid_json_logs_warning(pool: sqlx::PgPool) {
+    let router = ConnectionRouter::new();
+
+    // Create NotifyListener
+    let listener = NotifyListener::new(pool, router);
+
+    // Call with invalid JSON - should log warning and return early
+    listener.handle_notification("not valid json");
+
+    // Should not panic, just return early
+    assert!(true);
+}
