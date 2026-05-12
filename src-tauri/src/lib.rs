@@ -751,6 +751,7 @@ fn init_tracing() {
 
     tracing_subscriber::fmt()
         .with_writer(file_appender)
+        .with_ansi(false)  // Disable colors for file output
         .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
         .init();
 }
