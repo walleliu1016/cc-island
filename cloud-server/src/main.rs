@@ -24,6 +24,7 @@ fn init_logging(config: &Config) {
     match config.log_output {
         LogOutput::Stdout => {
             tracing_subscriber::fmt()
+                .with_ansi(false)  // Disable colors
                 .with_env_filter(env_filter)
                 .init();
         }
@@ -44,6 +45,7 @@ fn init_logging(config: &Config) {
 
             tracing_subscriber::fmt()
                 .with_writer(file_appender)
+                .with_ansi(false)  // Disable colors for file output
                 .with_env_filter(env_filter)
                 .init();
         }
