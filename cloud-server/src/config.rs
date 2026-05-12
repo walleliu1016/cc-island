@@ -2,13 +2,6 @@
 // SPDX-License-Identifier: MIT
 use anyhow::Result;
 
-/// Log output destination
-#[derive(Debug, Clone, Copy)]
-pub enum LogOutput {
-    Stdout,
-    File,
-}
-
 /// Log file rotation strategy
 #[derive(Debug, Clone, Copy)]
 pub enum LogRotation {
@@ -20,7 +13,7 @@ pub enum LogRotation {
 ///
 /// Required: DATABASE_URL
 /// Optional: WS_PORT (default: 17528), HTTP_PORT (default: 17529)
-/// Optional: LOG_OUTPUT (default: stdout), LOG_DIR, LOG_FILE, LOG_ROTATION, LOG_LEVEL
+/// Optional: LOG_DIR, LOG_FILE, LOG_ROTATION, LOG_LEVEL
 pub struct Config {
     /// PostgreSQL connection URL
     pub database_url: String,
@@ -28,14 +21,12 @@ pub struct Config {
     pub ws_port: u16,
     /// HTTP API server port (default: 17529)
     pub http_port: u16,
-    // 日志配置
-    /// Log output destination (default: stdout)
-    pub log_output: LogOutput,
-    /// Log directory (default: ./logs, only for file mode)
+    // 日志配置 (always file output)
+    /// Log directory (default: ./logs)
     pub log_dir: String,
-    /// Log file prefix (default: cloud-server, only for file mode)
+    /// Log file prefix (default: cloud-server)
     pub log_file: String,
-    /// Log rotation strategy (default: hourly, only for file mode)
+    /// Log rotation strategy (default: hourly)
     pub log_rotation: LogRotation,
     /// Log level (default: info)
     pub log_level: String,
@@ -62,17 +53,7 @@ impl Config {
             return Err(anyhow::anyhow!("Ports must be between 1 and 65535"));
         }
 
-        // 日志配置
-        let log_output = match std::env::var("LOG_OUTPUT")
-            .unwrap_or_else(|_| "stdout".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "file" => LogOutput::File,
-            "stdout" => LogOutput::Stdout,
-            other => return Err(anyhow::anyhow!("LOG_OUTPUT must be 'stdout' or 'file', got: {}", other)),
-        };
-
+        // 日志配置 (always file output)
         let log_dir = std::env::var("LOG_DIR")
             .unwrap_or_else(|_| "./logs".to_string());
 
@@ -96,7 +77,6 @@ impl Config {
             database_url,
             ws_port,
             http_port,
-            log_output,
             log_dir,
             log_file,
             log_rotation,

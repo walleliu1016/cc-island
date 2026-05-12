@@ -7,7 +7,7 @@ mod ws;
 mod http;
 
 use tokio_util::sync::CancellationToken;
-use config::{Config, LogOutput, LogRotation};
+use config::{Config, LogRotation};
 use db::pool::create_pool;
 use db::repository::Repository;
 use db::pending_message::PendingMessageRepo;
@@ -15,41 +15,30 @@ use ws::router::ConnectionRouter;
 use ws::server::run_server;
 use ws::notify_listener::NotifyListener;
 
-/// Initialize logging based on configuration.
+/// Initialize logging with file output.
 fn init_logging(config: &Config) {
     use tracing_subscriber::EnvFilter;
+    use tracing_appender::rolling;
 
     let env_filter = EnvFilter::new(&config.log_level);
 
-    match config.log_output {
-        LogOutput::Stdout => {
-            tracing_subscriber::fmt()
-                .with_ansi(false)  // Disable colors
-                .with_env_filter(env_filter)
-                .init();
-        }
-        LogOutput::File => {
-            use tracing_appender::rolling;
+    let rotation = match config.log_rotation {
+        LogRotation::Hourly => rolling::Rotation::HOURLY,
+        LogRotation::Daily => rolling::Rotation::DAILY,
+    };
 
-            let rotation = match config.log_rotation {
-                LogRotation::Hourly => rolling::Rotation::HOURLY,
-                LogRotation::Daily => rolling::Rotation::DAILY,
-            };
+    let file_appender = rolling::RollingFileAppender::builder()
+        .rotation(rotation)
+        .filename_prefix(&config.log_file)
+        .filename_suffix("log")
+        .build(&config.log_dir)
+        .expect("Failed to create log file appender");
 
-            let file_appender = rolling::RollingFileAppender::builder()
-                .rotation(rotation)
-                .filename_prefix(&config.log_file)
-                .filename_suffix("log")
-                .build(&config.log_dir)
-                .expect("Failed to create log file appender");
-
-            tracing_subscriber::fmt()
-                .with_writer(file_appender)
-                .with_ansi(false)  // Disable colors for file output
-                .with_env_filter(env_filter)
-                .init();
-        }
-    }
+    tracing_subscriber::fmt()
+        .with_writer(file_appender)
+        .with_ansi(false)  // Disable colors for file output
+        .with_env_filter(env_filter)
+        .init();
 }
 
 #[tokio::main]
@@ -57,11 +46,10 @@ async fn main() -> anyhow::Result<()> {
     // Load configuration
     let config = Config::from_env()?;
 
-    // Initialize logging based on config
+    // Initialize logging with file output
     init_logging(&config);
 
     tracing::info!("Starting CC-Island Cloud Server...");
-    tracing::info!("Log output: {:?}", config.log_output);
 
     // Create database pool
     let pool = create_pool(&config.database_url).await?;
