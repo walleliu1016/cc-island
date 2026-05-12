@@ -392,4 +392,23 @@ impl Repository {
 
         Ok(())
     }
+
+    /// Resolve all popups for a session (delete by session_id)
+    pub async fn resolve_popups_by_session(&self, session_id: &str) -> Result<()> {
+        let now = Utc::now();
+        let result = sqlx::query!(
+            r#"
+            UPDATE popups
+            SET status = 'resolved', resolved_at = $2
+            WHERE session_id = $1 AND status = 'pending'
+            "#,
+            session_id,
+            now,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!("Resolved {} popups for session {}", result.rows_affected(), session_id);
+        Ok(())
+    }
 }

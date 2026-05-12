@@ -139,6 +139,9 @@ async fn handle_hook(
         let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input, _popup_for_cloud) = {
             let mut state_guard = state.write();
 
+            // Cancel any old pending popups for this session (prevent duplicate popups)
+            state_guard.popups.cancel_session_popups(&input.session_id);
+
             // Create popup item
             let popup = create_popup_from_hook(&popup_id, &input);
 

@@ -51,6 +51,62 @@ impl MessageHandler {
                     tracing::warn!("Failed to send device list: {}", e);
                 }
 
+                // Push pending popups for subscribed devices (for H5 refresh recovery)
+                for device_token in &device_tokens {
+                    let pending_popups = self.repo.get_pending_popups(device_token).await.unwrap_or_default();
+                    for popup in pending_popups {
+                        // Skip if session_id is missing
+                        let session_id = match popup.session_id {
+                            Some(sid) => sid,
+                            None => {
+                                tracing::warn!("Skipping popup {} without session_id", popup.id);
+                                continue;
+                            }
+                        };
+
+                        // Build hook_message from popup data
+                        let hook_type = match popup.popup_type.as_str() {
+                            "permission" => crate::messages::HookType::PermissionRequest,
+                            "ask" => crate::messages::HookType::Notification,  // ask is Notification with type='ask'
+                            _ => crate::messages::HookType::PermissionRequest,
+                        };
+
+                        // Build hook_body from popup data
+                        let hook_body = if popup.popup_type == "permission" {
+                            serde_json::json!({
+                                "session_id": session_id,
+                                "project_name": popup.project_name,
+                                "tool_name": popup.data.get("tool_name"),
+                                "permission_data": popup.data.get("permission_data"),
+                                "tool_input": serde_json::json!({
+                                    "description": popup.data.get("action"),
+                                }),
+                            })
+                        } else {
+                            // ask type
+                            serde_json::json!({
+                                "session_id": session_id,
+                                "project_name": popup.project_name,
+                                "questions": popup.data.get("questions"),
+                                "notification_data": popup.data.get("notification_data"),
+                            })
+                        };
+
+                        let hook_msg = CloudMessage::HookMessage {
+                            device_token: device_token.clone(),
+                            session_id,
+                            hook_type,
+                            hook_body,
+                        };
+                        let json = serde_json::to_string(&hook_msg).unwrap();
+                        if let Err(e) = tx.try_send(Message::text(json)) {
+                            tracing::warn!("Failed to send pending popup hook_message: {}", e);
+                        } else {
+                            tracing::info!("📱 Sent pending popup {} for device {} to mobile", popup.id, device_token);
+                        }
+                    }
+                }
+
                 // Request real-time session list from desktop (instead of DB query)
                 for device_token in &device_tokens {
                     if self.router.has_desktop_connection(device_token) {
@@ -424,6 +480,11 @@ impl MessageHandler {
                 let message_body = serde_json::to_value(&response_msg).unwrap();
                 self.send_to_desktop_via_notify(&device_token, "hook_response", message_body).await;
 
+                // Resolve ALL popups for this session in database (permission + ask)
+                if let Err(e) = self.repo.resolve_popups_by_session(&session_id).await {
+                    tracing::warn!("Failed to resolve popups for session {} in database: {}", session_id, e);
+                }
+
                 // Broadcast PopupResolved to all mobiles (including the responder)
                 let popup_id = format!("popup-{}", session_id);
                 let resolved_msg = CloudMessage::PopupResolved {
@@ -442,6 +503,11 @@ impl MessageHandler {
             CloudMessage::PopupResolved { device_token, popup_id, session_id, source, decision, answers } => {
                 tracing::info!("PopupResolved from {}: device={}, popup={}, session={}, decision={:?}",
                     source, device_token, popup_id, session_id, decision);
+
+                // Resolve ALL popups for this session in database (permission + ask)
+                if let Err(e) = self.repo.resolve_popups_by_session(&session_id).await {
+                    tracing::warn!("Failed to resolve popups for session {} in database: {}", session_id, e);
+                }
 
                 // Broadcast to all mobiles
                 let resolved_msg = CloudMessage::PopupResolved {
@@ -532,10 +598,14 @@ impl MessageHandler {
         if self.router.has_desktop_connection(device_token) {
             // Fast path: local connection exists
             let json = message_body.to_string();
-            self.router.send_to_desktop(device_token, Message::text(json));
-            tracing::debug!("Sent {} directly to local desktop", message_type);
+            if self.router.send_to_desktop(device_token, Message::text(json)) {
+                tracing::info!("✅ Sent {} directly to local desktop for device {}", message_type, device_token);
+            } else {
+                tracing::warn!("❌ Failed to send {} to local desktop for device {}", message_type, device_token);
+            }
         } else {
             // Slow path: no local connection, use NOTIFY
+            tracing::info!("⏳ No local desktop for {}, storing {} via NOTIFY", device_token, message_type);
             match self.pending_repo.insert(device_token, Direction::ToDesktop, message_type, message_body.clone()).await {
                 Ok(message_id) => {
                     let payload = NotifyPayload {
@@ -546,7 +616,7 @@ impl MessageHandler {
                     if let Err(e) = self.pending_repo.notify(&payload).await {
                         tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
                     } else {
-                        tracing::debug!("Stored {} for device {}, sent NOTIFY", message_type, device_token);
+                        tracing::info!("✅ Stored {} for device {} (message_id={}), sent NOTIFY", message_type, device_token, message_id);
                     }
                 }
                 Err(e) => {

@@ -168,10 +168,10 @@ impl ConnectionRouter {
                 tracing::warn!("Failed to send to desktop: {}", e);
                 return false;
             }
-            tracing::debug!("Sent message to desktop for device: {}", device_token);
+            tracing::info!("✅ Sent message to desktop for device: {}", device_token);
             return true;
         }
-        tracing::debug!("No desktop connected for device: {}", device_token);
+        tracing::info!("⏳ No desktop connected for device: {}", device_token);
         false
     }
 
