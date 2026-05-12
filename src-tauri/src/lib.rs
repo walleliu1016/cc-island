@@ -35,9 +35,12 @@ use tokio::sync::RwLock as AsyncRwLock;
 
 /// Ensure device_name has a value (use hostname if empty)
 fn ensure_device_name(settings: &mut config::AppSettings) {
+    tracing::info!("ensure_device_name called: current device_name = {:?}", settings.device_name);
     if settings.device_name.is_none() || settings.device_name.as_ref().map(|n| n.is_empty()).unwrap_or(true) {
         settings.device_name = Some(machine_id::get_hostname());
-        tracing::info!("Device name set to: {:?}", settings.device_name);
+        tracing::info!("Device name set to hostname: {:?}", settings.device_name);
+    } else {
+        tracing::info!("Device name already set, keeping: {:?}", settings.device_name);
     }
 }
 
@@ -896,10 +899,18 @@ pub fn run_background() {
     {
         let mut state = SHARED_STATE.write();
         ensure_device_name(&mut state.settings);
+        tracing::info!("Device name: {:?}", state.settings.device_name);
         if let Err(e) = config::save_settings(&state.settings) {
             tracing::warn!("Failed to save device_name: {}", e);
         }
     }
+
+    // Run background logic
+    run_background_logic();
+}
+
+/// Background mode logic (shared between run_background and run_background_temporary)
+fn run_background_logic() {
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
@@ -1127,6 +1138,7 @@ fn parse_config_args(args: &[String]) -> config::AppSettings {
         settings.cloud_server_url = Some(v);
     }
     if let Some(v) = get_arg_value(args, "--device-name") {
+        tracing::info!("CLI --device-name detected: {}", v);
         settings.device_name = Some(v);
     }
 
@@ -1158,11 +1170,26 @@ pub fn run_config(args: &[String]) {
 /// Run in background mode with command line argument overrides (temporary, NOT saved)
 /// Priority: CLI args > config file > defaults
 pub fn run_background_temporary(args: &[String]) {
+    // Initialize tracing FIRST (before any logging)
+    let log_dir = config::get_cc_island_dir();
+    let file_appender = tracing_appender::rolling::daily(log_dir, "cc-island.log");
+
+    tracing_subscriber::fmt()
+        .with_writer(file_appender)
+        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
+        .init();
+
+    tracing::info!("CC-Island starting in background mode (temporary)...");
+
     // Apply command line overrides to settings (DO NOT save)
     let mut settings = parse_config_args(args);
 
+    tracing::info!("Settings after CLI parse: device_name={:?}, cloud_mode={}", settings.device_name, settings.cloud_mode);
+
     // Ensure device_name has value (use hostname if empty)
     ensure_device_name(&mut settings);
+
+    tracing::info!("Settings after ensure_device_name: device_name={:?}", settings.device_name);
 
     // Update global state with temporary settings
     {
@@ -1170,8 +1197,8 @@ pub fn run_background_temporary(args: &[String]) {
         state.settings = settings.clone();
     }
 
-    // Run background mode (settings not saved to file)
-    run_background();
+    // Run background logic (settings not saved to file)
+    run_background_logic();
 }
 
 /// Configuration management: set and save settings (persistent)
