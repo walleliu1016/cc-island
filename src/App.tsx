@@ -37,59 +37,6 @@ function App() {
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
 
-  // Drag handling with movement threshold for all platforms
-  // Window stays at top (y=0), only horizontal movement allowed
-  const [isDragging, setIsDragging] = useState(false);
-  const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
-  const [windowStartX, setWindowStartX] = useState<number | null>(null);
-
-  const handleMouseDown = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setMouseDownPos({ x: e.clientX, y: e.clientY });
-    setIsDragging(false);
-
-    // Get current window X position
-    try {
-      const pos = await invoke<{ x: number; y: number }>('get_window_position');
-      setWindowStartX(pos.x);
-    } catch (e) {
-      console.error('Failed to get window position:', e);
-    }
-  };
-
-  const handleMouseMove = async (e: React.MouseEvent) => {
-    if (!mouseDownPos || windowStartX === null) return;
-
-    const dx = e.clientX - mouseDownPos.x;
-
-    // Only start dragging if mouse moved significantly horizontally
-    if (Math.abs(dx) > 3) {
-      setIsDragging(true);
-
-      // Move window horizontally only (y always 0)
-      try {
-        await invoke('set_window_position', { x: windowStartX + dx, y: 0 });
-      } catch (e) {
-        console.error('Failed to move window:', e);
-      }
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    // If mouse didn't move much, treat as click (expand toggle)
-    if (mouseDownPos) {
-      const dx = Math.abs(e.clientX - mouseDownPos.x);
-      const dy = Math.abs(e.clientY - mouseDownPos.y);
-      if (dx < 5 && dy < 5 && !isDragging) {
-        // Small movement = click
-        setIsExpanded(!isExpanded);
-      }
-    }
-    setMouseDownPos(null);
-    setIsDragging(false);
-    setWindowStartX(null);
-  };
-
   // Check hooks configuration on startup
   useEffect(() => {
     const checkHooks = async () => {
@@ -356,11 +303,9 @@ function App() {
         {/* Header - Three column layout: Left | Center | Right */}
         <motion.div
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
-          style={{ height: COLLAPSED_HEIGHT, cursor: isDragging ? 'grabbing' : 'default' }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          style={{ height: COLLAPSED_HEIGHT }}
+          data-tauri-drag-region
+          onClick={() => setIsExpanded(!isExpanded)}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
