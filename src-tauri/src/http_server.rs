@@ -58,6 +58,9 @@ async fn handle_hook(
     State(state): State<Arc<RwLock<AppState>>>,
     Json(input): Json<HookInput>,
 ) -> Result<Json<HookOutput>, StatusCode> {
+    // Log hook received with tracing (session_id + hook_type)
+    tracing::info!("📥 Hook received: session={}, hook={}", input.session_id, input.hook_event_name);
+
     // Log complete hook JSON to file if logging enabled (async, no lock)
     if crate::is_logging_enabled() {
         let log_entry = format!(

@@ -204,6 +204,15 @@ impl ConnectionRouter {
             .unwrap_or(false)
     }
 
+    /// Get mobile subscriber count for a device (local memory)
+    pub fn get_mobile_subscriber_count(&self, device_token: &str) -> usize {
+        let inner = self.inner.read();
+        inner.mobile_subscriptions
+            .get(device_token)
+            .map(|subs| subs.len())
+            .unwrap_or(0)
+    }
+
     /// Check if desktop connection exists for a device (local memory)
     pub fn has_desktop_connection(&self, device_token: &str) -> bool {
         let inner = self.inner.read();

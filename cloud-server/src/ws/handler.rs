@@ -566,13 +566,20 @@ impl MessageHandler {
 
     /// Send message to mobiles, using NOTIFY if not locally subscribed
     async fn send_to_mobiles_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        // Extract session_id from message_body for logging
+        let session_id = message_body.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
+
         if self.router.has_mobile_subscribers(device_token) {
             // Fast path: local subscriber exists
             let json = message_body.to_string();
+            let mobile_count = self.router.get_mobile_subscriber_count(device_token);
             self.router.broadcast_to_mobiles(device_token, Message::text(json));
-            tracing::debug!("Sent {} directly to local mobile subscribers", message_type);
+            tracing::info!("📤 Sent {} to mobiles: device={}, session={}, count={}", message_type, device_token, session_id, mobile_count);
         } else {
             // Slow path: no local subscriber, use NOTIFY
+            tracing::info!("⏳ No local mobiles for device={}, session={}, storing {} via NOTIFY", device_token, session_id, message_type);
             match self.pending_repo.insert(device_token, Direction::ToMobile, message_type, message_body.clone()).await {
                 Ok(message_id) => {
                     let payload = NotifyPayload {
@@ -595,17 +602,22 @@ impl MessageHandler {
 
     /// Send message to desktop, using NOTIFY if not locally connected
     async fn send_to_desktop_via_notify(&self, device_token: &str, message_type: &str, message_body: serde_json::Value) {
+        // Extract session_id from message_body for logging
+        let session_id = message_body.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
+
         if self.router.has_desktop_connection(device_token) {
             // Fast path: local connection exists
             let json = message_body.to_string();
             if self.router.send_to_desktop(device_token, Message::text(json)) {
-                tracing::info!("✅ Sent {} directly to local desktop for device {}", message_type, device_token);
+                tracing::info!("✅ Sent {} to desktop: device={}, session={}", message_type, device_token, session_id);
             } else {
-                tracing::warn!("❌ Failed to send {} to local desktop for device {}", message_type, device_token);
+                tracing::warn!("❌ Failed to send {} to desktop: device={}, session={}", message_type, device_token, session_id);
             }
         } else {
             // Slow path: no local connection, use NOTIFY
-            tracing::info!("⏳ No local desktop for {}, storing {} via NOTIFY", device_token, message_type);
+            tracing::info!("⏳ No local desktop for device={}, session={}, storing {} via NOTIFY", device_token, session_id, message_type);
             match self.pending_repo.insert(device_token, Direction::ToDesktop, message_type, message_body.clone()).await {
                 Ok(message_id) => {
                     let payload = NotifyPayload {
@@ -616,7 +628,7 @@ impl MessageHandler {
                     if let Err(e) = self.pending_repo.notify(&payload).await {
                         tracing::error!("Failed to NOTIFY for {}: {}", device_token, e);
                     } else {
-                        tracing::info!("✅ Stored {} for device {} (message_id={}), sent NOTIFY", message_type, device_token, message_id);
+                        tracing::info!("✅ Stored {} for device={} (message_id={}), sent NOTIFY", message_type, device_token, message_id);
                     }
                 }
                 Err(e) => {

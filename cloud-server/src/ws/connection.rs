@@ -147,7 +147,7 @@ pub async fn handle_connection(
                         tracing::warn!("Send task: send failed, breaking");
                         break;
                     }
-                    tracing::info!("📤 Send task: message sent successfully via WebSocket");
+                    tracing::debug!("📤 Send task: message sent successfully");
                 }
                 tracing::info!("Send task ended for connection");
             };
@@ -221,6 +221,7 @@ pub async fn handle_connection(
             // Cleanup on disconnect
             match conn_type {
                 ConnectionType::Desktop => {
+                    tracing::info!("🔴 Desktop disconnected: device={}", device_token);
                     // Notify mobiles subscribed to this device
                     let offline_msg = CloudMessage::DeviceOffline {
                         device_token: device_token.clone(),
@@ -234,6 +235,7 @@ pub async fn handle_connection(
                     }
                 },
                 ConnectionType::Mobile => {
+                    tracing::info!("🔴 Mobile disconnected: conn_id={}", mobile_conn_id.unwrap_or_default());
                     if let Some(conn_id) = mobile_conn_id {
                         router.unregister_mobile(conn_id);
                     }
