@@ -36,6 +36,7 @@
 - **Mobile Remote** - 手机端实时查看状态、远程审批权限
 - **多设备订阅** - Mobile 单连接订阅多个 Desktop 设备
 - **多实例高可用** - Cloud Server 多实例部署，跨实例消息路由，负载分担
+- **APM 监控** - 收集 Claude Code 使用数据，Token 统计、成本分析（集成 TMA1）
 - **后台模式** - 支持无 UI 后台运行，适合服务器部署
 - **命令行配置** - 所有配置项可通过命令行设置，无需 UI
 
@@ -68,6 +69,54 @@
 ---
 
 ## 架构概览
+
+### 三层架构（含 APM）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Claude Code Terminals                               │
+│                (Hooks via HTTP, JSONL files in ~/.claude/projects/)           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                ┌───────────────────┼───────────────────┐
+                │                   │                   │
+                ▼                   ▼                   ▼
+┌───────────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐
+│   Desktop App         │  │  Cloud Server   │  │      APM Server             │
+│   (Tauri/Rust)        │  │ (Rust + Postgres)│  │   (Rust + GreptimeDB)       │
+│                       │  │                 │  │                             │
+│ ┌───────────────────┐ │  │ WebSocket:17528 │  │ HTTP API:17530              │
+│ │ HTTP Server:17527 │◄──►│ HTTP API:17529  │  │ OTLP:17531                  │
+│ │ (Hook 接收)       │ │  │                 │  │                             │
+│ └───────────────────┘ │  │ ┌─────────────┐ │  │ ┌─────────────────────────┐ │
+│                       │  │ │ Router +    │ │  │ │ GreptimeDB Writer       │ │
+│ ┌───────────────────┐ │  │ │ Local State │ │  │ │ OTLP Parser             │ │
+│ │ Cloud Client      │◄──►│ └─────────────┘ │  │ │ Flow Aggregator         │ │
+│ │ (WebSocket)       │ │  │                 │  │ │ SSE Broadcaster         │ │
+│ └───────────────────┘ │  │ ┌─────────────┐ │  │ │ Tenant Filter           │ │
+│                       │  │ │ PostgreSQL  │ │  │ └─────────────────────────┘ │
+│ ┌───────────────────┐ │  │ │ + NOTIFY    │ │  │                             │
+│ │ APM Collector     │◄──►│ └─────────────┘ │  │ ┌─────────────────────────┐ │
+│ │ (数据收集)        │ │  │                 │  │ │ GreptimeDB (External)    │ │
+│ └───────────────────┘ │  │                 │  │ │ Port 4000 (HTTP)         │ │
+│                       │  │                 │  │ │ Port 4001 (gRPC)         │ │
+│ ┌───────────────────┐ │  │                 │  │ └─────────────────────────┘ │
+│ │ JSONL Watcher     │ │  │                 │  │                             │
+│ │ (对话解析)        │ │  │                 │  │ ┌─────────────────────────┐ │
+│ └───────────────────┘ │  │                 │  │ │ Grafana (Optional)       │ │
+└                       │  │                 │  │ │ Dashboard Visualization  │ │
+└───────────────────────┘  └─────────────────┘  │ └─────────────────────────┘ │
+                                    │           └─────────────────────────────┘
+                                    │
+                            ┌───────┴───────┐
+                            │               │
+                     ┌──────┴──────┐ ┌──────┴──────┐
+                     │  Mobile 1   │ │  Mobile 2   │
+                     │  (React)    │ │  (React)    │
+                     └─────────────┘ └─────────────┘
+```
+
+### 原架构（Cloud Relay）
 
 ```
 ┌─────────────────┐                    ┌─────────────────────────────────────┐
@@ -343,6 +392,73 @@ cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
 | `--ask-timeout <SECS>` | Ask 超时 | 120 |
 | `--auto-deny-on-timeout` | 超时自动拒绝 | true |
 | `--auto-allow-permissions` | 自动允许权限 | false |
+| `--apm-mode` | 启用 APM 监控 | false |
+| `--apm-server-url <URL>` | APM Server 地址 | - |
+| `--apm-user-id <ID>` | 用户标识 | hostname |
+
+---
+
+## APM 监控
+
+CC-Island 集成了 TMA1 的 APM（Application Performance Monitoring）功能，可收集 Claude Code 使用数据并进行可视化分析。
+
+### 功能特性
+
+- **Token 统计** - 实时统计 input/output/cache token 使用量
+- **成本分析** - 按模型计算成本，支持成本聚合
+- **Session 管理** - 记录所有 session 的生命周期
+- **租户隔离** - 支持 user_id + device_id 双维度隔离
+- **可视化** - Desktop ApmView 或 Grafana Dashboard
+
+### 架构
+
+```
+Desktop (APM Collector) → APM Server → GreptimeDB → Grafana
+```
+
+### 配置方法
+
+**Desktop UI 配置**：
+1. Settings → APM Tab
+2. 启用 APM 监控
+3. 配置 APM Server 地址（如 `http://localhost:17530`）
+4. 配置用户标识（默认为 hostname，可自定义）
+
+**命令行配置**：
+```bash
+cc-island --apm-mode --apm-server-url http://localhost:17530 --apm-user-id my-user
+```
+
+### APM Server 部署
+
+```bash
+# 编译 APM Server
+cd apm-server
+cargo build --release
+
+# 启动 APM Server（需先部署 GreptimeDB）
+APM_GREPTIMEDB_HOST=localhost \
+APM_GREPTIMEDB_DATABASE=public \
+./apm-server
+```
+
+### 租户隔离
+
+所有数据表包含 `user_id` 和 `device_id` 字段：
+- `user_id` - 用户标识（默认 hostname，可配置）
+- `device_id` - 设备标识（自动生成，与 device_token 一致）
+
+查询时自动按租户过滤，确保数据安全。
+
+### 数据表
+
+| 表名 | 说明 |
+|------|------|
+| `tma1_hook_events` | Hook 事件记录 |
+| `tma1_messages` | 对话消息记录（含 usage、cost） |
+| `tma1_session_registry` | Session 注册表 |
+| `tma1_token_usage_1m` | Token 使用聚合（1分钟 Flow） |
+| `tma1_cost_1m` | 成本聚合（1分钟 Flow） |
 
 ### Mobile 配对
 
@@ -438,6 +554,14 @@ cargo build --release
 cc-island/
 ├── src/                    # React 前端（桌面）
 │   ├── components/         # UI 组件
+│   │   ├── ApmView/        # APM 监控视图
+│   │   │   ├── index.tsx   # 主容器
+│   │   │   ├── TokenChart.tsx  # Token 图表
+│   │   │   ├── CostChart.tsx   # 成本图表
+│   │   │   └── MetricsCard.tsx # KPI 卡片
+│   │   └── ...
+│   ├── services/           # API 服务
+│   │   └── apmApi.ts       # APM API 客户端
 │   ├── stores/             # Zustand 状态管理
 │   └── App.tsx             # 主应用
 │
@@ -446,11 +570,29 @@ cc-island/
 │       ├── lib.rs          # 主入口
 │       ├── http_server.rs  # HTTP API + Hook 处理
 │       ├── cloud_client.rs # WebSocket 云客户端
+│       ├── apm/            # APM 模块（新增）
+│       │   ├── mod.rs      # 模块导出
+│       │   ├── collector.rs # 数据收集器
+│       │   └── sender.rs   # HTTP 发送到 APM Server
 │       ├── instance_manager.rs
 │       ├── popup_queue.rs
 │       ├── chat_messages.rs
 │       ├── conversation_parser.rs
 │       └── platform/       # 平台特定实现
+│
+├── apm-server/             # APM Server（新增）
+│   └── src/
+│       ├── main.rs         # 服务入口
+│       ├── config.rs       # 配置管理
+│       ├── greptime/       # GreptimeDB 客户端
+│       │   ├── client.rs   # HTTP SQL API
+│       │   ├── schema.rs   # 表结构定义 + DDL
+│       │   └── flows.rs    # Flow SQL 定义
+│       ├── handler/        # API 处理器
+│       │   ├── hooks.rs    # Hook 接收
+│       │   ├── query.rs    # SQL 查询代理
+│       │   └── sse.rs      # SSE 实时推送
+│       └── tenant.rs       # 租户管理
 │
 ├── mobile-app/             # 手机端应用
 │   ├── src/
@@ -548,6 +690,7 @@ Mobile 支持订阅多个 Desktop 设备：
 
 ### 已完成
 
+- ✅ **APM 监控** - Token 统计、成本分析、Session 管理、租户隔离（集成 TMA1）
 - ✅ **Popup Resolved 同步** - Desktop UI 点击后实时通知 Mobile，避免 Mobile 停留在等待页面
 - ✅ **多实例 Cloud Server** - PostgreSQL LISTEN/NOTIFY 跨实例消息路由，高可用架构
 - ✅ **Cloud Relay** - 云服务器远程监控和权限审批
@@ -570,8 +713,7 @@ Mobile 支持订阅多个 Desktop 设备：
 8. **批量审批** - 支持批量 Allow/Deny 多个权限请求
 9. **智能通知** - 根据项目优先级配置差异化通知策略
 10. **活动历史** - 查看过去 24h/7d 的所有活动记录
-11. **Token 统计** - 显示每个会话的 token 使用量和估算成本
-12. **Web Dashboard** - 网页版管理界面，无需安装即可监控
+11. **Web Dashboard** - 网页版管理界面，无需安装即可监控
 
 ### 远期规划
 

@@ -63,6 +63,10 @@ pub struct AppSettings {
     pub cloud_server_url: Option<String>, // e.g., "wss://cloud.example.com:17528"
     pub device_name: Option<String>,   // user-defined device name (optional)
     pub show_thinking_messages: bool,  // show thinking messages in ChatView
+    // APM configuration (monitoring)
+    pub apm_enabled: bool,             // enable APM monitoring
+    pub apm_server_url: Option<String>, // e.g., "http://localhost:17530"
+    pub apm_user_id: Option<String>,   // user identifier (default: hostname)
 }
 
 impl Default for AppSettings {
@@ -86,6 +90,10 @@ impl Default for AppSettings {
             cloud_server_url: None,
             device_name: None,
             show_thinking_messages: false,  // hide thinking messages by default
+            // APM defaults
+            apm_enabled: false,
+            apm_server_url: None,
+            apm_user_id: None,
         }
     }
 }

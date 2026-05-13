@@ -8,6 +8,7 @@ import { useDisplayStore } from './stores/displayStore';
 import { InstanceList } from './components/InstanceList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ChatView } from './components/ChatView';
+import ApmView from './components/ApmView';
 import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, MenuIcon } from './components/StatusIcons';
 import { getCornerRadii, generateNotchPath } from './components/NotchShape';
 import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification } from './types';
@@ -36,6 +37,7 @@ function App() {
   const [productName, setProductName] = useState<string>('');
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
+  const [showApmView, setShowApmView] = useState(false);
 
   // Check hooks configuration on startup
   useEffect(() => {
@@ -79,6 +81,7 @@ function App() {
           setSelectedSessionId(null);
           setShowSettings(false);
           setShowHooksSetup(false);
+          setShowApmView(false);
           setIsExpanded(false);
         }
       }, 100);
@@ -165,8 +168,9 @@ function App() {
   const showIndicator = headerPhase === 'waitingForApproval';
 
   // Display mode
-  const showExpanded = isExpanded && !selectedSessionId;
+  const showExpanded = isExpanded && !selectedSessionId && !showApmView;
   const showChatView = selectedSessionId !== null;
+  const showApmContent = showApmView && !selectedSessionId;
 
   // Get selected instance for ChatView
   const selectedInstance = selectedSessionId
@@ -174,8 +178,8 @@ function App() {
     : null;
 
   // Calculate target dimensions
-  const targetWidth = showExpanded || showChatView ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
-  const targetHeight = showExpanded || showChatView ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  const targetWidth = showExpanded || showChatView || showApmContent ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
+  const targetHeight = showExpanded || showChatView || showApmContent ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
 
   // Resize window when state changes
   useEffect(() => {
@@ -189,8 +193,8 @@ function App() {
         return;
       }
 
-      // ChatView mode - larger window
-      if (selectedSessionId) {
+      // ChatView or ApmView mode - larger window
+      if (selectedSessionId || showApmView) {
         try {
           await invoke('resize_window', { width: EXPANDED_WIDTH, height: EXPANDED_HEIGHT });
         } catch (e) {
@@ -209,7 +213,7 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, headerPhase]);
+  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, showApmView, headerPhase]);
 
   // Get corner radii based on state (matching Claude Island asymmetric corners)
   const isOpen = showExpanded;
@@ -321,7 +325,12 @@ function App() {
 
           {/* Center column - Text content, takes remaining space */}
           <div className="flex-1 flex items-center justify-center overflow-hidden mx-2 min-w-0">
-            {showChatView ? (
+            {showApmContent ? (
+              // ApmView mode - show title
+              <span className="text-white/70 text-xs font-medium truncate">
+                APM 监控
+              </span>
+            ) : showChatView ? (
               // ChatView mode - just show project name (back button is inside ChatView)
               <span className="text-white/70 text-xs font-medium truncate">
                 {selectedInstance?.project_name || 'Chat'}
@@ -351,11 +360,11 @@ function App() {
 
           {/* Right column - Status icon or Menu, fixed width */}
           <div className="flex items-center justify-end gap-1.5 w-12 flex-shrink-0">
-            {showChatView ? (
-              // ChatView - spacer
+            {showApmContent || showChatView ? (
+              // ApmView or ChatView - spacer
               <div />
             ) : showExpanded ? (
-              // Expanded state - Cloud status + Menu button
+              // Expanded state - Cloud status + APM button + Menu button
               <>
                 {/* Cloud connection indicator */}
                 <div
@@ -370,6 +379,18 @@ function App() {
                     <span className="text-white/30 text-xs">☁</span>
                   )}
                 </div>
+                {/* APM button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowApmView(true);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="text-white/40 hover:text-white/70 transition-colors p-1 text-xs"
+                  title="APM 监控"
+                >
+                  📊
+                </button>
                 {/* Menu button */}
                 <button
                   onClick={(e) => {
@@ -453,6 +474,28 @@ function App() {
                     setIsExpanded(true);
                   }}
                 />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ApmView content */}
+        <AnimatePresence>
+          {showApmContent && (
+            <motion.div
+              initial={{ opacity: 0, maxHeight: 0 }}
+              animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
+              exit={{ opacity: 0, maxHeight: 0 }}
+              transition={{ duration: 0.25 }}
+              className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
+                <ApmView onClose={() => {
+                  setShowApmView(false);
+                  setIsExpanded(true);
+                }} />
               </div>
             </motion.div>
           )}

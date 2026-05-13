@@ -21,6 +21,14 @@ pub struct HookInput {
     // Stop hook 专用字段
     pub stop_reason: Option<String>,
     pub message_count: Option<u32>,
+
+    // APM fields (新增)
+    pub tool_use_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub agent_type: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub success: Option<bool>,
+    pub metadata: Option<String>,
 }
 
 /// Elicitation question structure (for AskUserQuestion)

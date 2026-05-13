@@ -32,6 +32,8 @@ pnpm exec tsc --noEmit
 | Desktop HTTP Server | 17527 | Claude Code hooks接收端口 |
 | Cloud Server WebSocket | 17528 | Desktop/Mobile连接端口 |
 | Cloud Server HTTP API | 17529 | 状态查询API端口 |
+| APM Server HTTP | 17530 | APM 数据接收和查询端口 |
+| APM Server OTLP | 17531 | OTLP 协议接收端口 |
 | Desktop Vite (dev) | 1420 | Tauri dev前端热更新 |
 | **Mobile H5 Vite** | **3001** | Mobile开发服务器（固定） |
 
@@ -42,9 +44,10 @@ pnpm exec tsc --noEmit
 CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks, with optional cloud relay for mobile remote access.
 
 **Tech Stack:**
-- Frontend: React 18 + TypeScript + Zustand + Framer Motion + Tailwind CSS
+- Frontend: React 18 + TypeScript + Zustand + Framer Motion + Tailwind CSS + uPlot
 - Backend: Rust + Axum HTTP server (port 17527) + Tokio async runtime
 - Cloud Server: Rust + PostgreSQL + WebSocket + LISTEN/NOTIFY
+- APM Server: Rust + Axum + GreptimeDB HTTP API + OTLP
 
 **Core Data Flow (Desktop):**
 ```
@@ -56,6 +59,11 @@ Claude Code terminals → HTTP POST /hook (port 17527) → Rust backend → Fron
 Desktop → WebSocket → Cloud Server → PostgreSQL → NOTIFY → Other Instance → Mobile
 ```
 
+**Core Data Flow (APM):**
+```
+Desktop (APM Collector) → HTTP POST → APM Server → GreptimeDB → Frontend ApmView / Grafana
+```
+
 **Key Components:**
 
 | Layer | File | Purpose |
@@ -65,12 +73,18 @@ Desktop → WebSocket → Cloud Server → PostgreSQL → NOTIFY → Other Insta
 | Popup Queue | `src-tauri/src/popup_queue.rs` | Manages pending popups with oneshot channels for blocking responses |
 | Instance Manager | `src-tauri/src/instance_manager.rs` | Tracks Claude session lifecycle (SessionStart → SessionEnd) |
 | Chat History | `src-tauri/src/chat_messages.rs` | Stores per-session message history (user, assistant, tool calls) |
+| APM Collector | `src-tauri/src/apm/collector.rs` | Collects APM data (hooks, messages) and sends to APM Server |
+| APM Sender | `src-tauri/src/apm/sender.rs` | HTTP POST to APM Server with tenant headers (X-User-ID, X-Device-ID) |
 | Platform Jump | `src-tauri/src/platform/macos.rs` | AppleScript to activate terminal window |
 | Frontend State | `src/stores/appStore.ts` | Zustand store for instances, popups, activities |
-| UI | `src/App.tsx` | Click to expand, three-column header layout |
+| APM API | `src/services/apmApi.ts` | APM Server HTTP client for metrics queries |
+| UI | `src/App.tsx` | Click to expand, three-column header layout, ApmView toggle |
 | Instance List | `src/components/InstanceList.tsx` | Displays instances with inline Allow/Deny buttons |
 | Chat View | `src/components/ChatView.tsx` | Shows message history with code blocks |
-| Settings | `src/components/Settings.tsx` | Tabbed interface for Hooks and General settings |
+| Apm View | `src/components/ApmView/index.tsx` | APM monitoring dashboard with charts |
+| Token Chart | `src/components/ApmView/TokenChart.tsx` | uPlot chart for token usage visualization |
+| Cost Chart | `src/components/ApmView/CostChart.tsx` | uPlot chart for cost visualization |
+| Settings | `src/components/Settings.tsx` | Tabbed interface for Hooks, General, Remote, and APM settings |
 | Status Icons | `src/components/StatusIcons.tsx` | Pixel-style icons (crab, spinner, indicators) |
 | Notch Shape | `src/components/NotchShape.tsx` | SVG path generator for Dynamic Island shape |
 
@@ -284,3 +298,71 @@ cargo build --release --bin cc-island-server --target x86_64-unknown-linux-musl
 - Server 构建需要禁用 default features（避免 GTK 依赖）
 - build.rs 使用 `#[cfg(feature = "desktop")]` 条件编译
 - Desktop 模式保持 flag 模式（不改动）
+
+## APM Server
+
+APM Server 是独立的 Rust 服务，接收 Desktop 发送的使用数据并存储到 GreptimeDB。
+
+**架构**：
+```
+Desktop APM Collector → HTTP POST → APM Server (17530) → GreptimeDB (4000)
+```
+
+**关键文件**：
+
+| 文件 | 作用 |
+|------|------|
+| `apm-server/src/main.rs` | 服务入口，端口配置 |
+| `apm-server/src/config.rs` | 配置管理（GreptimeDB 地址、数据保留等） |
+| `apm-server/src/greptime/client.rs` | GreptimeDB HTTP SQL API 客户端 |
+| `apm-server/src/greptime/schema.rs` | 表结构 DDL（含租户字段） |
+| `apm-server/src/greptime/flows.rs` | Flow SQL 聚合定义 |
+| `apm-server/src/handler/hooks.rs` | POST /api/hooks 接收 Hook 数据 |
+| `apm-server/src/handler/query.rs` | GET /api/query SQL 查询代理（自动租户过滤） |
+| `apm-server/src/handler/sse.rs` | GET /api/stream SSE 实时推送 |
+| `apm-server/src/tenant.rs` | 租户管理（user_id + device_id 隔离） |
+
+**环境变量配置**：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `APM_BIND_HOST` | 监听地址 | `0.0.0.0` |
+| `APM_HTTP_PORT` | HTTP 端口 | `17530` |
+| `APM_GREPTIMEDB_HOST` | GreptimeDB 地址 | `localhost` |
+| `APM_GREPTIMEDB_DATABASE` | 数据库名 | `public` |
+| `APM_RETENTION_DAYS` | 数据保留天数 | `30` |
+| `APM_OTLP_EXPORT_URL` | OTLP 导出地址（可选） | - |
+
+**租户隔离**：
+- 所有表包含 `user_id` 和 `device_id` 字段
+- `user_id` 默认为 hostname，可在 Desktop Settings 配置
+- `device_id` 自动生成，与 `device_token` 一致
+- 查询时自动注入租户过滤条件
+
+**启动命令**：
+```bash
+# 编译
+cd apm-server
+cargo build --release
+
+# 启动（需先部署 GreptimeDB）
+APM_GREPTIMEDB_HOST=localhost ./apm-server
+```
+
+## APM Desktop 配置
+
+Desktop Settings 新增 "APM" Tab：
+
+**配置项**：
+| 配置 | 说明 |
+|------|------|
+| `apm_enabled` | 启用 APM 监控 |
+| `apm_server_url` | APM Server 地址（如 `http://localhost:17530`） |
+| `apm_user_id` | 用户标识（默认 hostname，可自定义） |
+
+**配置文件位置**：`~/.cc-island/settings.json`
+
+**Background 模式**：
+- APM Collector 在 `AppState::new()` 中初始化
+- Background 模式自动包含 APM 收集功能
+- 无需 UI 窗口，数据发送到 APM Server 后通过 Grafana 查看

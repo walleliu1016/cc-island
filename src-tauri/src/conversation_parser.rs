@@ -42,6 +42,20 @@ pub struct ConversationMessage {
     pub role: MessageRole,
     pub content: Vec<MessageBlock>,
     pub timestamp: u64,
+
+    // APM fields (新增)
+    pub model: Option<String>,
+    pub usage: Option<MessageUsage>,
+}
+
+/// Token usage data (for APM)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageUsage {
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: Option<i64>,
+    pub cache_creation_tokens: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -630,6 +644,21 @@ impl ConversationParser {
             }
         }
 
+        // Extract model (APM)
+        let model = message.get("model")
+            .and_then(|m| m.as_str())
+            .map(|s| s.to_string());
+
+        // Extract usage (APM)
+        let usage = message.get("usage").and_then(|u| {
+            Some(MessageUsage {
+                input_tokens: u.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0),
+                output_tokens: u.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0),
+                cache_read_tokens: u.get("cache_read_input_tokens").and_then(|v| v.as_i64()),
+                cache_creation_tokens: u.get("cache_creation_input_tokens").and_then(|v| v.as_i64()),
+            })
+        });
+
         if blocks.is_empty() {
             return None;
         }
@@ -640,6 +669,8 @@ impl ConversationParser {
             role,
             content: blocks,
             timestamp,
+            model,
+            usage,
         })
     }
 

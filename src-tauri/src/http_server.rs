@@ -85,6 +85,20 @@ async fn handle_hook(
         }
     }
 
+    // APM forwarding (async, non-blocking)
+    {
+        let state_guard = state.read();
+        if state_guard.settings.apm_enabled && state_guard.apm_collector.is_some() {
+            let collector = state_guard.apm_collector.clone();
+            let input_clone = input.clone();
+            tokio::spawn(async move {
+                if let Some(c) = collector {
+                    c.collect_hook(&input_clone);
+                }
+            });
+        }
+    }
+
     let hook_event = input.hook_event_name.as_str();
 
     // Check if auto-allow is enabled for PermissionRequest (but NOT for AskUserQuestion)
@@ -733,9 +747,43 @@ async fn update_settings(
     // Update global atomic logging flag
     crate::set_logging_enabled(settings.enable_logging);
 
+    // Get old settings for comparison
+    let (old_cloud_mode, old_apm_enabled) = {
+        let state_guard = state.read();
+        (
+            state_guard.settings.cloud_mode,
+            state_guard.settings.apm_enabled,
+        )
+    };
+
     // Update in-memory state
-    let mut state_guard = state.write();
-    state_guard.settings = settings;
+    {
+        let mut state_guard = state.write();
+        state_guard.settings = settings.clone();
+
+        // Reinitialize APM collector if APM config changed
+        if old_apm_enabled != settings.apm_enabled ||
+            state_guard.apm_collector.is_none() && settings.apm_enabled {
+            state_guard.apm_collector = if settings.apm_enabled {
+                Some(crate::apm::ApmCollector::new(&settings))
+            } else {
+                None
+            };
+        }
+    }
+
+    // Handle cloud mode changes (need to spawn async tasks)
+    if old_cloud_mode != settings.cloud_mode {
+        if settings.cloud_mode {
+            // Start cloud client
+            if let Some(ref url) = settings.cloud_server_url {
+                crate::start_cloud_with_reconnect(url.clone(), settings.device_name.clone());
+            }
+        } else {
+            // Stop cloud client
+            crate::stop_cloud_client();
+        }
+    }
 
     Ok(Json(serde_json::json!({ "success": true })))
 }
