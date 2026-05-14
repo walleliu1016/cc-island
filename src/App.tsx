@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from './stores/appStore';
@@ -37,7 +37,7 @@ function App() {
   const [productName, setProductName] = useState<string>('');
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
-  const [showApmView, setShowApmView] = useState(false);
+  const [showApmForSession, setShowApmForSession] = useState<string | null>(null);
 
   // Check hooks configuration on startup
   useEffect(() => {
@@ -81,7 +81,7 @@ function App() {
           setSelectedSessionId(null);
           setShowSettings(false);
           setShowHooksSetup(false);
-          setShowApmView(false);
+          setShowApmForSession(null);
           setIsExpanded(false);
         }
       }, 100);
@@ -89,6 +89,50 @@ function App() {
 
     window.addEventListener('blur', handleBlur);
     return () => window.removeEventListener('blur', handleBlur);
+  }, []);
+
+  // Hover expand/collapse logic
+  const collapseTimeoutRef = useRef<number | null>(null);
+
+  // Mouse enter window → expand (only when collapsed)
+  const handleMouseEnter = () => {
+    // Cancel any pending collapse
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+    // Expand if collapsed
+    if (!isExpanded) {
+      setIsExpanded(true);
+    }
+  };
+
+  // Mouse leave window → collapse (only when expanded and no subview, with delay)
+  const handleMouseLeave = () => {
+    // Only collapse if expanded and no pending interactions
+    if (isExpanded) {
+      // Check if any subview is active (read current state)
+      const hasSubview = selectedSessionId || showSettings || showHooksSetup || showApmForSession;
+      if (!hasSubview) {
+        // Delay collapse to avoid accidental close
+        collapseTimeoutRef.current = window.setTimeout(() => {
+          // Double check before collapsing
+          if (!selectedSessionId && !showSettings && !showHooksSetup && !showApmForSession) {
+            setIsExpanded(false);
+          }
+          collapseTimeoutRef.current = null;
+        }, 300);
+      }
+    }
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (collapseTimeoutRef.current) {
+        clearTimeout(collapseTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Fetch data periodically
@@ -168,13 +212,18 @@ function App() {
   const showIndicator = headerPhase === 'waitingForApproval';
 
   // Display mode
-  const showExpanded = isExpanded && !selectedSessionId && !showApmView;
-  const showChatView = selectedSessionId !== null;
-  const showApmContent = showApmView && !selectedSessionId;
+  const showExpanded = isExpanded && !selectedSessionId && !showApmForSession;
+  const showChatView = selectedSessionId !== null && !showApmForSession;
+  const showApmContent = showApmForSession !== null;
 
   // Get selected instance for ChatView
   const selectedInstance = selectedSessionId
     ? instances.find(i => i.session_id === selectedSessionId)
+    : null;
+
+  // Get instance for ApmView session
+  const apmInstance = showApmForSession
+    ? instances.find(i => i.session_id === showApmForSession)
     : null;
 
   // Calculate target dimensions
@@ -194,7 +243,7 @@ function App() {
       }
 
       // ChatView or ApmView mode - larger window
-      if (selectedSessionId || showApmView) {
+      if (selectedSessionId || showApmForSession) {
         try {
           await invoke('resize_window', { width: EXPANDED_WIDTH, height: EXPANDED_HEIGHT });
         } catch (e) {
@@ -213,7 +262,7 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, showApmView, headerPhase]);
+  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, showApmForSession, headerPhase]);
 
   // Get corner radii based on state (matching Claude Island asymmetric corners)
   const isOpen = showExpanded;
@@ -259,6 +308,11 @@ function App() {
     setSelectedSessionId(sessionId);
   };
 
+  // View APM for session
+  const handleViewApm = (sessionId: string) => {
+    setShowApmForSession(sessionId);
+  };
+
   // Refresh hooks status
   const handleSettingsChange = async () => {
     try {
@@ -285,6 +339,8 @@ function App() {
         style={{
           transformOrigin: 'center top',
         }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* SVG Notch Shape Background */}
         <svg
@@ -309,7 +365,6 @@ function App() {
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
           style={{ height: COLLAPSED_HEIGHT }}
           data-tauri-drag-region
-          onClick={() => setIsExpanded(!isExpanded)}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
@@ -326,9 +381,9 @@ function App() {
           {/* Center column - Text content, takes remaining space */}
           <div className="flex-1 flex items-center justify-center overflow-hidden mx-2 min-w-0">
             {showApmContent ? (
-              // ApmView mode - show title
+              // ApmView mode - show session project name
               <span className="text-white/70 text-xs font-medium truncate">
-                APM 监控
+                APM: {apmInstance?.project_name || 'Session'}
               </span>
             ) : showChatView ? (
               // ChatView mode - just show project name (back button is inside ChatView)
@@ -364,7 +419,7 @@ function App() {
               // ApmView or ChatView - spacer
               <div />
             ) : showExpanded ? (
-              // Expanded state - Cloud status + APM button + Menu button
+              // Expanded state - Cloud status + Menu button (removed global APM)
               <>
                 {/* Cloud connection indicator */}
                 <div
@@ -379,18 +434,6 @@ function App() {
                     <span className="text-white/30 text-xs">☁</span>
                   )}
                 </div>
-                {/* APM button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowApmView(true);
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="text-white/40 hover:text-white/70 transition-colors p-1 text-xs"
-                  title="APM 监控"
-                >
-                  📊
-                </button>
                 {/* Menu button */}
                 <button
                   onClick={(e) => {
@@ -473,6 +516,7 @@ function App() {
                     // Keep expanded to show the instance list
                     setIsExpanded(true);
                   }}
+                  onViewApm={handleViewApm}
                 />
               </div>
             </motion.div>
@@ -492,10 +536,13 @@ function App() {
               onMouseDown={(e) => e.stopPropagation()}
             >
               <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
-                <ApmView onClose={() => {
-                  setShowApmView(false);
-                  setIsExpanded(true);
-                }} />
+                <ApmView
+                  sessionId={showApmForSession!}
+                  onClose={() => {
+                    setShowApmForSession(null);
+                    setIsExpanded(true);
+                  }}
+                />
               </div>
             </motion.div>
           )}

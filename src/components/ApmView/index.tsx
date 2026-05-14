@@ -11,6 +11,7 @@ import SessionList from './SessionList';
 
 interface ApmViewProps {
   onClose?: () => void;
+  sessionId?: string;
 }
 
 interface MetricRow {
@@ -18,12 +19,15 @@ interface MetricRow {
   [key: string]: number | string | null;
 }
 
-export default function ApmView({ onClose }: ApmViewProps) {
+export default function ApmView({ onClose, sessionId }: ApmViewProps) {
   const [metrics, setMetrics] = useState({
     totalCost: 0,
     totalTokens: 0,
     requestCount: 0,
     sessionCount: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    model: 'unknown',
   });
   const [tokenData, setTokenData] = useState<MetricRow[]>([]);
   const [costData, setCostData] = useState<MetricRow[]>([]);
@@ -34,22 +38,52 @@ export default function ApmView({ onClose }: ApmViewProps) {
 
   useEffect(() => {
     loadMetrics();
-  }, [rangeHours]);
+  }, [rangeHours, sessionId]);
 
   const loadMetrics = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [summary, tokens, costs, sess] = await Promise.all([
-        apmApi.getSummary(rangeHours),
-        apmApi.getTokenUsage(rangeHours * 60),
-        apmApi.getCostMetrics(rangeHours * 60),
-        apmApi.getSessionList(),
-      ]);
-      setMetrics(summary);
-      setTokenData(tokens);
-      setCostData(costs);
-      setSessions(sess);
+      if (sessionId) {
+        // Session-specific mode
+        const [sessionMetrics, tokens, costs] = await Promise.all([
+          apmApi.getSessionMetrics(sessionId, rangeHours),
+          apmApi.getSessionTokenTimeline(sessionId, rangeHours * 60),
+          apmApi.getSessionCostTimeline(sessionId, rangeHours * 60),
+        ]);
+        setMetrics({
+          totalCost: sessionMetrics.totalCost,
+          totalTokens: sessionMetrics.totalTokens,
+          requestCount: sessionMetrics.requestCount,
+          sessionCount: 1,
+          inputTokens: sessionMetrics.inputTokens,
+          outputTokens: sessionMetrics.outputTokens,
+          model: sessionMetrics.model,
+        });
+        setTokenData(tokens);
+        setCostData(costs);
+        setSessions([]);
+      } else {
+        // Global mode (all sessions)
+        const [summary, tokens, costs, sess] = await Promise.all([
+          apmApi.getSummary(rangeHours),
+          apmApi.getTokenUsage(rangeHours * 60),
+          apmApi.getCostMetrics(rangeHours * 60),
+          apmApi.getSessionList(),
+        ]);
+        setMetrics({
+          totalCost: summary.totalCost,
+          totalTokens: summary.totalTokens,
+          requestCount: summary.requestCount,
+          sessionCount: summary.sessionCount,
+          inputTokens: 0,
+          outputTokens: 0,
+          model: 'all',
+        });
+        setTokenData(tokens);
+        setCostData(costs);
+        setSessions(sess);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -109,13 +143,20 @@ export default function ApmView({ onClose }: ApmViewProps) {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-2 mb-2">
-        <MetricsCard label="总成本" value={`$${metrics.totalCost.toFixed(4)}`} />
-        <MetricsCard label="总Token" value={metrics.totalTokens.toLocaleString()} />
-        <MetricsCard label="请求数" value={metrics.requestCount.toLocaleString()} />
-        <MetricsCard label="Session" value={metrics.sessionCount.toLocaleString()} />
+        <MetricsCard label="成本" value={`$${metrics.totalCost.toFixed(4)}`} />
+        <MetricsCard
+          label="Token"
+          value={`${metrics.inputTokens.toLocaleString()}→${metrics.outputTokens.toLocaleString()}`}
+        />
+        <MetricsCard label="请求" value={metrics.requestCount.toLocaleString()} />
+        {sessionId ? (
+          <MetricsCard label="模型" value={metrics.model.slice(0, 12)} />
+        ) : (
+          <MetricsCard label="Session" value={metrics.sessionCount.toLocaleString()} />
+        )}
       </div>
 
-      {/* Charts */}
+      {/* Charts - hide session list in session mode */}
       <div className="flex-1 flex flex-col gap-2 overflow-hidden">
         <div className="flex-1 min-h-0">
           <TokenChart data={tokenData} loading={loading} />
@@ -123,9 +164,11 @@ export default function ApmView({ onClose }: ApmViewProps) {
         <div className="flex-1 min-h-0">
           <CostChart data={costData} loading={loading} />
         </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          <SessionList sessions={sessions} />
-        </div>
+        {!sessionId && (
+          <div className="flex-1 min-h-0 overflow-auto">
+            <SessionList sessions={sessions} />
+          </div>
+        )}
       </div>
     </div>
   );

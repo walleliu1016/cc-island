@@ -1,0 +1,318 @@
+name: Build Desktop and Background
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'src-tauri/**'
+      - 'src-tauri-server/**'
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src-tauri/**'
+      - 'src-tauri-server/**'
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target platform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - macos-arm64
+          - macos-x64
+          - windows
+          - linux
+      build_type:
+        description: 'Build type (debug or release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+jobs:
+  # ===== Desktop App Build =====
+  build-desktop:
+    if: inputs.target == 'all' || inputs.target != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            name: 'macOS-arm64'
+            enabled: inputs.target == 'all' || inputs.target == 'macos-arm64'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            name: 'macOS-x64'
+            enabled: inputs.target == 'all' || inputs.target == 'macos-x64'
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            name: 'Windows'
+            enabled: inputs.target == 'all' || inputs.target == 'windows'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            name: 'Linux'
+            enabled: inputs.target == 'all' || inputs.target == 'linux'
+
+    runs-on: ${{ matrix.platform }}
+    # Skip matrix entries that are not enabled for workflow_dispatch
+    if: |
+      (github.event_name != 'workflow_dispatch') ||
+      (matrix.enabled)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ''
+          releaseName: ''
+          args: --target ${{ matrix.target }} ${{ inputs.build_type == 'debug' && '--debug' || '' }}
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(cat src-tauri/tauri.conf.json | grep '"version"' | sed 's/.*"version": *"([^"]+)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Find artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        id: find-macos
+        run: |
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/$BUILD_TYPE/bundle"
+          else
+            BUNDLE_DIR="src-tauri/target/x86_64-apple-darwin/$BUILD_TYPE/bundle"
+          fi
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/$BUILD_TYPE/bundle"
+          fi
+          echo "Searching in: $BUNDLE_DIR"
+          ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Bundle directory not found"
+
+          DMG=$(find "$BUNDLE_DIR" -name "*.dmg" -type f 2>/dev/null | head -1)
+          if [ -z "$DMG" ]; then
+            APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
+            if [ -n "$APP" ]; then
+              APP_NAME=$(basename "$APP")
+              TAR_NAME="${APP_NAME%.app}_${{ matrix.target }}.tar.gz"
+              cd "$BUNDLE_DIR/macos"
+              tar -czf "$TAR_NAME" "$APP_NAME"
+              DMG="$BUNDLE_DIR/macos/$TAR_NAME"
+            fi
+          fi
+          if [ -z "$DMG" ]; then
+            echo "::warning::No DMG or app bundle found"
+            echo "DMG=" >> $GITHUB_OUTPUT
+          else
+            echo "DMG=$DMG" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Find artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        id: find-windows
+        run: |
+          $BuildType = "${{ inputs.build_type || 'release' }}"
+          $TargetBundleDir = "src-tauri\target\${{ matrix.target }}\$BuildType\bundle"
+          $DefaultBundleDir = "src-tauri\target\$BuildType\bundle"
+
+          if (Test-Path $TargetBundleDir) {
+            $BundleDir = $TargetBundleDir
+          } else {
+            $BundleDir = $DefaultBundleDir
+          }
+
+          Write-Host "Using bundle directory: $BundleDir"
+          if (Test-Path $BundleDir) {
+            Get-ChildItem -Path $BundleDir -Recurse | ForEach-Object { Write-Host $_ }
+          }
+
+          $MSI = Get-ChildItem -Path "$BundleDir\msi" -Filter *.msi -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          $EXE = Get-ChildItem -Path "$BundleDir\nsis" -Filter *.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          if ($MSI) { echo "MSI=$($MSI.FullName)" >> $env:GITHUB_OUTPUT }
+          if ($EXE) { echo "EXE=$($EXE.FullName)" >> $env:GITHUB_OUTPUT }
+        shell: pwsh
+
+      - name: Find artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        id: find-linux
+        run: |
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/$BUILD_TYPE/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            BUNDLE_DIR="src-tauri/target/$BUILD_TYPE/bundle"
+          fi
+          echo "Searching in: $BUNDLE_DIR"
+
+          DEB=$(find "$BUNDLE_DIR/deb" -name "*.deb" -type f 2>/dev/null | head -1)
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" -type f 2>/dev/null | head -1)
+
+          if [ -n "$DEB" ]; then echo "DEB=$DEB" >> $GITHUB_OUTPUT; fi
+          if [ -n "$APPIMAGE" ]; then echo "APPIMAGE=$APPIMAGE" >> $GITHUB_OUTPUT; fi
+        shell: bash
+
+      - name: Upload artifact (macOS)
+        if: matrix.platform == 'macos-latest' && steps.find-macos.outputs.DMG != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ease-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.name }}
+          path: ${{ steps.find-macos.outputs.DMG }}
+          retention-days: 7
+
+      - name: Upload artifact (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ease-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.name }}
+          path: |
+            ${{ steps.find-windows.outputs.MSI }}
+            ${{ steps.find-windows.outputs.EXE }}
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload artifact (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ease-Island_${{ steps.version.outputs.VERSION }}_${{ matrix.name }}
+          path: |
+            ${{ steps.find-linux.outputs.DEB }}
+            ${{ steps.find-linux.outputs.APPIMAGE }}
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ===== Background/Server Binary Build (musl static) =====
+  build-background:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          target: x86_64-unknown-linux-musl
+          workspaces: |
+            src-tauri-server -> src-tauri-server/target
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools musl-dev
+
+      - name: Build background binary
+        run: |
+          cd src-tauri-server
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            cargo build --bin cc-island-server --target x86_64-unknown-linux-musl
+          else
+            cargo build --release --bin cc-island-server --target x86_64-unknown-linux-musl
+          fi
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(cat src-tauri/Cargo.toml | grep '^version =' | sed 's/version = "\([^"]*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Prepare binary
+        run: |
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          BINARY_PATH="src-tauri-server/target/x86_64-unknown-linux-musl/$BUILD_TYPE/cc-island-server"
+          mkdir -p background-dist
+          cp "$BINARY_PATH" background-dist/Ease-Island-background-x86_64-musl
+          chmod +x background-dist/Ease-Island-background-x86_64-musl
+          cd background-dist
+          tar -czvf Ease-Island-background-x86_64-musl-${{ steps.version.outputs.VERSION }}.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ease-Island-background_x86_64-musl_${{ steps.version.outputs.VERSION }}
+          path: background-dist/*.tar.gz
+          retention-days: 7
+
+  # ===== Summary =====
+  build-summary:
+    needs: [build-desktop, build-background]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List all artifacts
+        run: |
+          echo "=== Build Summary ==="
+          echo ""
+          ls -laR artifacts/
+          echo ""
+          echo "Build completed successfully!"
+          if [ "${{ needs.build-desktop.result }}" = "failure" ]; then
+            echo "::warning::Desktop build failed for some platforms"
+          fi
+          if [ "${{ needs.build-background.result }}" = "failure" ]; then
+            echo "::warning::Background build failed"
+          fi

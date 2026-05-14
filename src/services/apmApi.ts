@@ -120,6 +120,74 @@ export const apmApi = {
     return this.query(sql);
   },
 
+  // Get session-specific metrics
+  async getSessionMetrics(sessionId: string, rangeHours: number = 24): Promise<{
+    totalCost: number;
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    requestCount: number;
+    model: string;
+  }> {
+    const rangeMinutes = rangeHours * 60;
+
+    const data = await this.query(`
+      SELECT
+        SUM(cost_usd) as total_cost,
+        SUM(input_tokens) as input_tokens,
+        SUM(output_tokens) as output_tokens,
+        COUNT(*) as request_count,
+        model
+      FROM tma1_messages
+      WHERE session_id = '${sessionId}'
+        AND ts > NOW() - INTERVAL '${rangeMinutes} minutes'
+      GROUP BY model
+      ORDER BY total_cost DESC
+      LIMIT 1
+    `);
+
+    const row = data[0];
+    return {
+      totalCost: Number(row?.total_cost) || 0,
+      totalTokens: Number(row?.input_tokens || 0) + Number(row?.output_tokens || 0),
+      inputTokens: Number(row?.input_tokens) || 0,
+      outputTokens: Number(row?.output_tokens) || 0,
+      requestCount: Number(row?.request_count) || 0,
+      model: String(row?.model || 'unknown'),
+    };
+  },
+
+  // Get session token usage timeline
+  async getSessionTokenTimeline(sessionId: string, rangeMinutes: number = 60): Promise<MetricRow[]> {
+    const sql = `
+      SELECT ts, model,
+        SUM(input_tokens) as input_tokens,
+        SUM(output_tokens) as output_tokens,
+        SUM(cost_usd) as cost_usd
+      FROM tma1_messages
+      WHERE session_id = '${sessionId}'
+        AND ts > NOW() - INTERVAL '${rangeMinutes} minutes'
+      GROUP BY ts, model
+      ORDER BY ts DESC
+      LIMIT 100
+    `;
+    return this.query(sql);
+  },
+
+  // Get session cost timeline
+  async getSessionCostTimeline(sessionId: string, rangeMinutes: number = 60): Promise<MetricRow[]> {
+    const sql = `
+      SELECT ts, SUM(cost_usd) as cost_usd
+      FROM tma1_messages
+      WHERE session_id = '${sessionId}'
+        AND ts > NOW() - INTERVAL '${rangeMinutes} minutes'
+      GROUP BY ts
+      ORDER BY ts DESC
+      LIMIT 100
+    `;
+    return this.query(sql);
+  },
+
   // Get summary metrics (KPI cards)
   async getSummary(rangeHours: number = 24): Promise<{
     totalCost: number;

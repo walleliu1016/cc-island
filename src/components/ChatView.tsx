@@ -416,9 +416,10 @@ interface ChatViewProps {
   sessionId: string;
   projectName: string;
   onClose?: () => void;
+  onViewApm?: (sessionId: string) => void;
 }
 
-export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
+export function ChatView({ sessionId, projectName, onClose, onViewApm }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingPopup, setPendingPopup] = useState<PopupItem | null>(null);
@@ -576,6 +577,19 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         <span className="ml-2 text-sm font-medium text-white/80 truncate">
           {projectName}
         </span>
+        {/* APM button */}
+        {onViewApm && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewApm(sessionId);
+            }}
+            className="ml-auto text-white/40 hover:text-white/70 transition-colors p-1 text-xs"
+            title="查看 APM 数据"
+          >
+            📊
+          </button>
+        )}
       </div>
 
       {/* Messages Area */}
