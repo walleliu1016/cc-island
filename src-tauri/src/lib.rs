@@ -559,6 +559,59 @@ fn generate_device_qrcode(server_url: String) -> Result<String, String> {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+async fn apply_otel_config(otel_enabled: bool, otel_endpoint: String) -> Result<(), String> {
+    use std::fs;
+
+    // Get Claude settings path
+    let claude_dir = dirs::home_dir()
+        .map(|h| h.join(".claude"))
+        .ok_or("Cannot find home directory")?;
+
+    let settings_path = claude_dir.join("settings.json");
+
+    // Read existing settings or create new
+    let mut settings: serde_json::Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| e.to_string())?;
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // Update env section
+    if otel_enabled {
+        settings["env"] = serde_json::json!({
+            "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+            "OTEL_METRICS_EXPORTER": "otlp",
+            "OTEL_LOGS_EXPORTER": "otlp",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": otel_endpoint,
+        });
+    } else {
+        // Remove OTel env if disabled
+        if let Some(env) = settings.get_mut("env") {
+            if let Some(env_obj) = env.as_object_mut() {
+                env_obj.remove("CLAUDE_CODE_ENABLE_TELEMETRY");
+                env_obj.remove("OTEL_METRICS_EXPORTER");
+                env_obj.remove("OTEL_LOGS_EXPORTER");
+                env_obj.remove("OTEL_EXPORTER_OTLP_PROTOCOL");
+                env_obj.remove("OTEL_EXPORTER_OTLP_ENDPOINT");
+            }
+        }
+    }
+
+    // Write back
+    let content = serde_json::to_string_pretty(&settings)
+        .map_err(|e| e.to_string())?;
+    fs::write(&settings_path, content)
+        .map_err(|e| e.to_string())?;
+
+    tracing::info!("OTel config applied: enabled={}, endpoint={}", otel_enabled, otel_endpoint);
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
     if settings.cloud_mode {
@@ -843,7 +896,8 @@ pub fn run() {
                 get_product_name,
                 get_device_token,
                 get_cloud_connection_status,
-                generate_device_qrcode
+                generate_device_qrcode,
+                apply_otel_config
             ])
             .setup(|app| {
                 // Ensure device_name has value (use hostname if empty)
