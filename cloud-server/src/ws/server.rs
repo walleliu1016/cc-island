@@ -43,10 +43,15 @@ pub async fn run_server(
                         // Set TCP keepalive to detect zombie connections
                         // 60 seconds idle, then probe every 10 seconds, 3 probes before close
                         let sock_ref = SockRef::from(&stream);
+                        #[cfg(unix)]
                         let keepalive = TcpKeepalive::new()
                             .with_time(Duration::from_secs(60))
                             .with_interval(Duration::from_secs(10))
                             .with_retries(3);
+                        #[cfg(windows)]
+                        let keepalive = TcpKeepalive::new()
+                            .with_time(Duration::from_secs(60))
+                            .with_interval(Duration::from_secs(10));
                         if let Err(e) = sock_ref.set_tcp_keepalive(&keepalive) {
                             tracing::warn!("Failed to set TCP keepalive for {}: {}", addr, e);
                         }
