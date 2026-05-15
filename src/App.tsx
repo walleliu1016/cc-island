@@ -20,6 +20,8 @@ const EXPANDED_WIDTH = 480;
 const EXPANDED_HEIGHT = 400;
 const MODAL_WIDTH = 480;
 const MODAL_HEIGHT = 400;
+const APM_WIDTH = 800;
+const APM_HEIGHT = 600;
 
 // Animation parameters - matching Claude Island spring animation
 // open: spring(response: 0.42, dampingFraction: 0.8)
@@ -227,12 +229,22 @@ function App() {
     : null;
 
   // Calculate target dimensions
-  const targetWidth = showExpanded || showChatView || showApmContent ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
-  const targetHeight = showExpanded || showChatView || showApmContent ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  const targetWidth = showApmContent ? APM_WIDTH : (showExpanded || showChatView ? EXPANDED_WIDTH : COLLAPSED_WIDTH);
+  const targetHeight = showApmContent ? APM_HEIGHT : (showExpanded || showChatView ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
 
   // Resize window when state changes
   useEffect(() => {
     const resizeWindow = async () => {
+      // ApmView mode - independent larger window
+      if (showApmForSession) {
+        try {
+          await invoke('resize_window', { width: APM_WIDTH, height: APM_HEIGHT });
+        } catch (e) {
+          console.error('Failed to resize window:', e);
+        }
+        return;
+      }
+
       if (showSettings || showHooksSetup) {
         try {
           await invoke('resize_window', { width: MODAL_WIDTH, height: MODAL_HEIGHT });
@@ -242,8 +254,8 @@ function App() {
         return;
       }
 
-      // ChatView or ApmView mode - larger window
-      if (selectedSessionId || showApmForSession) {
+      // ChatView mode - larger window
+      if (selectedSessionId) {
         try {
           await invoke('resize_window', { width: EXPANDED_WIDTH, height: EXPANDED_HEIGHT });
         } catch (e) {
@@ -528,14 +540,14 @@ function App() {
           {showApmContent && (
             <motion.div
               initial={{ opacity: 0, maxHeight: 0 }}
-              animate={{ opacity: 1, maxHeight: EXPANDED_HEIGHT - COLLAPSED_HEIGHT }}
+              animate={{ opacity: 1, maxHeight: APM_HEIGHT - COLLAPSED_HEIGHT }}
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
               className="px-2 pb-3 overflow-hidden w-full rounded-b-xl"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <div className="h-[360px] overflow-hidden w-full rounded-b-xl">
+              <div className="h-[562px] overflow-hidden w-full rounded-b-xl">
                 <ApmView
                   sessionId={showApmForSession!}
                   onClose={() => {
