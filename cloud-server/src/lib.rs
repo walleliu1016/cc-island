@@ -1,5 +1,6 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
+pub mod apm;
 pub mod config;
 pub mod db;
 pub mod messages;

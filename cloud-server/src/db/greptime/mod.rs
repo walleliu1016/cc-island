@@ -4,5 +4,5 @@
 pub mod client;
 pub mod schema;
 
-pub use client::GreptimeClient;
+pub use client::{GreptimeClient, Value, QueryResult, OutputBlock, Records, Schema, ColumnSchema};
 pub use schema::SCHEMA;
