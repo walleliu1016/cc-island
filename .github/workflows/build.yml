@@ -91,7 +91,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
+
+      - name: Verify Rust installation
+        run: |
+          rustc --version
+          cargo --version
+          rustup target list --installed
+          echo "CARGO_HOME=${HOME}/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache Rust
         uses: swatinem/rust-cache@v2
@@ -108,13 +116,16 @@ jobs:
         run: pnpm install
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ''
-          releaseName: ''
-          args: --target ${{ matrix.target }} ${{ inputs.build_type == 'debug' && '--debug' || '' }}
+        run: |
+          BUILD_TYPE="${{ inputs.build_type || 'release' }}"
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            pnpm tauri build --target ${{ matrix.target }} --debug
+          else
+            pnpm tauri build --target ${{ matrix.target }}
+          fi
+        shell: bash
 
       - name: Get version
         id: version
