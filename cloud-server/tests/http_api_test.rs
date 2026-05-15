@@ -2,6 +2,8 @@
 
 use cc_island_cloud::http::{SessionInfoResponse, create_http_router};
 use cc_island_cloud::db::repository::Repository;
+use cc_island_cloud::db::greptime::GreptimeClient;
+use cc_island_cloud::apm::query::QueryApi;
 use cc_island_cloud::ws::router::ConnectionRouter;
 
 fn s(s: &str) -> String { s.to_string() }
@@ -10,9 +12,11 @@ fn s(s: &str) -> String { s.to_string() }
 async fn test_create_http_router(pool: sqlx::PgPool) {
     let repo = Repository::new(pool.clone());
     let router = ConnectionRouter::new();
+    let greptime_client = GreptimeClient::new(None, None, None);
+    let query_api = QueryApi::new(greptime_client);
 
     // Verify router creation works
-    let _app = create_http_router(repo, router);
+    let _app = create_http_router(repo, router, query_api);
 }
 
 #[test]
