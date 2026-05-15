@@ -9,6 +9,7 @@ use tokio::time::{timeout, Duration};
 use crate::messages::CloudMessage;
 use crate::db::pending_message::PendingMessageRepo;
 use crate::db::repository::Repository;
+use crate::apm::handler::ApmHandler;
 use super::router::{ConnectionRouter, ConnectionType};
 use super::handler::MessageHandler;
 
@@ -23,6 +24,7 @@ pub async fn handle_connection(
     router: ConnectionRouter,
     repo: Repository,
     pending_repo: PendingMessageRepo,
+    apm_handler: Option<ApmHandler>,
 ) {
     // Accept WebSocket connection
     let ws_result = accept_async(stream).await;
@@ -136,7 +138,7 @@ pub async fn handle_connection(
             }
 
             // Create message handler
-            let handler = MessageHandler::new(router.clone(), repo.clone(), pending_repo.clone(), mobile_conn_id);
+            let handler = MessageHandler::new(router.clone(), repo.clone(), pending_repo.clone(), mobile_conn_id, apm_handler);
 
             // Spawn send task (forward outgoing messages to WebSocket)
             let send_task = async {

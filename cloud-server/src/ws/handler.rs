@@ -5,6 +5,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use crate::messages::CloudMessage;
 use crate::db::repository::Repository;
 use crate::db::pending_message::{PendingMessageRepo, Direction, NotifyPayload};
+use crate::apm::handler::ApmHandler;
 use super::router::ConnectionRouter;
 use uuid::Uuid;
 
@@ -14,11 +15,18 @@ pub struct MessageHandler {
     repo: Repository,
     pending_repo: PendingMessageRepo,
     mobile_conn_id: Option<uuid::Uuid>,
+    apm_handler: Option<ApmHandler>,
 }
 
 impl MessageHandler {
-    pub fn new(router: ConnectionRouter, repo: Repository, pending_repo: PendingMessageRepo, mobile_conn_id: Option<Uuid>) -> Self {
-        Self { router, repo, pending_repo, mobile_conn_id }
+    pub fn new(
+        router: ConnectionRouter,
+        repo: Repository,
+        pending_repo: PendingMessageRepo,
+        mobile_conn_id: Option<Uuid>,
+        apm_handler: Option<ApmHandler>,
+    ) -> Self {
+        Self { router, repo, pending_repo, mobile_conn_id, apm_handler }
     }
 
     /// Handle an incoming message from a client
@@ -416,6 +424,15 @@ impl MessageHandler {
                 };
                 let message_body = serde_json::to_value(&hook_msg).unwrap();
                 self.send_to_mobiles_via_notify(&device_token, "hook_message", message_body).await;
+
+                // Write to APM (GreptimeDB) asynchronously
+                if let Some(apm) = self.apm_handler.clone() {
+                    let tenant_id = device_token.clone();
+                    let msg_clone = hook_msg.clone();
+                    tokio::spawn(async move {
+                        apm.write_hook_event(&msg_clone, &tenant_id).await;
+                    });
+                }
             }
 
             // Desktop -> Cloud: Chat history sync

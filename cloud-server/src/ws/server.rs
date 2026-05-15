@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use socket2::{SockRef, TcpKeepalive};
 use crate::db::repository::Repository;
 use crate::db::pending_message::PendingMessageRepo;
+use crate::apm::handler::ApmHandler;
 use super::router::ConnectionRouter;
 use super::connection::handle_connection;
 
@@ -16,6 +17,7 @@ use super::connection::handle_connection;
 /// * `router` - Connection router for message routing
 /// * `repo` - Database repository for persistence
 /// * `pending_repo` - Repository for pending messages (cross-instance messaging)
+/// * `apm_handler` - Optional APM handler for hook event recording
 /// * `shutdown` - Token to signal graceful shutdown
 ///
 /// The server will gracefully stop when `shutdown` is cancelled,
@@ -25,6 +27,7 @@ pub async fn run_server(
     router: ConnectionRouter,
     repo: Repository,
     pending_repo: PendingMessageRepo,
+    apm_handler: Option<ApmHandler>,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", port);
@@ -60,10 +63,11 @@ pub async fn run_server(
                         let router_clone = router.clone();
                         let repo_clone = repo.clone();
                         let pending_repo_clone = pending_repo.clone();
+                        let apm_handler_clone = apm_handler.clone();
 
                         // Spawn a new task for each connection
                         tokio::spawn(async move {
-                            handle_connection(stream, router_clone, repo_clone, pending_repo_clone).await;
+                            handle_connection(stream, router_clone, repo_clone, pending_repo_clone, apm_handler_clone).await;
                         });
                     },
                     Err(e) => {

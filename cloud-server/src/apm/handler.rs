@@ -11,6 +11,14 @@ pub struct ApmHandler {
     client: Arc<RwLock<GreptimeClient>>,
 }
 
+impl Clone for ApmHandler {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+        }
+    }
+}
+
 impl ApmHandler {
     pub fn new(client: GreptimeClient) -> Self {
         Self {

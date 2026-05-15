@@ -16,6 +16,7 @@ use db::greptime::{GreptimeClient, init_schema};
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
 use ws::notify_listener::NotifyListener;
+use apm::handler::ApmHandler;
 use apm::query::QueryApi;
 
 /// Initialize logging with file output.
@@ -79,8 +80,12 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("Schema init failed (may already exist): {}", e);
     }
 
-    let query_api = QueryApi::new(greptime_client);
+    let query_api = QueryApi::new(greptime_client.clone());
     tracing::info!("GreptimeDB client initialized for APM queries");
+
+    // Initialize ApmHandler for hook event recording
+    let apm_handler = ApmHandler::new(greptime_client);
+    tracing::info!("ApmHandler initialized for hook event recording");
 
     // Create shutdown token
     let shutdown = CancellationToken::new();
@@ -153,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Run WebSocket server
-    run_server(config.ws_port, router, repo, pending_repo, shutdown).await?;
+    run_server(config.ws_port, router, repo, pending_repo, Some(apm_handler), shutdown).await?;
 
     tracing::info!("Server shutdown complete");
     Ok(())
