@@ -31,9 +31,7 @@ pnpm exec tsc --noEmit
 |------|------|------|
 | Desktop HTTP Server | 17527 | Claude Code hooks接收端口 |
 | Cloud Server WebSocket | 17528 | Desktop/Mobile连接端口 |
-| Cloud Server HTTP API | 17529 | 状态查询API端口 |
-| APM Server HTTP | 17530 | APM 数据接收和查询端口 |
-| APM Server OTLP | 17531 | OTLP 协议接收端口 |
+| Cloud Server HTTP API | 17529 | 状态查询API + APM Query API + OTLP接收 |
 | Desktop Vite (dev) | 1420 | Tauri dev前端热更新 |
 | **Mobile H5 Vite** | **3001** | Mobile开发服务器（固定） |
 
@@ -299,70 +297,60 @@ cargo build --release --bin cc-island-server --target x86_64-unknown-linux-musl
 - build.rs 使用 `#[cfg(feature = "desktop")]` 条件编译
 - Desktop 模式保持 flag 模式（不改动）
 
-## APM Server
+## Cloud Server APM (内置)
 
-APM Server 是独立的 Rust 服务，接收 Desktop 发送的使用数据并存储到 GreptimeDB。
+Cloud Server 内置 APM 功能，接收 Hook 数据并写入 GreptimeDB。
 
 **架构**：
 ```
-Desktop APM Collector → HTTP POST → APM Server (17530) → GreptimeDB (4000)
+Desktop Hook → WebSocket → Cloud Server → GreptimeDB
+                            ↓
+                    Query API (/api/apm/query)
+                            ↓
+                      Frontend ApmView
 ```
 
 **关键文件**：
 
 | 文件 | 作用 |
 |------|------|
-| `apm-server/src/main.rs` | 服务入口，端口配置 |
-| `apm-server/src/config.rs` | 配置管理（GreptimeDB 地址、数据保留等） |
-| `apm-server/src/greptime/client.rs` | GreptimeDB HTTP SQL API 客户端 |
-| `apm-server/src/greptime/schema.rs` | 表结构 DDL（含租户字段） |
-| `apm-server/src/greptime/flows.rs` | Flow SQL 聚合定义 |
-| `apm-server/src/handler/hooks.rs` | POST /api/hooks 接收 Hook 数据 |
-| `apm-server/src/handler/query.rs` | GET /api/query SQL 查询代理（自动租户过滤） |
-| `apm-server/src/handler/sse.rs` | GET /api/stream SSE 实时推送 |
-| `apm-server/src/tenant.rs` | 租户管理（user_id + device_id 隔离） |
+| `cloud-server/src/db/greptime/client.rs` | GreptimeDB HTTP SQL API 客户端 |
+| `cloud-server/src/db/greptime/schema.rs` | 表结构 DDL（hook_events, messages） |
+| `cloud-server/src/apm/handler.rs` | Hook → GreptimeDB 异步写入 |
+| `cloud-server/src/apm/query.rs` | Query API（自动租户过滤） |
+| `cloud-server/src/apm/otlp.rs` | OTLP 接收端点（placeholder） |
 
 **环境变量配置**：
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `APM_BIND_HOST` | 监听地址 | `0.0.0.0` |
-| `APM_HTTP_PORT` | HTTP 端口 | `17530` |
-| `APM_GREPTIMEDB_HOST` | GreptimeDB 地址 | `localhost` |
-| `APM_GREPTIMEDB_DATABASE` | 数据库名 | `public` |
-| `APM_RETENTION_DAYS` | 数据保留天数 | `30` |
-| `APM_OTLP_EXPORT_URL` | OTLP 导出地址（可选） | - |
+| `GREPTIMEDB_HOST` | GreptimeDB 地址 | `localhost` |
+| `GREPTIMEDB_PORT` | GreptimeDB 端口 | `4000` |
+| `GREPTIMEDB_DATABASE` | 数据库名 | `public` |
+
+**API 端点**：
+- `GET /api/apm/query?sql=<SQL>` - 查询 GreptimeDB，自动注入 tenant_id 过滤
+- `POST /v1/otlp` - OTLP 数据接收（placeholder）
 
 **租户隔离**：
-- 所有表包含 `user_id` 和 `device_id` 字段
-- `user_id` 默认为 hostname，可在 Desktop Settings 配置
-- `device_id` 自动生成，与 `device_token` 一致
-- 查询时自动注入租户过滤条件
-
-**启动命令**：
-```bash
-# 编译
-cd apm-server
-cargo build --release
-
-# 启动（需先部署 GreptimeDB）
-APM_GREPTIMEDB_HOST=localhost ./apm-server
-```
+- tenant_id 使用 WebSocket 连接的 device_token
+- 查询时自动注入 tenant_id 过滤条件
 
 ## APM Desktop 配置
 
-Desktop Settings 新增 "APM" Tab：
+Desktop Settings 新增 "监控(Observability)" Tab：
 
 **配置项**：
 | 配置 | 说明 |
 |------|------|
-| `apm_enabled` | 启用 APM 监控 |
-| `apm_server_url` | APM Server 地址（如 `http://localhost:17530`） |
-| `apm_user_id` | 用户标识（默认 hostname，可自定义） |
+| `otel_enabled` | 启用 OpenTelemetry |
+| `otel_endpoint` | OTLP Endpoint（如 `http://localhost:17529/v1/otlp`） |
 
-**配置文件位置**：`~/.cc-island/settings.json`
+**配置文件位置**：`~/.claude/settings.json`（Claude Code 配置）
 
-**Background 模式**：
-- APM Collector 在 `AppState::new()` 中初始化
-- Background 模式自动包含 APM 收集功能
-- 无需 UI 窗口，数据发送到 APM Server 后通过 Grafana 查看
+**OTel 环境变量**（应用到 Claude settings.json）：
+- `CLAUDE_CODE_ENABLE_TELEMETRY=1`
+- `OTEL_METRICS_EXPORTER=otlp`
+- `OTEL_LOGS_EXPORTER=otlp`
+- `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`
+- `OTEL_EXPORTER_OTLP_ENDPOINT=<endpoint>`
