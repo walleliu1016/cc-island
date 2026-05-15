@@ -42,7 +42,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'hooks' | 'general' | 'remote' | 'apm'>('hooks');
+  const [activeTab, setActiveTab] = useState<'hooks' | 'general' | 'remote' | 'apm' | 'observability'>('hooks');
   const [hooksResult, setHooksResult] = useState<HooksCheckResult | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -262,6 +262,16 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           }`}
         >
           APM
+        </button>
+        <button
+          onClick={() => setActiveTab('observability')}
+          className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            activeTab === 'observability'
+              ? 'text-white border-b-2 border-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          监控
         </button>
       </div>
 
@@ -612,7 +622,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 </div>
               )}
             </motion.div>
-          ) : (
+          ) : activeTab === 'apm' ? (
             <motion.div
               key="apm"
               initial={{ opacity: 0, x: 10 }}
@@ -664,6 +674,71 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   <div className="text-white/40 text-xs">
                     配置 APM Server 地址后，将收集 Claude Code 使用数据并发送到 APM Server
                   </div>
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="observability"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-3"
+            >
+              {/* OpenTelemetry */}
+              <div className="text-white/80 text-sm mb-2">OpenTelemetry 监控</div>
+
+              <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={settings.otel_enabled || false}
+                  onChange={e => setSettings({ ...settings, otel_enabled: e.target.checked })}
+                  className="w-4 h-4 rounded accent-white"
+                />
+                <div className="flex-1">
+                  <span className="text-white/80 text-sm">启用 OpenTelemetry</span>
+                  <span className="text-white/40 text-xs ml-2">(导出 traces/metrics/logs)</span>
+                </div>
+              </label>
+
+              {settings.otel_enabled && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="text-white/60 text-xs block mb-1">OTel Endpoint</label>
+                    <input
+                      type="text"
+                      placeholder="http://localhost:17529/v1/otlp"
+                      value={settings.otel_endpoint || ''}
+                      onChange={e => setSettings({ ...settings, otel_endpoint: e.target.value || null })}
+                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                    />
+                  </div>
+
+                  <div className="text-white/40 text-xs">
+                    Claude Code 将导出 telemetry 数据到此地址。需要重启 Claude Code 生效。
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        await invoke('apply_otel_config', {
+                          otelEnabled: settings.otel_enabled,
+                          otelEndpoint: settings.otel_endpoint,
+                        });
+                        setMessage({ text: '已应用到 Claude Settings', type: 'success' });
+                        setTimeout(() => setMessage(null), 2000);
+                      } catch (e) {
+                        setMessage({ text: `应用失败: ${e}`, type: 'error' });
+                      }
+                      setSaving(false);
+                    }}
+                    disabled={saving}
+                    className="w-full py-2 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-xs font-medium"
+                  >
+                    {saving ? '应用中...' : '应用到 Claude Settings'}
+                  </button>
                 </div>
               )}
             </motion.div>
