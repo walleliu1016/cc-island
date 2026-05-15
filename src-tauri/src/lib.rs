@@ -11,7 +11,6 @@ pub mod machine_id;
 pub mod cloud_client;
 pub mod conversation_parser;
 pub mod jsonl_watcher;
-pub mod apm;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -89,19 +88,11 @@ pub struct AppState {
     pub cloud_connection_status: CloudConnectionStatus,
     pub cloud_stop_signal: Option<tokio::sync::watch::Sender<bool>>,  // Stop signal for reconnect loop
     pub jsonl_watcher: Option<JsonlWatcherHandle>,  // JSONL file watcher
-    pub apm_collector: Option<Arc<apm::ApmCollector>>,  // APM data collector
 }
 
 impl AppState {
     pub fn new() -> Self {
         let settings = config::load_settings();
-
-        // Initialize APM collector if enabled
-        let apm_collector = if settings.apm_enabled {
-            Some(apm::ApmCollector::new(&settings))
-        } else {
-            None
-        };
 
         Self {
             instances: InstanceManager::new(),
@@ -115,7 +106,6 @@ impl AppState {
             cloud_connection_status: CloudConnectionStatus::Disconnected,
             cloud_stop_signal: None,
             jsonl_watcher: None,
-            apm_collector,
         }
     }
 
@@ -638,16 +628,6 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
         )
     };
 
-    // Get old APM config to check if restart needed
-    let old_apm_config = {
-        let state = SHARED_STATE.read();
-        (
-            state.settings.apm_enabled,
-            state.settings.apm_server_url.clone(),
-            state.settings.apm_user_id.clone(),
-        )
-    };
-
     // Save to file
     config::save_settings(&settings)?;
     tracing::info!("Settings saved to file");
@@ -678,32 +658,6 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
         // Cloud mode disabled - stop connection
         stop_cloud_client();
         tracing::info!("Cloud mode disabled");
-    }
-
-    // Check if APM config changed - reinit collector if needed
-    let apm_changed = old_apm_config.0 != settings.apm_enabled
-        || old_apm_config.1 != settings.apm_server_url
-        || old_apm_config.2 != settings.apm_user_id;
-
-    if apm_changed {
-        // Reinitialize APM collector
-        let new_collector = if settings.apm_enabled && settings.apm_server_url.is_some() {
-            Some(apm::ApmCollector::new(&settings))
-        } else {
-            None
-        };
-
-        // Update state with new collector
-        {
-            let mut state = SHARED_STATE.write();
-            state.apm_collector = new_collector;
-        }
-
-        tracing::info!(
-            "APM collector reinitialized: enabled={}, url={}",
-            settings.apm_enabled,
-            settings.apm_server_url.as_ref().map(|s| s.as_str()).unwrap_or("none")
-        );
     }
 
     Ok(())
@@ -1063,25 +1017,6 @@ fn run_background_logic() {
                 }
             } else {
                 tracing::info!("Cloud mode disabled");
-            }
-        }
-
-        // Initialize APM collector (if configured)
-        {
-            let state = SHARED_STATE.read();
-            if state.settings.apm_enabled {
-                if state.settings.apm_server_url.is_some() {
-                    tracing::info!(
-                        "APM enabled, collecting data to {}",
-                        state.settings.apm_server_url.as_ref().unwrap()
-                    );
-                    // APM collector is already initialized in AppState::new()
-                    // Just log the status here
-                } else {
-                    tracing::warn!("APM enabled but no server URL configured");
-                }
-            } else {
-                tracing::info!("APM disabled");
             }
         }
 
