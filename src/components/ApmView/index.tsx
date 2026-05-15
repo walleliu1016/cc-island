@@ -1,174 +1,85 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import 'uplot/dist/uPlot.min.css';
-import { apmApi } from '../../services/apmApi';
-import MetricsCard from './MetricsCard';
-import TokenChart from './TokenChart';
-import CostChart from './CostChart';
-import SessionList from './SessionList';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import TraceTab from './TraceTab';
+import InsightsTab from './InsightsTab';
 
 interface ApmViewProps {
   onClose?: () => void;
-  sessionId?: string;
+  sessionId: string;
 }
 
-interface MetricRow {
-  ts: number;
-  [key: string]: number | string | null;
-}
+type TabType = 'trace' | 'insights';
 
 export default function ApmView({ onClose, sessionId }: ApmViewProps) {
-  const [metrics, setMetrics] = useState({
-    totalCost: 0,
-    totalTokens: 0,
-    requestCount: 0,
-    sessionCount: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    model: 'unknown',
-  });
-  const [tokenData, setTokenData] = useState<MetricRow[]>([]);
-  const [costData, setCostData] = useState<MetricRow[]>([]);
-  const [sessions, setSessions] = useState<MetricRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('trace');
   const [rangeHours, setRangeHours] = useState(24);
 
-  useEffect(() => {
-    loadMetrics();
-  }, [rangeHours, sessionId]);
-
-  const loadMetrics = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (sessionId) {
-        // Session-specific mode
-        const [sessionMetrics, tokens, costs] = await Promise.all([
-          apmApi.getSessionMetrics(sessionId, rangeHours),
-          apmApi.getSessionTokenTimeline(sessionId, rangeHours * 60),
-          apmApi.getSessionCostTimeline(sessionId, rangeHours * 60),
-        ]);
-        setMetrics({
-          totalCost: sessionMetrics.totalCost,
-          totalTokens: sessionMetrics.totalTokens,
-          requestCount: sessionMetrics.requestCount,
-          sessionCount: 1,
-          inputTokens: sessionMetrics.inputTokens,
-          outputTokens: sessionMetrics.outputTokens,
-          model: sessionMetrics.model,
-        });
-        setTokenData(tokens);
-        setCostData(costs);
-        setSessions([]);
-      } else {
-        // Global mode (all sessions)
-        const [summary, tokens, costs, sess] = await Promise.all([
-          apmApi.getSummary(rangeHours),
-          apmApi.getTokenUsage(rangeHours * 60),
-          apmApi.getCostMetrics(rangeHours * 60),
-          apmApi.getSessionList(),
-        ]);
-        setMetrics({
-          totalCost: summary.totalCost,
-          totalTokens: summary.totalTokens,
-          requestCount: summary.requestCount,
-          sessionCount: summary.sessionCount,
-          inputTokens: 0,
-          outputTokens: 0,
-          model: 'all',
-        });
-        setTokenData(tokens);
-        setCostData(costs);
-        setSessions(sess);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const refresh = () => {
-    loadMetrics();
-  };
-
   return (
-    <div className="flex flex-col h-full px-2 pb-3">
-      {/* Header with back button */}
-      <div className="flex items-center justify-between mb-2">
+    <div className="flex flex-col h-full bg-black/90 rounded-xl">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <button
           onClick={onClose}
-          className="text-white/50 hover:text-white/80 text-xs flex items-center gap-1"
+          className="text-white/50 hover:text-white/80 text-sm flex items-center gap-1"
         >
           ← 返回
         </button>
-        <div className="flex items-center gap-2">
-          <select
-            value={rangeHours}
-            onChange={(e) => setRangeHours(Number(e.target.value))}
-            className="bg-slate-800 text-slate-200 rounded px-2 py-1 text-xs"
-          >
-            <option value={1}>1小时</option>
-            <option value={6}>6小时</option>
-            <option value={12}>12小时</option>
-            <option value={24}>24小时</option>
-            <option value={72}>3天</option>
-          </select>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50"
-          >
-            {loading ? '加载中...' : '刷新'}
-          </button>
-        </div>
+        <span className="text-white/70 text-sm font-medium">
+          Session: {sessionId.slice(0, 8)}...
+        </span>
+        <select
+          value={rangeHours}
+          onChange={(e) => setRangeHours(Number(e.target.value))}
+          className="bg-slate-800 text-white rounded px-2 py-1 text-xs"
+        >
+          <option value={1}>1h</option>
+          <option value={6}>6h</option>
+          <option value={24}>24h</option>
+          <option value={168}>7d</option>
+        </select>
       </div>
 
-      {/* Error */}
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-red-400 text-xs mb-2"
-          >
-            {error}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
-        <MetricsCard label="成本" value={`$${metrics.totalCost.toFixed(4)}`} />
-        <MetricsCard
-          label="Token"
-          value={`${metrics.inputTokens.toLocaleString()}→${metrics.outputTokens.toLocaleString()}`}
-        />
-        <MetricsCard label="请求" value={metrics.requestCount.toLocaleString()} />
-        {sessionId ? (
-          <MetricsCard label="模型" value={metrics.model.slice(0, 12)} />
-        ) : (
-          <MetricsCard label="Session" value={metrics.sessionCount.toLocaleString()} />
-        )}
+      {/* Tab Bar */}
+      <div className="flex gap-4 px-4 py-2 border-b border-white/10">
+        <button
+          onClick={() => setActiveTab('trace')}
+          className={`text-sm px-3 py-1 rounded ${
+            activeTab === 'trace'
+              ? 'bg-white/20 text-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          Trace 视图
+        </button>
+        <button
+          onClick={() => setActiveTab('insights')}
+          className={`text-sm px-3 py-1 rounded ${
+            activeTab === 'insights'
+              ? 'bg-white/20 text-white'
+              : 'text-white/50 hover:text-white/70'
+          }`}
+        >
+          Insights
+        </button>
       </div>
 
-      {/* Charts - hide session list in session mode */}
-      <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-        <div className="flex-1 min-h-0">
-          <TokenChart data={tokenData} loading={loading} />
-        </div>
-        <div className="flex-1 min-h-0">
-          <CostChart data={costData} loading={loading} />
-        </div>
-        {!sessionId && (
-          <div className="flex-1 min-h-0 overflow-auto">
-            <SessionList sessions={sessions} />
-          </div>
-        )}
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          {activeTab === 'trace' && (
+            <TraceTab sessionId={sessionId} rangeHours={rangeHours} />
+          )}
+          {activeTab === 'insights' && (
+            <InsightsTab sessionId={sessionId} rangeHours={rangeHours} />
+          )}
+        </motion.div>
       </div>
     </div>
   );
