@@ -67,6 +67,9 @@ pub struct AppSettings {
     pub apm_enabled: bool,             // enable APM monitoring
     pub apm_server_url: Option<String>, // e.g., "http://localhost:17530"
     pub apm_user_id: Option<String>,   // user identifier (default: hostname)
+    // OTel configuration (OpenTelemetry)
+    pub otel_enabled: bool,            // enable OpenTelemetry tracing
+    pub otel_endpoint: Option<String>,  // e.g., "http://localhost:4317"
 }
 
 impl Default for AppSettings {
@@ -94,6 +97,9 @@ impl Default for AppSettings {
             apm_enabled: false,
             apm_server_url: None,
             apm_user_id: None,
+            // OTel defaults
+            otel_enabled: false,
+            otel_endpoint: None,
         }
     }
 }
