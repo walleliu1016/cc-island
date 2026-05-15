@@ -5,15 +5,18 @@ mod messages;
 mod db;
 mod ws;
 mod http;
+mod apm;
 
 use tokio_util::sync::CancellationToken;
 use config::{Config, LogRotation};
 use db::pool::create_pool;
 use db::repository::Repository;
 use db::pending_message::PendingMessageRepo;
+use db::greptime::{GreptimeClient, init_schema};
 use ws::router::ConnectionRouter;
 use ws::server::run_server;
 use ws::notify_listener::NotifyListener;
+use apm::query::QueryApi;
 
 /// Initialize logging with file output.
 fn init_logging(config: &Config) {
@@ -64,11 +67,26 @@ async fn main() -> anyhow::Result<()> {
     let pending_repo = PendingMessageRepo::new(pool.clone());
     let router = ConnectionRouter::new();
 
+    // Initialize GreptimeDB client for APM query
+    let greptime_client = GreptimeClient::new(
+        std::env::var("GREPTIMEDB_HOST").ok(),
+        std::env::var("GREPTIMEDB_PORT").ok().and_then(|p| p.parse().ok()),
+        std::env::var("GREPTIMEDB_DATABASE").ok(),
+    );
+
+    // Initialize schema (optional, GreptimeDB can auto-create tables)
+    if let Err(e) = init_schema(&greptime_client).await {
+        tracing::warn!("Schema init failed (may already exist): {}", e);
+    }
+
+    let query_api = QueryApi::new(greptime_client);
+    tracing::info!("GreptimeDB client initialized for APM queries");
+
     // Create shutdown token
     let shutdown = CancellationToken::new();
 
     // Spawn HTTP server for API endpoints
-    let http_router = http::create_http_router(repo.clone(), router.clone());
+    let http_router = http::create_http_router(repo.clone(), router.clone(), query_api);
     let http_port = config.http_port;
     tokio::spawn(async move {
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", http_port)).await.unwrap();

@@ -8,15 +8,16 @@ use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct QueryParams {
-    sql: String,
+    pub sql: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct QueryResponse {
-    rows: Vec<Vec<serde_json::Value>>,
-    columns: Vec<String>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    pub columns: Vec<String>,
 }
 
+#[derive(Clone)]
 pub struct QueryApi {
     client: Arc<GreptimeClient>,
 }
