@@ -127,10 +127,6 @@ export interface AppSettings {
   cloud_server_url: string | null;
   device_name: string | null;
   show_thinking_messages: boolean;  // show thinking messages in ChatView
-  // APM settings
-  apm_enabled: boolean;
-  apm_server_url: string | null;
-  apm_user_id: string | null;
   // OpenTelemetry settings
   otel_enabled: boolean;
   otel_endpoint: string | null;

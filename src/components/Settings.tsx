@@ -254,16 +254,6 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           远程访问
         </button>
         <button
-          onClick={() => setActiveTab('apm')}
-          className={`flex-1 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'apm'
-              ? 'text-white border-b-2 border-white'
-              : 'text-white/50 hover:text-white/70'
-          }`}
-        >
-          APM
-        </button>
-        <button
           onClick={() => setActiveTab('observability')}
           className={`flex-1 py-2 text-xs font-medium transition-colors ${
             activeTab === 'observability'
@@ -622,62 +612,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 </div>
               )}
             </motion.div>
-          ) : activeTab === 'apm' ? (
-            <motion.div
-              key="apm"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.15 }}
-              className="space-y-3"
-            >
-              {/* APM Monitoring */}
-              <div className="text-white/80 text-sm mb-2">APM 性能监控</div>
-
-              <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-                <input
-                  type="checkbox"
-                  checked={settings.apm_enabled || false}
-                  onChange={e => setSettings({ ...settings, apm_enabled: e.target.checked })}
-                  className="w-4 h-4 rounded accent-white"
-                />
-                <div className="flex-1">
-                  <span className="text-white/80 text-sm">启用 APM 监控</span>
-                  <span className="text-white/40 text-xs ml-2">(收集使用数据)</span>
-                </div>
-              </label>
-
-              {settings.apm_enabled && (
-                <div className="mt-2 space-y-2">
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">APM Server 地址</label>
-                    <input
-                      type="text"
-                      placeholder="http://localhost:17530"
-                      value={settings.apm_server_url || ''}
-                      onChange={e => setSettings({ ...settings, apm_server_url: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">用户标识 (User ID)</label>
-                    <input
-                      type="text"
-                      placeholder="默认为主机名"
-                      value={settings.apm_user_id || ''}
-                      onChange={e => setSettings({ ...settings, apm_user_id: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
-                    />
-                  </div>
-
-                  <div className="text-white/40 text-xs">
-                    配置 APM Server 地址后，将收集 Claude Code 使用数据并发送到 APM Server
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          ) : (
+          ) : activeTab === 'observability' ? (
             <motion.div
               key="observability"
               initial={{ opacity: 0, x: 10 }}
@@ -742,7 +677,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                 </div>
               )}
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         {/* Message */}
