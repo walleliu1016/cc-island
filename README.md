@@ -70,7 +70,7 @@
 
 ## 架构概览
 
-### 三层架构（含 APM）
+### 两层架构（APM 内置到 Cloud Server）
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -78,45 +78,50 @@
 │                (Hooks via HTTP, JSONL files in ~/.claude/projects/)           │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
-                ┌───────────────────┼───────────────────┐
-                │                   │                   │
-                ▼                   ▼                   ▼
-┌───────────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐
-│   Desktop App         │  │  Cloud Server   │  │      APM Server             │
-│   (Tauri/Rust)        │  │ (Rust + Postgres)│  │   (Rust + GreptimeDB)       │
-│                       │  │                 │  │                             │
-│ ┌───────────────────┐ │  │ WebSocket:17528 │  │ HTTP API:17530              │
-│ │ HTTP Server:17527 │◄──►│ HTTP API:17529  │  │ OTLP:17531                  │
-│ │ (Hook 接收)       │ │  │                 │  │                             │
-│ └───────────────────┘ │  │ ┌─────────────┐ │  │ ┌─────────────────────────┐ │
-│                       │  │ │ Router +    │ │  │ │ GreptimeDB Writer       │ │
-│ ┌───────────────────┐ │  │ │ Local State │ │  │ │ OTLP Parser             │ │
-│ │ Cloud Client      │◄──►│ └─────────────┘ │  │ │ Flow Aggregator         │ │
-│ │ (WebSocket)       │ │  │                 │  │ │ SSE Broadcaster         │ │
-│ └───────────────────┘ │  │ ┌─────────────┐ │  │ │ Tenant Filter           │ │
-│                       │  │ │ PostgreSQL  │ │  │ └─────────────────────────┘ │
-│ ┌───────────────────┐ │  │ │ + NOTIFY    │ │  │                             │
-│ │ APM Collector     │◄──►│ └─────────────┘ │  │ ┌─────────────────────────┐ │
-│ │ (数据收集)        │ │  │                 │  │ │ GreptimeDB (External)    │ │
-│ └───────────────────┘ │  │                 │  │ │ Port 4000 (HTTP)         │ │
-│                       │  │                 │  │ │ Port 4001 (gRPC)         │ │
-│ ┌───────────────────┐ │  │                 │  │ └─────────────────────────┘ │
-│ │ JSONL Watcher     │ │  │                 │  │                             │
-│ │ (对话解析)        │ │  │                 │  │ ┌─────────────────────────┐ │
-│ └───────────────────┘ │  │                 │  │ │ Grafana (Optional)       │ │
-└                       │  │                 │  │ │ Dashboard Visualization  │ │
-└───────────────────────┘  └─────────────────┘  │ └─────────────────────────┘ │
-                                    │           └─────────────────────────────┘
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              Desktop App (Tauri/Rust)                          │
+│                                                                                │
+│  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐   │
+│  │ HTTP Server:17527   │  │ Cloud Client        │  │ JSONL Watcher       │   │
+│  │ (Hook 接收)         │  │ (WebSocket Relay)   │  │ (对话解析)          │   │
+│  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                    │ WebSocket (Hook + JSONL)
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              Cloud Server (Rust + Postgres)                    │
+│                                                                                │
+│  ┌─────────────────┐  ┌───────────────────────────────────────────────────┐  │
+│  │ WebSocket:17528 │  │ HTTP API:17529                                    │  │
+│  │                 │  │ /api/sessions, /api/apm/query, /v1/otlp            │  │
+│  └─────────────────┘  └───────────────────────────────────────────────────┘  │
+│                                                                                │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐   │
+│  │ Router +        │  │ PostgreSQL      │  │ APM Handler (内置)          │   │
+│  │ Local State     │  │ + NOTIFY        │  │ Hook → GreptimeDB Writer    │   │
+│  └─────────────────┘  └─────────────────┘  │ Query API (tenant filter)   │   │
+│                                             │ OTLP Receiver (placeholder) │   │
+│                                             └─────────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────────────┘
                                     │
-                            ┌───────┴───────┐
-                            │               │
-                     ┌──────┴──────┐ ┌──────┴──────┐
-                     │  Mobile 1   │ │  Mobile 2   │
-                     │  (React)    │ │  (React)    │
-                     └─────────────┘ └─────────────┘
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+             ┌──────┴──────┐ ┌──────┴──────┐ ┌──────┴──────┐
+             │  Mobile 1   │ │  Mobile 2   │ │  GreptimeDB │
+             │  (React)    │ │  (React)    │ │  (External) │
+             └─────────────┘ └─────────────┘ │  Port 4000  │
+                                             └─────────────┘
 ```
 
-### 原架构（Cloud Relay）
+### 数据流
+
+**Hook → Cloud → GreptimeDB：**
+```
+Desktop Hook → WebSocket → Cloud Server → APM Handler → GreptimeDB
+                                       ↓
+                              Query API → Frontend ApmView
+```
 
 ```
 ┌─────────────────┐                    ┌─────────────────────────────────────┐
@@ -392,73 +397,65 @@ cc-island-server run --cloud-mode --cloud-server-url ws://server:17528
 | `--ask-timeout <SECS>` | Ask 超时 | 120 |
 | `--auto-deny-on-timeout` | 超时自动拒绝 | true |
 | `--auto-allow-permissions` | 自动允许权限 | false |
-| `--apm-mode` | 启用 APM 监控 | false |
-| `--apm-server-url <URL>` | APM Server 地址 | - |
-| `--apm-user-id <ID>` | 用户标识 | hostname |
 
 ---
 
 ## APM 监控
 
-CC-Island 集成了 TMA1 的 APM（Application Performance Monitoring）功能，可收集 Claude Code 使用数据并进行可视化分析。
+CC-Island 内置 APM（Application Performance Monitoring）功能，Hook 数据通过 Cloud Server 写入 GreptimeDB，支持层级 Trace 可视化。
 
 ### 功能特性
 
-- **Token 统计** - 实时统计 input/output/cache token 使用量
-- **成本分析** - 按模型计算成本，支持成本聚合
-- **Session 管理** - 记录所有 session 的生命周期
-- **租户隔离** - 支持 user_id + device_id 双维度隔离
-- **可视化** - Desktop ApmView 或 Grafana Dashboard
+- **层级 Trace 视图** - 树形渲染 Agent 嵌套、Tool 调用、LLM API 调用链路
+- **Insights 面板** - API Calls、Files Heatmap、Context Window Breakdown、Agent Tree
+- **三通道数据优先级** - OTel (优先) → Hook Events (fallback) → JSONL (补充)
+- **租户隔离** - tenant_id 自动过滤，确保数据安全
+- **可视化** - Desktop ApmView (800x600px 独立窗口) 或 Grafana Dashboard
 
 ### 架构
 
 ```
-Desktop (APM Collector) → APM Server → GreptimeDB → Grafana
+Desktop Hook → WebSocket → Cloud Server (内置 APM Handler) → GreptimeDB
+                                       ↓
+                              Query API → Frontend ApmView
 ```
 
-### 配置方法
+### Cloud Server 配置
 
-**Desktop UI 配置**：
-1. Settings → APM Tab
-2. 启用 APM 监控
-3. 配置 APM Server 地址（如 `http://localhost:17530`）
-4. 配置用户标识（默认为 hostname，可自定义）
-
-**命令行配置**：
+环境变量：
 ```bash
-cc-island --apm-mode --apm-server-url http://localhost:17530 --apm-user-id my-user
+GREPTIMEDB_HOST=localhost     # GreptimeDB 地址 (默认 localhost)
+GREPTIMEDB_PORT=4000          # GreptimeDB 端口 (默认 4000)
+GREPTIMEDB_DATABASE=public    # 数据库名 (默认 public)
 ```
 
-### APM Server 部署
+### OpenTelemetry 配置（可选）
 
-```bash
-# 编译 APM Server
-cd apm-server
-cargo build --release
+在 Desktop Settings → 监控(Observability) Tab 配置：
+- 启用 OpenTelemetry
+- OTLP Endpoint: `http://localhost:17529/v1/otlp`
 
-# 启动 APM Server（需先部署 GreptimeDB）
-APM_GREPTIMEDB_HOST=localhost \
-APM_GREPTIMEDB_DATABASE=public \
-./apm-server
+点击"应用到 Claude Settings"会写入 Claude Code 的 `~/.claude/settings.json`：
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:17529/v1/otlp"
+  }
+}
 ```
 
-### 租户隔离
-
-所有数据表包含 `user_id` 和 `device_id` 字段：
-- `user_id` - 用户标识（默认 hostname，可配置）
-- `device_id` - 设备标识（自动生成，与 device_token 一致）
-
-查询时自动按租户过滤，确保数据安全。
+重启 Claude Code 后生效，OTel 数据将发送到 Cloud Server 的 `/v1/otlp` 端点。
 
 ### 数据表
 
 | 表名 | 说明 |
 |------|------|
-| `tma1_hook_events` | Hook 事件记录 |
-| `tma1_messages` | 对话消息记录（含 usage、cost） |
-| `tma1_session_registry` | Session 注册表 |
-| `tma1_token_usage_1m` | Token 使用聚合（1分钟 Flow） |
-| `tma1_cost_1m` | 成本聚合（1分钟 Flow） |
+| `hook_events` | Hook 事件记录（ts, tenant_id, session_id, event_type, tool_name 等） |
+| `messages` | 对话消息记录（含 usage、cost） |
 
 ### Mobile 配对
 
@@ -554,14 +551,19 @@ cargo build --release
 cc-island/
 ├── src/                    # React 前端（桌面）
 │   ├── components/         # UI 组件
-│   │   ├── ApmView/        # APM 监控视图
-│   │   │   ├── index.tsx   # 主容器
-│   │   │   ├── TokenChart.tsx  # Token 图表
-│   │   │   ├── CostChart.tsx   # 成本图表
-│   │   │   └── MetricsCard.tsx # KPI 卡片
+│   │   ├── ApmView/        # APM 监控视图 (800x600px 独立窗口)
+│   │   │   ├── index.tsx   # Tab 切换容器 (Trace/Insights)
+│   │   │   ├── TraceTab.tsx    # Trace 视图
+│   │   │   ├── TraceTree.tsx   # 层级树渲染
+│   │   │   ├── TraceNode.tsx   # 单节点组件
+│   │   │   ├── InsightsTab.tsx # Insights 面板
+│   │   │   └── ApiCalls.tsx    # API Calls 表格
 │   │   └── ...
+│   ├── hooks/              # React hooks
+│   │   ├── useTraceData.ts # Trace 数据查询
+│   │   └── useInsights.ts  # Insights 数据查询
 │   ├── services/           # API 服务
-│   │   └── apmApi.ts       # APM API 客户端
+│   │   └── apmApi.ts       # Cloud Server APM API 客户端
 │   ├── stores/             # Zustand 状态管理
 │   └── App.tsx             # 主应用
 │
@@ -570,29 +572,11 @@ cc-island/
 │       ├── lib.rs          # 主入口
 │       ├── http_server.rs  # HTTP API + Hook 处理
 │       ├── cloud_client.rs # WebSocket 云客户端
-│       ├── apm/            # APM 模块（新增）
-│       │   ├── mod.rs      # 模块导出
-│       │   ├── collector.rs # 数据收集器
-│       │   └── sender.rs   # HTTP 发送到 APM Server
 │       ├── instance_manager.rs
 │       ├── popup_queue.rs
 │       ├── chat_messages.rs
 │       ├── conversation_parser.rs
 │       └── platform/       # 平台特定实现
-│
-├── apm-server/             # APM Server（新增）
-│   └── src/
-│       ├── main.rs         # 服务入口
-│       ├── config.rs       # 配置管理
-│       ├── greptime/       # GreptimeDB 客户端
-│       │   ├── client.rs   # HTTP SQL API
-│       │   ├── schema.rs   # 表结构定义 + DDL
-│       │   └── flows.rs    # Flow SQL 定义
-│       ├── handler/        # API 处理器
-│       │   ├── hooks.rs    # Hook 接收
-│       │   ├── query.rs    # SQL 查询代理
-│       │   └── sse.rs      # SSE 实时推送
-│       └── tenant.rs       # 租户管理
 │
 ├── mobile-app/             # 手机端应用
 │   ├── src/
@@ -602,17 +586,24 @@ cc-island/
 │   ├── android/
 │   └── ios/
 │
-├── cloud-server/           # 云服务器
+├── cloud-server/           # 云服务器（内置 APM）
 │   └── src/
 │       ├── ws/             # WebSocket 处理
 │       │   ├── router.rs   # 连接路由 + 本地状态
-│       │   ├── handler.rs  # 消息处理 + NOTIFY 路径
+│       │   ├── handler.rs  # 消息处理 + APM 写入
 │       │   ├── notify_listener.rs  # LISTEN PostgreSQL NOTIFY
 │       │   └── server.rs   # WebSocket 服务器
 │       ├── db/             # 数据库操作
 │       │   ├── repository.rs        # CRUD 操作
 │       │   ├── pending_message.rs   # 跨实例消息存储
+│       │   ├── greptime/  # GreptimeDB 客户端（内置 APM）
+│       │   │   ├── client.rs    # HTTP SQL API
+│       │   │   └── schema.rs    # 表结构 DDL
 │       │   └── pool.rs     # 连接池 + 迁移
+│       ├── apm/            # APM 模块（内置）
+│       │   ├── handler.rs  # Hook → GreptimeDB Writer
+│       │   ├── query.rs    # Query API (tenant filter)
+│       │   └── otlp.rs     # OTLP 接收端点
 │       ├── cache/          # 内存缓存
 │       └── migrations/     # 数据库迁移
 │           └── 004_pending_messages.sql  # 跨实例消息表
