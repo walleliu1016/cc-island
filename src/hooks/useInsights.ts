@@ -31,8 +31,10 @@ export interface AgentInfo {
   children: AgentInfo[];
 }
 
-function getCloudServerUrl(): string {
-  return localStorage.getItem('cloud_server_url') || 'http://localhost:17529';
+function getApmApiUrl(): string {
+  // APM Query API uses HTTP, not WebSocket
+  // Default to localhost:17529 for local Cloud Server
+  return localStorage.getItem('apm_api_url') || 'http://localhost:17529';
 }
 
 function getUserId(): string {
@@ -63,7 +65,7 @@ export function useInsights(sessionId: string, rangeHours: number) {
     setError(null);
 
     try {
-      const baseUrl = getCloudServerUrl();
+      const baseUrl = getApmApiUrl();
       const userId = getUserId();
 
       // Load API calls from messages table

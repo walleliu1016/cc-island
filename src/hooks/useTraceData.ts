@@ -39,8 +39,10 @@ export const TYPE_COLORS: Record<TraceNode['type'], string> = {
   error: '#ef4444',
 };
 
-function getCloudServerUrl(): string {
-  return localStorage.getItem('cloud_server_url') || 'http://localhost:17529';
+function getApmApiUrl(): string {
+  // APM Query API uses HTTP, not WebSocket
+  // Default to localhost:17529 for local Cloud Server
+  return localStorage.getItem('apm_api_url') || 'http://localhost:17529';
 }
 
 function getUserId(): string {
@@ -128,7 +130,7 @@ export function useTraceData(sessionId: string, rangeHours: number) {
     try {
       // Query hook_events from Cloud Server
       const response = await fetch(
-        `${getCloudServerUrl()}/api/apm/query?sql=${encodeURIComponent(
+        `${getApmApiUrl()}/api/apm/query?sql=${encodeURIComponent(
           `SELECT * FROM hook_events WHERE session_id = '${sessionId}' ORDER BY ts ASC`
         )}`,
         {
