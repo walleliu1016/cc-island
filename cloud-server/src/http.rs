@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 use axum::{
     extract::Path,
-    routing::get,
+    routing::{get, post},
     Json, Router,
     extract::Query,
     http::HeaderMap,
@@ -10,6 +10,7 @@ use axum::{
 use crate::db::repository::Repository;
 use crate::ws::router::ConnectionRouter;
 use crate::apm::query::{QueryApi, QueryParams, QueryResponse};
+use crate::apm::otlp::handle_otlp;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,6 +33,7 @@ pub fn create_http_router(
         .route("/api/sessions/:device_token", get(get_sessions))
         .route("/api/debug/sessions", get(get_all_sessions))
         .route("/api/apm/query", get(apm_query))
+        .route("/v1/otlp", post(handle_otlp))
         .with_state((repo, router, query_api))
 }
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod handler;
+pub mod otlp;
 pub mod query;
 
 pub use handler::ApmHandler;
