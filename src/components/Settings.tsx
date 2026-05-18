@@ -132,6 +132,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
     try {
       const s = await invoke<AppSettings>('get_settings');
       setSettings(s);
+      // Sync APM API URL to localStorage for frontend hooks
+      if (s.apm_api_url) {
+        localStorage.setItem('apm_api_url', s.apm_api_url);
+      } else {
+        localStorage.removeItem('apm_api_url');
+      }
     } catch (e) {
       console.error('Failed to load settings:', e);
     }
@@ -176,6 +182,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
       // Save settings (backend will validate and connect)
       if (settings) {
         await invoke('update_settings', { settings });
+        // Sync APM API URL to localStorage for frontend hooks
+        if (settings.apm_api_url) {
+          localStorage.setItem('apm_api_url', settings.apm_api_url);
+        } else {
+          localStorage.removeItem('apm_api_url');
+        }
       }
       onSettingsChange?.();
       setMessage({ text: '保存成功', type: 'success' });
@@ -676,6 +688,24 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   </button>
                 </div>
               )}
+
+              {/* APM Query API */}
+              <div className="text-white/80 text-sm mb-2 mt-4">APM Query API</div>
+
+              <div>
+                <label className="text-white/60 text-xs block mb-1">APM API 地址</label>
+                <input
+                  type="text"
+                  placeholder="http://localhost:17529"
+                  value={settings.apm_api_url || ''}
+                  onChange={e => setSettings({ ...settings, apm_api_url: e.target.value || null })}
+                  className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                />
+              </div>
+
+              <div className="text-white/40 text-xs mt-1">
+                用于查询 APM 监控数据（Token、Cost、Trace等）。默认使用本地 Cloud Server 地址。
+              </div>
             </motion.div>
           ) : null}
         </AnimatePresence>

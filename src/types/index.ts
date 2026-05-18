@@ -130,6 +130,8 @@ export interface AppSettings {
   // OpenTelemetry settings
   otel_enabled: boolean;
   otel_endpoint: string | null;
+  // APM Query API settings
+  apm_api_url: string | null;
 }
 
 // Tool activity for display
