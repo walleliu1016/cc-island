@@ -434,6 +434,7 @@ GREPTIMEDB_DATABASE=public    # 数据库名 (默认 public)
 在 Desktop Settings → 监控(Observability) Tab 配置：
 - 启用 OpenTelemetry
 - OTLP Endpoint: `http://localhost:17529/v1/otlp`
+- APM API 地址: `http://localhost:17529`（用于查询监控数据）
 
 点击"应用到 Claude Settings"会写入 Claude Code 的 `~/.claude/settings.json`：
 ```json

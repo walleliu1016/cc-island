@@ -345,8 +345,9 @@ Desktop Settings 新增 "监控(Observability)" Tab：
 |------|------|
 | `otel_enabled` | 启用 OpenTelemetry |
 | `otel_endpoint` | OTLP Endpoint（如 `http://localhost:17529/v1/otlp`） |
+| `apm_api_url` | APM Query API 地址（如 `http://localhost:17529`） |
 
-**配置文件位置**：`~/.claude/settings.json`（Claude Code 配置）
+**配置文件位置**：`~/.cc-island/settings.json`（Desktop 配置）
 
 **OTel 环境变量**（应用到 Claude settings.json）：
 - `CLAUDE_CODE_ENABLE_TELEMETRY=1`
