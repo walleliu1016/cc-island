@@ -5,6 +5,38 @@ import { useState } from 'react';
 import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { StatusIcon, TerminalColors } from './StatusIcons';
 import { useDisplayStore } from '../stores/displayStore';
+import { calculateDisplayName, calculateTooltip } from '../utils/displayName';
+import { setAlias } from '../services/aliasService';
+import { ContextMenu } from './ContextMenu';
+import { RenameModal } from './RenameModal';
+import { FoldedSessions } from './FoldedSessions';
+
+// Fold threshold: 10 minutes (600 seconds)
+const FOLD_THRESHOLD_SECONDS = 600;
+
+// Check if instance is folded (inactive for threshold)
+function isFolded(instance: ClaudeInstance): boolean {
+  const now = Math.floor(Date.now() / 1000);
+  const inactiveSeconds = now - instance.last_activity_at;
+  return inactiveSeconds >= FOLD_THRESHOLD_SECONDS;
+}
+
+// Split instances into active and folded
+function splitByFoldState(instances: ClaudeInstance[]): { active: ClaudeInstance[], folded: ClaudeInstance[] } {
+  const active: ClaudeInstance[] = [];
+  const folded: ClaudeInstance[] = [];
+
+  for (const instance of instances) {
+    // Ended sessions always go to folded
+    if (instance.status.type === 'ended' || isFolded(instance)) {
+      folded.push(instance);
+    } else {
+      active.push(instance);
+    }
+  }
+
+  return { active, folded };
+}
 
 interface InstanceListProps {
   instances: ClaudeInstance[];
@@ -16,21 +48,26 @@ interface InstanceListProps {
 }
 
 export function InstanceList({ instances, popups = [], onJump, onViewChat, onRespond, onViewAsk }: InstanceListProps) {
-  // Sort instances by priority: Approval > Processing > WaitingForInput > Idle
-  const sortedInstances = [...instances].sort((a, b) => {
+  // Split into active and folded
+  const { active, folded } = splitByFoldState(instances);
+
+  // Sort active instances by priority
+  const sortedActive = [...active].sort((a, b) => {
     const priorityA = getPhasePriority(a.status, popups.find(p => p.session_id === a.session_id && p.status === 'pending'));
     const priorityB = getPhasePriority(b.status, popups.find(p => p.session_id === b.session_id && p.status === 'pending'));
     return priorityA - priorityB;
   });
 
-  if (sortedInstances.length === 0) return null;
+  if (sortedActive.length === 0 && folded.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1">
-      {sortedInstances.map((instance) => (
+      {/* Active instances */}
+      {sortedActive.map((instance) => (
         <InstanceRow
           key={instance.session_id}
           instance={instance}
+          allInstances={sortedActive}
           pendingPopup={popups.find(p => p.session_id === instance.session_id && p.status === 'pending')}
           onJump={onJump}
           onViewChat={onViewChat}
@@ -38,6 +75,15 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
           onViewAsk={onViewAsk}
         />
       ))}
+
+      {/* Folded instances section */}
+      <FoldedSessions
+        instances={folded}
+        popups={popups}
+        onJump={onJump}
+        onViewChat={onViewChat}
+        onRespond={onRespond}
+      />
     </div>
   );
 }
@@ -53,6 +99,7 @@ function getPhasePriority(status: InstanceStatus, pendingPopup?: PopupItem): num
 
 interface InstanceRowProps {
   instance: ClaudeInstance;
+  allInstances: ClaudeInstance[];
   pendingPopup?: PopupItem;
   onJump: (sessionId: string) => void;
   onViewChat?: (sessionId: string) => void;
@@ -60,8 +107,11 @@ interface InstanceRowProps {
   onViewAsk?: (sessionId: string) => void;
 }
 
-function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, onViewAsk }: InstanceRowProps) {
+function InstanceRow({ instance, allInstances, pendingPopup, onJump, onViewChat, onRespond, onViewAsk }: InstanceRowProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number } }>({ isOpen: false, position: { x: 0, y: 0 } });
+  const [renameModal, setRenameModal] = useState(false);
+
   const isWaitingForApproval = pendingPopup !== undefined;
   const popupToolName = pendingPopup?.permission_data?.tool_name;
   const toolInput = pendingPopup?.permission_data?.action || getToolInputString(instance.tool_input) || '';
@@ -95,8 +145,31 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
 
   const statusInfo = getStatusInfo();
 
-  // Get display title (project name or custom name)
-  const displayTitle = instance.custom_name || instance.project_name || 'Untitled';
+  // Calculate display name with auto-numbering
+  const displayName = calculateDisplayName(instance, allInstances);
+  const tooltip = calculateTooltip(instance);
+
+  // Handle right-click context menu
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  };
+
+  // Handle rename
+  const handleRename = async (alias: string) => {
+    const cwd = instance.process_info?.working_directory || instance.session_cwd || '';
+    if (cwd) {
+      try {
+        await setAlias(cwd, alias);
+      } catch (error) {
+        console.error('Failed to save alias:', error);
+      }
+    }
+  };
 
   // Handle row click - view chat
   const handleRowClick = () => {
@@ -104,79 +177,100 @@ function InstanceRow({ instance, pendingPopup, onJump, onViewChat, onRespond, on
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -5 }}
-      animate={{ opacity: 1, y: 0 }}
-      onClick={handleRowClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
-      style={{ backgroundColor: isHovered ? 'rgba(255,255,255,0.06)' : 'transparent' }}
-    >
-      {/* Status indicator on left */}
-      <div className="w-4 flex items-center justify-center flex-shrink-0">
-        <StatusIcon phase={phase} size={12} />
-      </div>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={handleRowClick}
+        onContextMenu={handleContextMenu}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        title={tooltip}
+        className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
+        style={{ backgroundColor: isHovered ? 'rgba(255,255,255,0.06)' : 'transparent' }}
+      >
+        {/* Status indicator on left */}
+        <div className="w-4 flex items-center justify-center flex-shrink-0">
+          <StatusIcon phase={phase} size={12} />
+        </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        {/* Main title */}
-        <span className="text-white text-sm font-medium truncate">
-          {displayTitle}
-        </span>
+        {/* Content */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          {/* Main title */}
+          <span className="text-white text-sm font-medium truncate">
+            {displayName}
+          </span>
 
-        {/* Secondary info - status text */}
-        <div className="flex items-center gap-1.5 text-xs">
-          {statusInfo && (
-            <span
-              className="font-medium"
-              style={{ color: statusInfo.color }}
-            >
-              {statusInfo.text}
-            </span>
-          )}
-          {/* Tool input as secondary detail */}
-          {toolInput && pendingPopup?.type !== 'ask' && (
-            <span className="text-white/40 truncate">
-              {truncateText(toolInput, 30)}
-            </span>
-          )}
-          {pendingPopup?.type === 'ask' && (
-            <span
-              className="font-medium"
-              style={{ color: TerminalColors.amber }}
-            >
-              有问题待回答
-            </span>
+          {/* Secondary info - status text */}
+          <div className="flex items-center gap-1.5 text-xs">
+            {statusInfo && (
+              <span
+                className="font-medium"
+                style={{ color: statusInfo.color }}
+              >
+                {statusInfo.text}
+              </span>
+            )}
+            {/* Tool input as secondary detail */}
+            {toolInput && pendingPopup?.type !== 'ask' && (
+              <span className="text-white/40 truncate">
+                {truncateText(toolInput, 30)}
+              </span>
+            )}
+            {pendingPopup?.type === 'ask' && (
+              <span
+                className="font-medium"
+                style={{ color: TerminalColors.amber }}
+              >
+                有问题待回答
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isWaitingForApproval && pendingPopup ? (
+            pendingPopup.type === 'ask' ? (
+              // Ask question button - go to answer
+              <AskAnswerButton
+                onClick={() => onViewAsk?.(instance.session_id)}
+              />
+            ) : (
+              // Inline approval buttons for permission
+              <InlineApprovalButtons
+                onAllow={() => onRespond?.(pendingPopup.id, 'allow')}
+                onDeny={() => onRespond?.(pendingPopup.id, 'deny')}
+              />
+            )
+          ) : (
+            // Regular action buttons
+            <ActionButtons
+              instance={instance}
+              onJump={onJump}
+              onViewChat={onViewChat}
+            />
           )}
         </div>
-      </div>
+      </motion.div>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {isWaitingForApproval && pendingPopup ? (
-          pendingPopup.type === 'ask' ? (
-            // Ask question button - go to answer
-            <AskAnswerButton
-              onClick={() => onViewAsk?.(instance.session_id)}
-            />
-          ) : (
-            // Inline approval buttons for permission
-            <InlineApprovalButtons
-              onAllow={() => onRespond?.(pendingPopup.id, 'allow')}
-              onDeny={() => onRespond?.(pendingPopup.id, 'deny')}
-            />
-          )
-        ) : (
-          // Regular action buttons
-          <ActionButtons
-            instance={instance}
-            onJump={onJump}
-            onViewChat={onViewChat}
-          />
-        )}
-      </div>
-    </motion.div>
+      {/* Context menu */}
+      <ContextMenu
+        isOpen={contextMenu.isOpen}
+        position={contextMenu.position}
+        onRename={() => setRenameModal(true)}
+        onClose={() => setContextMenu({ isOpen: false, position: { x: 0, y: 0 } })}
+      />
+
+      {/* Rename modal */}
+      <RenameModal
+        isOpen={renameModal}
+        currentName={displayName}
+        cwd={instance.process_info?.working_directory || instance.session_cwd || ''}
+        onSave={handleRename}
+        onClose={() => setRenameModal(false)}
+      />
+    </>
   );
 }
 
