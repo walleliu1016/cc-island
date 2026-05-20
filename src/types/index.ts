@@ -39,6 +39,7 @@ export interface ClaudeInstance {
   project_name: string;
   alias?: string;           // 用户自定义别名（按 cwd 匹配）
   custom_name?: string;     // 保留原有字段兼容
+  session_cwd?: string;     // Session cwd at startup (for JSONL file location)
   process_info?: ProcessInfo;
   status: InstanceStatus;
   current_tool?: string;
