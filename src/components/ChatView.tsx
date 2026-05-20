@@ -7,22 +7,23 @@ import remarkGfm from 'remark-gfm';
 import { ChatMessage, PopupItem, AskQuestion, AskOption, AppSettings } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
 
-// Terminal-style colors
-const Colors = {
-  user: '#d97857',        // Claude orange
-  assistant: '#66c075',   // Green
-  toolCall: '#ffb700',    // Amber for tool name
-  toolResult: '#66c075',  // Green
-  thinking: '#ffb700',    // Amber
-  interrupted: '#ff4d4d', // Red
-  dim: 'rgba(255,255,255,0.4)',
-  codeBg: 'rgba(255,255,255,0.05)',
+// Message type colors (inspired by claude-code-transcripts)
+const MessageColors = {
+  user: { bg: 'rgba(25, 118, 210, 0.12)', border: '#1976d2', text: '#1976d2' },
+  assistant: { bg: 'rgba(255,255,255,0.03)', border: '#9e9e9e', text: '#e0e0e0' },
+  thinking: { bg: 'rgba(255, 193, 7, 0.08)', border: '#ffc107', text: '#ffc107' },
+  toolCall: { bg: 'rgba(156, 39, 176, 0.08)', border: '#9c27b0', text: '#9c27b0' },
+  toolResult: { bg: 'rgba(76, 175, 80, 0.08)', border: '#4caf50', text: '#4caf50' },
+  toolError: { bg: 'rgba(244, 67, 54, 0.08)', border: '#f44336', text: '#f44336' },
+  write: { bg: 'linear-gradient(135deg, rgba(25, 118, 210, 0.08) 0%, rgba(76, 175, 80, 0.08) 100%)', border: '#4caf50', text: '#2e7d32' },
+  edit: { bg: 'linear-gradient(135deg, rgba(255, 152, 0, 0.08) 0%, rgba(244, 67, 54, 0.08) 100%)', border: '#ff9800', text: '#e65100' },
+  bash: { bg: 'rgba(156, 39, 176, 0.08)', border: '#9c27b0', text: '#9c27b0' },
+  todo: { bg: 'linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(139, 195, 74, 0.08) 100%)', border: '#81c784', text: '#2e7d32' },
 };
 
 // Parse AskUserQuestion content
 function parseAskQuestions(content: string): AskQuestion[] | null {
   try {
-    // Content format: "AskUserQuestion: {json}" or just "{json}"
     let jsonStr = content;
     if (content.includes(':')) {
       const colonIndex = content.indexOf(':');
@@ -64,34 +65,18 @@ function QuestionWizard({
     if (!newAnswers[currentIndex]) {
       newAnswers[currentIndex] = [];
     }
-
     if (currentQuestion.multiSelect) {
-      // Multi-select: toggle
       if (newAnswers[currentIndex].includes(label)) {
         newAnswers[currentIndex] = newAnswers[currentIndex].filter(a => a !== label);
       } else {
         newAnswers[currentIndex] = [...newAnswers[currentIndex], label];
       }
     } else {
-      // Single-select: replace
       newAnswers[currentIndex] = [label];
     }
     onChange(newAnswers);
   };
 
-  const goToPrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  const goToNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
-  };
-
-  const canGoNext = currentAnswers.length > 0;
   const canSubmit = questions.every((_, i) => (selectedAnswers[i] || []).length > 0);
 
   return (
@@ -139,7 +124,6 @@ function QuestionWizard({
               >
                 <span className="mt-0.5 flex-shrink-0">
                   {currentQuestion.multiSelect ? (
-                    // Checkbox for multi-select (square)
                     <span className={`w-4 h-4 border flex items-center justify-center transition-colors ${
                       isSelected ? 'border-white bg-white/40' : 'border-white/30 bg-transparent'
                     }`}>
@@ -150,7 +134,6 @@ function QuestionWizard({
                       )}
                     </span>
                   ) : (
-                    // Radio for single-select
                     <span className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
                       isSelected ? 'border-white' : 'border-white/30'
                     }`}>
@@ -173,11 +156,10 @@ function QuestionWizard({
       {/* Navigation Footer */}
       <div className="px-3 py-3 border-t border-white/10">
         <div className="flex items-center justify-between">
-          {/* Left: Prev button or Cancel */}
           <div>
             {currentIndex > 0 ? (
               <button
-                onClick={goToPrev}
+                onClick={() => setCurrentIndex(currentIndex - 1)}
                 className="px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"
               >
                 ← 上一题
@@ -193,13 +175,11 @@ function QuestionWizard({
               </button>
             )}
           </div>
-
-          {/* Right: Next or Submit */}
           <div>
             {readOnly ? (
               currentIndex < questions.length - 1 ? (
                 <button
-                  onClick={goToNext}
+                  onClick={() => setCurrentIndex(currentIndex + 1)}
                   className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
                 >
                   下一题 →
@@ -211,8 +191,8 @@ function QuestionWizard({
               )
             ) : currentIndex < questions.length - 1 ? (
               <button
-                onClick={goToNext}
-                disabled={!canGoNext}
+                onClick={() => setCurrentIndex(currentIndex + 1)}
+                disabled={currentAnswers.length === 0}
                 className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 disabled:bg-white/40 rounded-lg transition-all"
               >
                 下一题 →
@@ -236,7 +216,6 @@ function QuestionWizard({
 // Parse AskUserQuestion answers from content
 function parseAskAnswers(content: string): string[][] | null {
   try {
-    // Content format: "AskUserQuestion Answers: {"answers": [["A", "B"], ["C"]]}"
     const jsonMatch = content.match(/\{.*\}/s);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -249,12 +228,229 @@ function parseAskAnswers(content: string): string[][] | null {
     return null;
   }
 }
-// Format tool content for display - human readable format
+
+// Truncated content component with expand/collapse
+function Truncatable({ content, maxHeight = 150 }: { content: React.ReactNode; maxHeight?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [needsTruncate, setNeedsTruncate] = useState(false);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setNeedsTruncate(contentRef.current.scrollHeight > maxHeight);
+    }
+  }, [content, maxHeight]);
+
+  return (
+    <div className="relative">
+      <div
+        ref={contentRef}
+        className={`overflow-hidden transition-all ${!expanded && needsTruncate ? `max-h-[${maxHeight}px]` : ''}`}
+        style={{ maxHeight: !expanded && needsTruncate ? maxHeight : undefined }}
+      >
+        {content}
+      </div>
+      {!expanded && needsTruncate && (
+        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+      )}
+      {needsTruncate && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full mt-1 py-1.5 text-xs text-white/50 hover:text-white/70 bg-white/5 rounded transition-colors"
+        >
+          {expanded ? '收起' : '展开更多'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Bash tool card
+function BashToolCard({ command, description }: { command?: string; description?: string }) {
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.bash.bg, borderLeft: `3px solid ${MessageColors.bash.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-semibold" style={{ color: MessageColors.bash.text }}>$ Bash</span>
+      </div>
+      {description && (
+        <div className="text-xs text-white/50 mb-2 italic">{description}</div>
+      )}
+      {command && (
+        <Truncatable content={
+          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-green-400/90 whitespace-pre-wrap overflow-x-auto">
+            {command}
+          </pre>
+        } />
+      )}
+    </div>
+  );
+}
+
+// Write tool card
+function WriteToolCard({ filePath, content }: { filePath?: string; content?: string }) {
+  const filename = filePath?.split('/').pop() || filePath;
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.write.bg, borderLeft: `3px solid ${MessageColors.write.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs">📝</span>
+        <span className="text-xs font-semibold" style={{ color: MessageColors.write.text }}>Write</span>
+        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded" style={{ color: MessageColors.write.text }}>
+          {filename}
+        </span>
+      </div>
+      {filePath && filePath !== filename && (
+        <div className="text-xs text-white/40 font-mono mb-2 truncate">{filePath}</div>
+      )}
+      {content && (
+        <Truncatable content={
+          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-white/80 whitespace-pre-wrap overflow-x-auto">
+            {content.slice(0, 500)}{content.length > 500 && '...'}
+          </pre>
+        } />
+      )}
+    </div>
+  );
+}
+
+// Edit tool card with diff style
+function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath?: string; oldString?: string; newString?: string; replaceAll?: boolean }) {
+  const filename = filePath?.split('/').pop() || filePath;
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.edit.bg, borderLeft: `3px solid ${MessageColors.edit.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs">✏️</span>
+        <span className="text-xs font-semibold" style={{ color: MessageColors.edit.text }}>Edit</span>
+        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded" style={{ color: MessageColors.edit.text }}>
+          {filename}
+        </span>
+        {replaceAll && <span className="text-xs text-white/40">(全部替换)</span>}
+      </div>
+      {filePath && filePath !== filename && (
+        <div className="text-xs text-white/40 font-mono mb-2 truncate">{filePath}</div>
+      )}
+      {oldString && (
+        <div className="space-y-1">
+          <div className="flex items-start gap-2 bg-red-500/10 rounded px-2 py-1.5">
+            <span className="text-xs font-bold text-red-400/80 flex-shrink-0">−</span>
+            <pre className="text-xs text-red-300/80 font-mono whitespace-pre-wrap flex-1 overflow-x-auto">
+              {oldString.slice(0, 200)}{oldString.length > 200 && '...'}
+            </pre>
+          </div>
+          <div className="flex items-start gap-2 bg-green-500/10 rounded px-2 py-1.5">
+            <span className="text-xs font-bold text-green-400/80 flex-shrink-0">+</span>
+            <pre className="text-xs text-green-300/80 font-mono whitespace-pre-wrap flex-1 overflow-x-auto">
+              {newString?.slice(0, 200)}{newString && newString.length > 200 && '...'}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Read tool card
+function ReadToolCard({ filePath, offset, limit }: { filePath?: string; offset?: number; limit?: number }) {
+  const filename = filePath?.split('/').pop() || filePath;
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs">📄</span>
+        <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>Read</span>
+        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded text-white/70">
+          {filename}
+        </span>
+      </div>
+      {filePath && filePath !== filename && (
+        <div className="text-xs text-white/40 font-mono mb-1 truncate">{filePath}</div>
+      )}
+      {(offset || limit) && (
+        <div className="text-xs text-white/40">
+          行 {offset || 1} - {limit ? (offset || 1) + limit - 1 : '末尾'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Generic tool card
+function ToolCard({ toolName, description, input }: { toolName: string; description?: string; input?: unknown }) {
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs">⚙️</span>
+        <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>{toolName}</span>
+      </div>
+      {description && (
+        <div className="text-xs text-white/50 mb-2 italic">{description}</div>
+      )}
+      {input !== undefined && input !== null && (
+        <Truncatable content={
+          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-white/70 whitespace-pre-wrap overflow-x-auto">
+            {JSON.stringify(input, null, 2)}
+          </pre>
+        } />
+      )}
+    </div>
+  );
+}
+
+// Tool result card
+function ToolResultCard({ content, isError }: { content: string; isError?: boolean }) {
+  const colors = isError ? MessageColors.toolError : MessageColors.toolResult;
+  return (
+    <div className="rounded-lg p-3 mb-2 ml-3" style={{ background: colors.bg, borderLeft: `3px solid ${colors.border}` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-semibold" style={{ color: colors.text }}>
+          {isError ? '❌ Error' : '✓ Result'}
+        </span>
+      </div>
+      <Truncatable content={
+        <pre className="text-xs text-white/70 font-mono whitespace-pre-wrap overflow-x-auto">
+          {content.slice(0, 500)}{content.length > 500 && '...'}
+        </pre>
+      } />
+    </div>
+  );
+}
+
+// Thinking block
+function ThinkingBlock({ content }: { content: string }) {
+  return (
+    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.thinking.bg, borderLeft: `3px solid ${MessageColors.thinking.border}` }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: MessageColors.thinking.text }}>
+        💭 Thinking
+      </div>
+      <div className="text-xs text-white/60 italic whitespace-pre-wrap">
+        {content.slice(0, 300)}{content.length > 300 && '...'}
+      </div>
+    </div>
+  );
+}
+
+// Message header with role label and timestamp
+function MessageHeader({ role, timestamp }: { role: string; timestamp: number }) {
+  const time = new Date(timestamp);
+  const timeStr = time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const dateStr = time.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const isToday = time.toDateString() === new Date().toDateString();
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-t-lg">
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MessageColors[role as keyof typeof MessageColors]?.text || '#fff' }}>
+        {role === 'user' ? 'YOU' : role === 'assistant' ? 'CLAUDE' : role}
+      </span>
+      <span className="text-xs text-white/40">
+        {isToday ? timeStr : `${dateStr} ${timeStr}`}
+      </span>
+    </div>
+  );
+}
+
+// Format tool content for display
 function formatToolContent(toolName: string | undefined, content: string): React.ReactNode {
   if (!toolName) return content;
 
   try {
-    // Content format: "ToolName: {json}"
     let jsonStr = content;
     if (content.includes(':')) {
       const colonIndex = content.indexOf(':');
@@ -264,152 +460,19 @@ function formatToolContent(toolName: string | undefined, content: string): React
 
     switch (toolName) {
       case 'Bash':
-        return formatBashTool(parsed);
+        return <BashToolCard command={parsed.command} description={parsed.description} />;
       case 'Read':
-        return formatReadTool(parsed);
+        return <ReadToolCard filePath={parsed.file_path} offset={parsed.offset} limit={parsed.limit} />;
       case 'Write':
-        return formatWriteTool(parsed);
+        return <WriteToolCard filePath={parsed.file_path} content={parsed.content} />;
       case 'Edit':
-        return formatEditTool(parsed);
-      case 'WebFetch':
-        return formatWebFetchTool(parsed);
-      case 'WebSearch':
-        return formatWebSearchTool(parsed);
-      case 'Glob':
-        return formatGlobTool(parsed);
-      case 'Grep':
-        return formatGrepTool(parsed);
+        return <EditToolCard filePath={parsed.file_path} oldString={parsed.old_string} newString={parsed.new_string} replaceAll={parsed.replace_all} />;
       default:
-        return JSON.stringify(parsed, null, 2);
+        return <ToolCard toolName={toolName} description={parsed.description} input={parsed} />;
     }
   } catch {
-    return content;
+    return <ToolCard toolName={toolName} input={content} />;
   }
-}
-
-// Bash: Show command with description
-function formatBashTool(input: { command?: string; description?: string; timeout?: number }): React.ReactNode {
-  return (
-    <div className="space-y-2">
-      {input.description && (
-        <div className="text-xs text-white/50">{input.description}</div>
-      )}
-      {input.command && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-green-400/90 whitespace-pre-wrap">
-          {input.command}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Read: Show file path with line info
-function formatReadTool(input: { file_path?: string; offset?: number; limit?: number }): React.ReactNode {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
-      </div>
-      {(input.offset || input.limit) && (
-        <div className="text-xs text-white/40">
-          Lines {input.offset || 1}-{input.limit ? (input.offset || 1) + input.limit - 1 : 'end'}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Write: Show file path and preview content
-function formatWriteTool(input: { file_path?: string; content?: string }): React.ReactNode {
-  const preview = input.content?.slice(0, 200) || '';
-  const hasMore = input.content && input.content.length > 200;
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
-      </div>
-      {preview && (
-        <div className="bg-black/30 rounded px-2 py-1.5 font-mono text-xs text-white/60 whitespace-pre-wrap">
-          {preview}{hasMore && '...'}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Edit: Show file path and change summary
-function formatEditTool(input: { file_path?: string; old_string?: string; new_string?: string; replace_all?: boolean }): React.ReactNode {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-white/40">
-          <path d="M2 2a1 1 0 0 1 1-1h4l3 3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2z"/>
-        </svg>
-        <span className="text-white/70">{input.file_path}</span>
-        {input.replace_all && <span className="text-amber-400/80">(replace all)</span>}
-      </div>
-      {input.old_string && (
-        <div className="space-y-1">
-          <div className="text-xs text-red-400/70">− {input.old_string.slice(0, 50)}{input.old_string.length > 50 && '...'}</div>
-          <div className="text-xs text-green-400/70">+ {input.new_string?.slice(0, 50)}{input.new_string && input.new_string.length > 50 && '...'}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// WebFetch: Show URL
-function formatWebFetchTool(input: { url?: string; prompt?: string }): React.ReactNode {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-xs text-blue-400/80">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-          <path d="M6 0a6 6 0 0 1 6 6 6 6 0 0 1-6 6 6 6 0 0 1-6-6 6 6 0 0 1 6-6zm0 1a5 5 0 0 0-5 5 5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-5-5zm0 2a3 3 0 0 1 3 3 3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1 3-3z"/>
-        </svg>
-        <span className="truncate">{input.url}</span>
-      </div>
-      {input.prompt && <div className="text-xs text-white/40">{input.prompt}</div>}
-    </div>
-  );
-}
-
-// WebSearch: Show query
-function formatWebSearchTool(input: { query?: string }): React.ReactNode {
-  return (
-    <div className="text-xs">
-      <span className="text-white/40">Search:</span>{' '}
-      <span className="text-white/70">{input.query}</span>
-    </div>
-  );
-}
-
-// Glob: Show pattern
-function formatGlobTool(input: { pattern?: string; path?: string }): React.ReactNode {
-  return (
-    <div className="text-xs">
-      <span className="text-white/40">Pattern:</span>{' '}
-      <span className="text-white/70">{input.path}/{input.pattern}</span>
-    </div>
-  );
-}
-
-// Grep: Show pattern and path
-function formatGrepTool(input: { pattern?: string; path?: string; output_mode?: string }): React.ReactNode {
-  return (
-    <div className="space-y-1">
-      <div className="text-xs">
-        <span className="text-white/40">Pattern:</span>{' '}
-        <span className="text-amber-400/80">{input.pattern}</span>
-      </div>
-      <div className="text-xs text-white/50">in {input.path}</div>
-    </div>
-  );
 }
 
 interface ChatViewProps {
@@ -450,17 +513,14 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
         setMessages(messagesData);
 
-        // Find pending popup for this session
         const sessionPopup = popupsData.find(
           p => p.session_id === sessionId && p.status === 'pending'
         );
         setPendingPopup(sessionPopup || null);
 
-        // Initialize ask answers from popup or from messages
         if (sessionPopup?.ask_data?.questions && askAnswers.length === 0) {
           setAskAnswers(sessionPopup.ask_data.questions.map(() => []));
         } else if (askAnswers.length === 0) {
-          // Check messages for AskUserQuestion
           const askMsg = messagesData.find(m => m.toolName === 'AskUserQuestion');
           if (askMsg) {
             const questions = parseAskQuestions(askMsg.content);
@@ -470,7 +530,6 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
           }
         }
 
-        // Check if processing
         const now = Date.now() / 1000;
         const hasRecentActivity = messagesData.some(m =>
           (m.messageType === 'thinking' || m.messageType === 'toolCall') &&
@@ -487,22 +546,16 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
     return () => clearInterval(interval);
   }, [sessionId, askAnswers.length]);
 
-  // Filter and dedupe messages for performance
-  // Show/hide thinking messages based on settings
-  // Limit display to recent messages for performance
+  // Filter messages
   const filteredMessages = useMemo(() => {
-    // Filter thinking messages based on settings
     const filtered = messages.filter(m => showThinking || m.messageType !== 'thinking');
-
-    // For very large message lists, only show recent messages (last 100)
-    // This prevents UI freeze when there are thousands of messages
     if (filtered.length > 100) {
       return filtered.slice(-100);
     }
     return filtered;
   }, [messages, showThinking]);
 
-  // Auto scroll to bottom only when new messages arrive
+  // Auto scroll to bottom
   const prevMessagesLengthRef = useRef(0);
   useEffect(() => {
     if (messages.length > prevMessagesLengthRef.current) {
@@ -530,22 +583,16 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
   // Handle ask response
   const handleAskRespond = async () => {
-    // Only submit if we have a pending ask popup for this session
     const askPopup = messages.find(m => m.toolName === 'AskUserQuestion');
     if (!askPopup) return;
 
-    // Find the pending popup by checking if there's an ask popup for this session
     try {
-      // Get latest popups to find the ask popup
       const popups = await invoke<PopupItem[]>('get_popups');
       const askPendingPopup = popups.find(
         p => p.session_id === sessionId && p.status === 'pending' && p.type === 'ask'
       );
 
-      if (!askPendingPopup) {
-        console.log('No pending ask popup found, cannot submit');
-        return;
-      }
+      if (!askPendingPopup) return;
 
       await invoke('respond_popup', {
         popupId: askPendingPopup.id,
@@ -583,175 +630,127 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin"
       >
-        {/* Render messages without animation for performance */}
         {filteredMessages.map((msg) => {
-            // Check if this is an AskUserQuestion
-            const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
+          const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
 
-            if (askQuestions) {
-              // Check if this AskUserQuestion has a pending popup
-              const hasPendingPopup = pendingPopup?.type === 'ask' && pendingPopup?.ask_data;
+          if (askQuestions) {
+            const hasPendingPopup = pendingPopup?.type === 'ask' && pendingPopup?.ask_data;
+            return (
+              <div
+                key={msg.id}
+                className="mb-3 bg-white/5 rounded-lg overflow-hidden"
+              >
+                <QuestionWizard
+                  questions={askQuestions}
+                  selectedAnswers={askAnswers}
+                  onChange={setAskAnswers}
+                  onSubmit={handleAskRespond}
+                  onCancel={() => handleRespond('deny')}
+                  readOnly={!hasPendingPopup}
+                />
+              </div>
+            );
+          }
 
-              // Use QuestionWizard for interactive question answering
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-3 bg-white/5 rounded-lg overflow-hidden"
-                >
-                  <QuestionWizard
-                    questions={askQuestions}
-                    selectedAnswers={askAnswers}
-                    onChange={setAskAnswers}
-                    onSubmit={handleAskRespond}
-                    onCancel={() => handleRespond('deny')}
-                    readOnly={!hasPendingPopup}
-                  />
-                </div>
-              );
-            }
+          // Tool call
+          if (msg.messageType === 'toolCall') {
+            return (
+              <div key={msg.id} className="mb-2">
+                {formatToolContent(msg.toolName, msg.content)}
+              </div>
+            );
+          }
 
-            // Regular tool call
-            if (msg.messageType === 'toolCall') {
-              const formatted = formatToolContent(msg.toolName, msg.content);
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-3"
-                >
-                  <div className="py-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
-                        {msg.toolName}
-                      </span>
-                      <span className="text-xs text-white/40">Waiting for approval...</span>
-                    </div>
-                    <div className="mt-1.5">
-                      {formatted}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            // User message (right-aligned with bubble)
-            if (msg.messageType === 'user') {
-              // Check if this is an AskUserQuestion answer
-              if (msg.toolName === 'AskUserQuestionAnswer') {
-                const answerData = parseAskAnswers(msg.content);
-                if (answerData) {
-                  return (
-                    <div
-                      key={msg.id}
-                      className="mb-3 flex justify-end"
-                    >
-                      <div className="max-w-[80%] px-3 py-2 rounded-2xl bg-white/15">
-                        <div className="text-xs text-white/50 mb-1">Your Answers</div>
-                        <div className="space-y-1">
-                          {answerData.map((answer, idx) => (
-                            <div key={idx} className="text-sm text-white/90">
-                              <span className="text-white/60">Q{idx + 1}:</span>{' '}
-                              {answer.join(', ')}
-                            </div>
-                          ))}
-                        </div>
+          // User message
+          if (msg.messageType === 'user') {
+            if (msg.toolName === 'AskUserQuestionAnswer') {
+              const answerData = parseAskAnswers(msg.content);
+              if (answerData) {
+                return (
+                  <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
+                    <MessageHeader role="user" timestamp={msg.timestamp} />
+                    <div className="p-3">
+                      <div className="text-xs text-white/50 mb-2">Your Answers</div>
+                      <div className="space-y-1">
+                        {answerData.map((answer, idx) => (
+                          <div key={idx} className="text-sm text-white/90">
+                            <span className="text-white/60">Q{idx + 1}:</span> {answer.join(', ')}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  );
+                  </div>
+                );
+              }
+            }
+            return (
+              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
+                <MessageHeader role="user" timestamp={msg.timestamp} />
+                <div className="p-3 text-sm text-white/90">
+                  {msg.content}
+                </div>
+              </div>
+            );
+          }
+
+          // Assistant message
+          if (msg.messageType === 'assistant') {
+            let textContent: string = msg.content;
+            try {
+              const parsed = JSON.parse(msg.content);
+              if (Array.isArray(parsed)) {
+                const nonThinkingElements = parsed.filter(el => el.type !== 'thinking');
+                if (nonThinkingElements.length > 0) {
+                  textContent = nonThinkingElements
+                    .map(el => el.type === 'text' && el.text ? el.text : JSON.stringify(el))
+                    .join('\n');
+                } else {
+                  return null;
                 }
               }
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-3 flex justify-end"
-                >
-                  <div className="max-w-[80%] px-3 py-2 rounded-2xl bg-white/15 text-sm text-white/90">
-                    {msg.content}
-                  </div>
-                </div>
-              );
+            } catch {
+              // Not JSON, use raw content
             }
 
-            // Assistant message (left-aligned with dot indicator, markdown rendered)
-            // Parse content - may be a JSON array with thinking/text elements
-            if (msg.messageType === 'assistant') {
-              // Try to parse content as JSON array
-              let textContent: string = msg.content;
-              try {
-                const parsed = JSON.parse(msg.content);
-                if (Array.isArray(parsed)) {
-                  // Filter out thinking elements, join text elements
-                  const nonThinkingElements = parsed.filter(el => el.type !== 'thinking');
-                  if (nonThinkingElements.length > 0) {
-                    // Extract text from each element
-                    textContent = nonThinkingElements
-                      .map(el => {
-                        if (el.type === 'text' && el.text) {
-                          return el.text;
-                        }
-                        // Other types: render as string
-                        return JSON.stringify(el);
-                      })
-                      .join('\n');
-                  } else {
-                    // All elements were thinking, show nothing
-                    return null;
-                  }
-                }
-              } catch {
-                // Not JSON, use raw content
-              }
-
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/60 mt-1.5 flex-shrink-0" />
-                    <div className="text-sm text-white/90 flex-1 markdown-content">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                    </div>
-                  </div>
+            return (
+              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.assistant.bg, borderLeft: `3px solid ${MessageColors.assistant.border}` }}>
+                <MessageHeader role="assistant" timestamp={msg.timestamp} />
+                <div className="p-3 text-sm text-white/90 markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
                 </div>
-              );
-            }
+              </div>
+            );
+          }
 
-            // Thinking messages (shown when enabled in settings)
-            if (msg.messageType === 'thinking') {
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-2"
-                >
-                  <div className="flex items-start gap-2 pl-4">
-                    <span className="w-1 h-1 rounded-full bg-amber-400/60 mt-1 flex-shrink-0" />
-                    <div className="text-xs text-amber-400/80 flex-1 italic">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '...' : ''}</div>
-                  </div>
-                </div>
-              );
-            }
+          // Thinking messages
+          if (msg.messageType === 'thinking') {
+            return <ThinkingBlock key={msg.id} content={msg.content} />;
+          }
 
-            // Tool result (left-aligned, compact)
-            if (msg.messageType === 'toolResult') {
-              return (
-                <div
-                  key={msg.id}
-                  className="mb-2"
-                >
-                  <div className="flex items-start gap-2 pl-4">
-                    <span className="w-1 h-1 rounded-full bg-green-400/60 mt-1 flex-shrink-0" />
-                    <div className="text-xs text-white/70 flex-1">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '...' : ''}</div>
-                  </div>
-                </div>
-              );
-            }
+          // Tool result
+          if (msg.messageType === 'toolResult') {
+            // Try to detect error from content
+            const isError = msg.content.toLowerCase().includes('error') || msg.content.toLowerCase().includes('failed');
+            return <ToolResultCard key={msg.id} content={msg.content} isError={isError} />;
+          }
 
-            return null;
-          })}
+          // Interrupted
+          if (msg.messageType === 'interrupted') {
+            return (
+              <div key={msg.id} className="mb-3 rounded-lg p-3" style={{ background: MessageColors.toolError.bg, borderLeft: `3px solid ${MessageColors.toolError.border}` }}>
+                <span className="text-xs font-semibold" style={{ color: MessageColors.toolError.text }}>
+                  ⚠️ Interrupted
+                </span>
+              </div>
+            );
+          }
+
+          return null;
+        })}
 
         {/* Processing indicator */}
         {isProcessing && (
-          <div className="flex items-center gap-2 py-2">
+          <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-white/5">
             <ProcessingSpinner size={10} />
             <span className="text-white/40 text-xs">Processing...</span>
           </div>
@@ -760,7 +759,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         {/* Empty state */}
         {messages.length === 0 && !isProcessing && (
           <div className="text-white/30 text-xs text-center py-8">
-            <div className="mb-2">No messages yet</div>
+            <div className="mb-2">暂无消息</div>
             <div className="text-white/20 text-[10px]">
               Chat history shows user input and tool calls.<br/>
               AI responses are displayed in the terminal.
@@ -773,7 +772,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
       {pendingPopup?.type === 'permission' && (
         <div className="px-3 py-3 border-t border-white/10">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium" style={{ color: Colors.toolCall }}>
+            <span className="text-sm font-semibold" style={{ color: MessageColors.toolCall.text }}>
               {pendingPopup.permission_data?.tool_name}
             </span>
             {pendingPopup.permission_data?.action && (
