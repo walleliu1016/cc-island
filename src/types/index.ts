@@ -46,6 +46,7 @@ export interface ClaudeInstance {
   tool_input?: ToolInput;
   started_at: number;
   last_activity_at: number;
+  activities?: ToolActivityDetail[];  // Tool activity history for display
 }
 
 export type PopupType = 'permission' | 'ask' | 'notification';

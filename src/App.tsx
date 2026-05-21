@@ -8,6 +8,7 @@ import { useDisplayStore } from './stores/displayStore';
 import { InstanceList } from './components/InstanceList';
 import { SettingsModal, HooksSetupModal } from './components/Settings';
 import { ChatView } from './components/ChatView';
+import { DesktopMode } from './components/DesktopMode';
 import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, MenuIcon } from './components/StatusIcons';
 import { getCornerRadii, generateNotchPath } from './components/NotchShape';
 import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification } from './types';
@@ -27,7 +28,7 @@ const openAnimation = { type: 'spring', stiffness: 344, damping: 25 };
 const closeAnimation = { type: 'spring', stiffness: 320, damping: 30 };
 
 function App() {
-  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups } = useAppStore();
+  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups, layoutMode, setDesktopMode } = useAppStore();
   const { headerDisplay, updateDisplays } = useDisplayStore();
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
@@ -268,6 +269,22 @@ function App() {
   // Get current phase for status icon (used in collapsed state display logic)
   // Phase determines which indicator to show
 
+  // Desktop mode rendering
+  if (layoutMode === 'desktop') {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center pointer-events-none">
+        <div className="w-[600px] h-[500px] pointer-events-auto">
+          <DesktopMode
+            instances={activeInstances}
+            popups={popups}
+            onJump={handleJump}
+            onViewChat={handleViewChat}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-screen h-screen flex flex-col items-center pt-0 pointer-events-none">
       <motion.div
@@ -380,6 +397,23 @@ function App() {
                   className="text-white/40 hover:text-white/70 transition-colors p-1"
                 >
                   <MenuIcon size={14} />
+                </button>
+                {/* Desktop mode switch button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDesktopMode();
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="text-white/40 hover:text-white/70 transition-colors p-1"
+                  title="切换到桌面模式"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                    <rect x="1" y="1" width="12" height="10" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+                    <line x1="4" y1="11" x2="4" y2="13" stroke="currentColor" strokeWidth="1.2"/>
+                    <line x1="10" y1="11" x2="10" y2="13" stroke="currentColor" strokeWidth="1.2"/>
+                    <line x1="2" y1="13" x2="12" y2="13" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
                 </button>
               </>
             ) : (

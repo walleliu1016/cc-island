@@ -7,9 +7,8 @@ import { calculateDisplayName, calculateTooltip } from '../utils/displayName';
 import { formatTimeAgo, formatRunningDuration } from '../utils/timeFormat';
 import { getStatusColor, hexToRgba } from '../utils/statusColors';
 
-// Placeholder for ActivityPopup - will be implemented in Task 5
-// import { ActivityPopup } from './ActivityPopup';
-
+// ActivityPopup imported for expand button functionality
+import { ActivityPopup } from './ActivityPopup';
 /**
  * SessionCard - Two-row layout for instance display
  * Row 1 (fixed): Project name + session number, status indicator, running duration, start time
@@ -235,7 +234,7 @@ export function SessionCard({
               className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
               title="View chat"
             >
-              💬
+💬
             </button>
           ) : (
             <button
@@ -258,7 +257,7 @@ export function SessionCard({
                 className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
                 title="Jump to terminal"
               >
-                ⌨️
+⌨️
               </button>
             ) : (
               <button
@@ -276,23 +275,13 @@ export function SessionCard({
         </div>
       </div>
 
-      {/* Activity Popup placeholder - will be implemented in Task 5 */}
+      {/* Activity Popup */}
       <AnimatePresence>
         {showActivityPopup && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="absolute left-0 right-0 bottom-full mb-1 bg-black/90 rounded-lg overflow-hidden shadow-lg z-10"
-          >
-            <div className="px-3 py-2 text-xs text-white/60">
-              {/* ActivityPopup will be added here */}
-              <div className="text-white/40">Activity popup placeholder</div>
-              {mockHistory.map((tool, idx) => (
-                <div key={idx} className="py-1">{formatToolName(tool)}</div>
-              ))}
-            </div>
-          </motion.div>
+          <ActivityPopup
+            activities={instance.activities || []}
+            onClose={() => setShowActivityPopup(false)}
+          />
         )}
       </AnimatePresence>
     </motion.div>
