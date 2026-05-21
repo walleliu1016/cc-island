@@ -266,6 +266,18 @@ fn set_always_on_top(window: tauri::Window, always_on_top: bool) -> Result<(), S
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn minimize_window(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn close_window(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
     state.instances.get_all_instances_display()
@@ -826,6 +838,8 @@ pub fn run() {
                 start_drag,
                 resize_window,
                 set_always_on_top,
+                minimize_window,
+                close_window,
                 get_instances,
                 get_popups,
                 get_recent_activities,

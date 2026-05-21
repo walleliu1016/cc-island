@@ -1,6 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../stores/appStore';
 import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { SessionCard } from './SessionCard';
@@ -39,21 +40,19 @@ function splitInstances(instances: ClaudeInstance[]): { active: ClaudeInstance[]
 
 // Phase priority: lower = higher priority
 function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
-  if (popup) return 0; // Approval has highest priority
+  if (popup) return 0;
   if (status.type === 'working' || status.type === 'thinking' || status.type === 'waiting') return 1;
   if (status.type === 'compacting') return 1;
   if (status.type === 'idle') return 2;
-  return 3; // error, ended
+  return 3;
 }
 
 export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
   const [showArchiveTab, setShowArchiveTab] = useState(false);
 
-  // Split active and archived
   const { active, archived } = splitInstances(instances);
 
-  // Sort active by priority
   const sortedActive = [...active].sort((a, b) => {
     const priorityA = getStatusPriority(a.status, popups.find(p => p.session_id === a.session_id));
     const priorityB = getStatusPriority(b.status, popups.find(p => p.session_id === b.session_id));
@@ -62,44 +61,91 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
 
   const displayed = showArchiveTab ? archived : sortedActive;
 
+  const handleMinimize = async () => {
+    try {
+      await invoke('minimize_window');
+    } catch (e) {
+      console.error('Failed to minimize:', e);
+    }
+  };
+
+  const handleClose = async () => {
+    try {
+      await invoke('close_window');
+    } catch (e) {
+      console.error('Failed to close:', e);
+    }
+  };
+
   return (
-    <div className="h-full flex flex-col rounded-xl" style={{
+    <div className="h-full flex flex-col rounded-xl overflow-hidden" style={{
       background: 'rgba(20,20,20,0.98)',
       border: '1px solid rgba(255,255,255,0.12)',
     }}>
-      {/* Title bar - draggable */}
+      {/* Window header bar - draggable with controls */}
       <div
-        className="flex items-center justify-between px-4 py-3"
+        className="flex items-center justify-between px-4 py-2 select-none"
         data-tauri-drag-region
         style={{
-          background: 'rgba(30,30,30,0.5)',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
-        }}>
-        <div className="flex items-center gap-2">
-          {/* Logo */}
-          <svg width="18" height="18" viewBox="0 0 18 18">
-            <circle cx="9" cy="9" r="7" fill="#d97857"/>
+          background: 'rgba(40,40,40,0.95)',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        {/* Left: Logo + Title */}
+        <div className="flex items-center gap-2" data-tauri-drag-region>
+          <svg width="16" height="16" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="6" fill="#d97857"/>
           </svg>
-          {/* App name */}
-          <span className="text-white font-semibold" style={{ fontSize: 14 }}>CC-Island</span>
-          {/* Status count */}
-          <span className="text-green-400" style={{ fontSize: 11 }}>● {active.length}个会话运行中</span>
+          <span className="text-white/90 font-semibold" style={{ fontSize: 13 }}>CC-Island</span>
+          <span className="text-green-400" style={{ fontSize: 11 }}>● {active.length}个会话</span>
         </div>
+
+        {/* Center: Spacer (drag area) */}
+        <div className="flex-1" data-tauri-drag-region />
+
+        {/* Right: Mode switch + Window controls */}
         <div className="flex items-center gap-2">
-          {/* Layout switch button */}
+          {/* Island mode button */}
           <button
             onClick={() => setIslandMode()}
-            className="rounded-lg"
+            className="rounded px-2 py-1 transition-colors"
             style={{
               background: 'rgba(76,175,80,0.1)',
-              border: '1px solid rgba(76,175,80,0.3)',
+              border: '1px solid rgba(76,175,80,0.2)',
               color: '#4caf50',
-              padding: '6px 10px',
               fontSize: 11,
             }}
+            title="切换到 Island 模式"
           >
-            Island 模式
+            Island
           </button>
+
+          {/* Window controls */}
+          <div className="flex items-center gap-0.5">
+            {/* Minimize button */}
+            <button
+              onClick={handleMinimize}
+              className="rounded p-1.5 hover:bg-white/10 transition-colors"
+              style={{ color: '#888' }}
+              title="最小化"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <rect x="3" y="6" width="8" height="2" rx="0.5"/>
+              </svg>
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              className="rounded p-1.5 hover:bg-red-500/80 hover:text-white transition-colors"
+              style={{ color: '#888' }}
+              title="关闭"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <path d="M3 3 L11 11 M11 3 L3 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
