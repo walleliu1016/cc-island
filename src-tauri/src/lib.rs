@@ -163,7 +163,13 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
 
 /// SQLite activity store for tool history persistence
 pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
-    Arc::new(activity_store::ActivityStore::new().expect("Failed to init activity store"))
+    match activity_store::ActivityStore::new() {
+        Ok(store) => Arc::new(store),
+        Err(e) => {
+            tracing::error!("Failed to init activity store: {}", e);
+            panic!("Activity store initialization failed - check disk space and permissions");
+        }
+    }
 });
 
 /// Check if logging is enabled (atomic, no lock)

@@ -465,10 +465,14 @@ async fn handle_hook(
 
                         // Record tool activity to SQLite for persistence
                         let content = extract_tool_content(&input.tool_input, &tool_name);
-                        let activity_id = crate::ACTIVITY_STORE.insert_activity(&input.session_id, &tool_name, &content, "running").ok();
-                        if let Some(id) = activity_id {
-                            if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
-                                instance.pending_activity_id = Some(id);
+                        match crate::ACTIVITY_STORE.insert_activity(&input.session_id, &tool_name, &content, "running") {
+                            Ok(id) => {
+                                if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                                    instance.pending_activity_id = Some(id);
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to insert activity for session {}: {}", input.session_id, e);
                             }
                         }
 
@@ -512,21 +516,26 @@ async fn handle_hook(
 
                     // Update SQLite activity result
                     if let Some(id) = pending_activity_id {
-                        let tool_name = input.tool_name.clone().unwrap_or_default();
                         let result_content = input.tool_response.as_ref()
                             .and_then(|tr| tr.get("output"))
                             .and_then(|o| o.as_str())
                             .map(|s| s.to_string())
                             .unwrap_or_default();
 
-                        // Determine status based on result content
-                        let status = if result_content.contains("error") || result_content.contains("Error") {
-                            "error"
-                        } else {
-                            "success"
-                        };
+                        // Determine status based on is_error field if available, fallback to content analysis
+                        let is_error = input.tool_response.as_ref()
+                            .and_then(|tr| tr.get("is_error"))
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or_else(|| {
+                                // Fallback: check if result content contains error indicators
+                                result_content.contains("error") || result_content.contains("Error")
+                            });
 
-                        crate::ACTIVITY_STORE.update_activity_result(id, status, &result_content).ok();
+                        let status = if is_error { "error" } else { "success" };
+
+                        if let Err(e) = crate::ACTIVITY_STORE.update_activity_result(id, status, &result_content) {
+                            tracing::warn!("Failed to update activity result for id {}: {}", id, e);
+                        }
                     }
 
                     // Store tool result message
