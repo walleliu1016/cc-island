@@ -12,6 +12,7 @@ pub mod cloud_client;
 pub mod conversation_parser;
 pub mod jsonl_watcher;
 pub mod alias_store;
+pub mod activity_store;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -158,6 +159,11 @@ impl AppState {
 
 pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
     Arc::new(RwLock::new(AppState::new()))
+});
+
+/// SQLite activity store for tool history persistence
+pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
+    Arc::new(activity_store::ActivityStore::new().expect("Failed to init activity store"))
 });
 
 /// Check if logging is enabled (atomic, no lock)
@@ -567,6 +573,13 @@ fn get_all_aliases() -> HashMap<String, String> {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn get_activities(session_id: String, limit: Option<i64>) -> Vec<activity_store::ToolActivityDetail> {
+    let limit = limit.unwrap_or(10);
+    ACTIVITY_STORE.get_activities(&session_id, limit).unwrap_or_default()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
     if settings.cloud_mode {
@@ -818,7 +831,8 @@ pub fn run() {
                 generate_device_qrcode,
                 get_alias,
                 set_alias,
-                get_all_aliases
+                get_all_aliases,
+                get_activities
             ])
             .setup(|app| {
                 // Ensure device_name has value (use hostname if empty)

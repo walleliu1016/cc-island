@@ -463,6 +463,15 @@ async fn handle_hook(
                             timestamp: now,
                         });
 
+                        // Record tool activity to SQLite for persistence
+                        let content = extract_tool_content(&input.tool_input, &tool_name);
+                        let activity_id = crate::ACTIVITY_STORE.insert_activity(&input.session_id, &tool_name, &content, "running").ok();
+                        if let Some(id) = activity_id {
+                            if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                                instance.pending_activity_id = Some(id);
+                            }
+                        }
+
                         // Store tool call message
                         let tool_content = format!(
                             "{}: {}",
@@ -489,11 +498,35 @@ async fn handle_hook(
                     }
                 }
                 "PostToolUse" => {
+                    // Get pending activity id before clearing it
+                    let pending_activity_id = state_guard.instances.get_instance(&input.session_id)
+                        .and_then(|i| i.pending_activity_id);
+
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
                         // Tool done, but AI may continue thinking → Waiting
                         instance.set_status(InstanceStatus::Waiting);
                         instance.current_tool = None;
                         instance.tool_input = None;
+                        instance.pending_activity_id = None;
+                    }
+
+                    // Update SQLite activity result
+                    if let Some(id) = pending_activity_id {
+                        let tool_name = input.tool_name.clone().unwrap_or_default();
+                        let result_content = input.tool_response.as_ref()
+                            .and_then(|tr| tr.get("output"))
+                            .and_then(|o| o.as_str())
+                            .map(|s| s.to_string())
+                            .unwrap_or_default();
+
+                        // Determine status based on result content
+                        let status = if result_content.contains("error") || result_content.contains("Error") {
+                            "error"
+                        } else {
+                            "success"
+                        };
+
+                        crate::ACTIVITY_STORE.update_activity_result(id, status, &result_content).ok();
                     }
 
                     // Store tool result message
@@ -803,6 +836,24 @@ async fn update_position(
 }
 
 // Helper functions
+
+/// Extract tool content for activity display
+fn extract_tool_content(tool_input: &Option<std::collections::HashMap<String, serde_json::Value>>, tool_name: &str) -> String {
+    match tool_input {
+        Some(input) => {
+            if tool_name == "Bash" {
+                input.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string()
+            } else if tool_name == "Read" || tool_name == "Write" || tool_name == "Edit" {
+                input.get("file_path").and_then(|v| v.as_str()).unwrap_or("").to_string()
+            } else if tool_name == "AskUserQuestion" {
+                input.get("questions").map(|_| "选择问题").unwrap_or("").to_string()
+            } else {
+                serde_json::to_string(input).unwrap_or_default()
+            }
+        }
+        None => "".to_string(),
+    }
+}
 
 fn create_popup_from_hook(popup_id: &str, input: &HookInput) -> PopupItem {
     let now = std::time::SystemTime::now()

@@ -89,6 +89,8 @@ pub struct ClaudeInstance {
     pub display_tool: Option<String>, // Tool name to display
     #[serde(skip)]
     pub display_tool_input: Option<ToolInput>, // Tool input to display
+    #[serde(skip)]
+    pub pending_activity_id: Option<i64>, // For tracking PreToolUse to PostToolUse
 }
 
 /// Instance data for API response (includes effective display state)
@@ -131,6 +133,7 @@ impl ClaudeInstance {
             display_status: None,
             display_tool: None,
             display_tool_input: None,
+            pending_activity_id: None,
         }
     }
 
