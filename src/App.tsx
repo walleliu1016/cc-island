@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from './stores/appStore';
@@ -20,6 +20,9 @@ const EXPANDED_WIDTH = 480;
 const EXPANDED_HEIGHT = 400;
 const MODAL_WIDTH = 480;
 const MODAL_HEIGHT = 400;
+// Desktop mode default size (larger)
+const DESKTOP_WIDTH = 480;
+const DESKTOP_HEIGHT = 500;
 
 // Animation parameters - matching Claude Island spring animation
 // open: spring(response: 0.42, dampingFraction: 0.8)
@@ -37,6 +40,9 @@ function App() {
   const [productName, setProductName] = useState<string>('');
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
+
+  // Track if desktop mode initial size has been set (to preserve user adjustments)
+  const desktopSizeInitialized = useRef(false);
 
   // Check hooks configuration on startup
   useEffect(() => {
@@ -181,23 +187,28 @@ function App() {
   // Resize window when state changes
   useEffect(() => {
     const resizeWindow = async () => {
-      // Desktop mode - only set always_on_top, don't resize (user can adjust)
+      // Desktop mode - set initial size only once, then preserve user adjustments
       if (layoutMode === 'desktop') {
         try {
+          if (!desktopSizeInitialized.current) {
+            await invoke('resize_window', { width: DESKTOP_WIDTH, height: DESKTOP_HEIGHT });
+            desktopSizeInitialized.current = true;
+          }
           await invoke('set_always_on_top', { alwaysOnTop: false });
         } catch (e) {
-          console.error('Failed to set always on top:', e);
+          console.error('Failed to setup desktop mode:', e);
         }
-        return; // Don't resize, let user control window size
+        return;
       }
 
+      // Reset desktop size flag when switching back to island mode
+      desktopSizeInitialized.current = false;
+
       // Island mode - always on top
-      if (layoutMode === 'island') {
-        try {
-          await invoke('set_always_on_top', { alwaysOnTop: true });
-        } catch (e) {
-          console.error('Failed to set always on top:', e);
-        }
+      try {
+        await invoke('set_always_on_top', { alwaysOnTop: true });
+      } catch (e) {
+        console.error('Failed to set always on top:', e);
       }
 
       if (showSettings || showHooksSetup) {
