@@ -77,6 +77,17 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
     }
   };
 
+  const handleDrag = async (e: React.MouseEvent) => {
+    // Only start drag on left mouse button and not on buttons
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button')) return;
+    try {
+      await invoke('start_drag');
+    } catch (e) {
+      console.error('Failed to start drag:', e);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col rounded-xl overflow-hidden" style={{
       background: 'rgba(20,20,20,0.98)',
@@ -84,15 +95,15 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
     }}>
       {/* Window header bar - draggable with controls */}
       <div
-        className="flex items-center justify-between px-4 py-2 select-none"
-        data-tauri-drag-region
+        className="flex items-center justify-between px-4 py-2 select-none cursor-move"
+        onMouseDown={handleDrag}
         style={{
           background: 'rgba(40,40,40,0.95)',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}
       >
         {/* Left: Logo + Title */}
-        <div className="flex items-center gap-2" data-tauri-drag-region>
+        <div className="flex items-center gap-2">
           <svg width="16" height="16" viewBox="0 0 16 16">
             <circle cx="8" cy="8" r="6" fill="#d97857"/>
           </svg>
@@ -101,7 +112,7 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
         </div>
 
         {/* Center: Spacer (drag area) */}
-        <div className="flex-1" data-tauri-drag-region />
+        <div className="flex-1" />
 
         {/* Right: Mode switch + Window controls */}
         <div className="flex items-center gap-2">
