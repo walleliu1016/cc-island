@@ -576,87 +576,16 @@ jobs:
             ${{ steps.find-linux.outputs.APPIMAGE }}
           retention-days: 7
 
-  # ===== Server Binary Build (musl static, no UI) =====
-  build-server-binary:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          target: x86_64-unknown-linux-musl
-          workspaces: |
-            src-tauri -> src-tauri/target
-            src-tauri-server -> src-tauri-server/target
-
-      - name: Install musl tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools musl-dev perl make
-
-      - name: Get product name
-        id: product
-        run: |
-          PRODUCT_NAME="${{ inputs.product_name || 'Ease-Island' }}"
-          echo "NAME=$PRODUCT_NAME" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Build server binary (musl static)
-        run: |
-          cd src-tauri-server
-          cargo build --release \
-            --bin cc-island-server \
-            --target x86_64-unknown-linux-musl
-
-      - name: Get version
-        id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=0.0.0-dev" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-      - name: Prepare server binary
-        run: |
-          PRODUCT_NAME="${{ steps.product.outputs.NAME }}"
-          mkdir -p server-dist
-          BINARY_PATH="src-tauri-server/target/x86_64-unknown-linux-musl/release/cc-island-server"
-          if [ ! -f "$BINARY_PATH" ]; then
-            echo "::error::Server binary not found at $BINARY_PATH"
-            ls -la src-tauri-server/target/*/release/ 2>/dev/null || echo "No release directories found"
-            exit 1
-          fi
-          cp "$BINARY_PATH" server-dist/${PRODUCT_NAME}-server-x86_64-musl
-          chmod +x server-dist/${PRODUCT_NAME}-server-x86_64-musl
-          cd server-dist
-          tar -czvf ${PRODUCT_NAME}-server-x86_64-musl-${{ steps.version.outputs.VERSION }}.tar.gz *
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cc-island-server_x86_64-musl_${{ steps.version.outputs.VERSION }}
-          path: server-dist/*.tar.gz
-          retention-days: 7
+  # ===== Release Job =====
 
   release:
-    needs: [build-cloud-server, build-desktop, build-server-binary, build-mobile-h5, build-mobile-android, build-mobile-ios]
+    needs: [build-cloud-server, build-desktop, build-mobile-h5, build-mobile-android, build-mobile-ios]
     runs-on: ubuntu-latest
     if: |
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
       needs.build-cloud-server.result == 'success' &&
       needs.build-desktop.result == 'success' &&
-      needs.build-server-binary.result == 'success' &&
       needs.build-mobile-h5.result == 'success' &&
       needs.build-mobile-android.result == 'success' &&
       (needs.build-mobile-ios.result == 'success' || needs.build-mobile-ios.result == 'skipped')
@@ -714,7 +643,6 @@ jobs:
             | Linux | `*_x86_64-unknown-linux-gnu` | DEB + AppImage |
             | Cloud Server (x86_64) | `cc-island-cloud_x86_64` | Linux服务器 |
             | Cloud Server (ARM64) | `cc-island-cloud_aarch64` | AWS Graviton等 |
-            | Server Binary (musl) | `*-server_x86_64-musl` | 零依赖静态链接 |
             | Mobile H5 | `cc-island-mobile-h5` | Web版本 |
             | Android | `cc-island-mobile-android` | APK |
 
