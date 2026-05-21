@@ -734,7 +734,16 @@ async fn get_instances(
     State(state): State<Arc<RwLock<AppState>>>,
 ) -> Json<Vec<ClaudeInstanceDisplay>> {
     let state_guard = state.read();
-    Json(state_guard.instances.get_all_instances_display())
+    let instances = state_guard.instances.get_all_instances_display();
+    // Fill activities for each instance from ACTIVITY_STORE
+    let instances_with_activities = instances.into_iter().map(|inst| {
+        let activities = crate::ACTIVITY_STORE.get_activities(&inst.session_id, 10).unwrap_or_default();
+        ClaudeInstanceDisplay {
+            activities,
+            ..inst
+        }
+    }).collect();
+    Json(instances_with_activities)
 }
 
 /// Get all popups

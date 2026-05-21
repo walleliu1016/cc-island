@@ -280,7 +280,15 @@ fn close_window(window: tauri::Window) -> Result<(), String> {
 #[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
-    state.instances.get_all_instances_display()
+    let instances = state.instances.get_all_instances_display();
+    // Fill activities for each instance from ACTIVITY_STORE
+    instances.into_iter().map(|inst| {
+        let activities = ACTIVITY_STORE.get_activities(&inst.session_id, 10).unwrap_or_default();
+        instance_manager::ClaudeInstanceDisplay {
+            activities,
+            ..inst
+        }
+    }).collect()
 }
 
 #[cfg(feature = "desktop")]

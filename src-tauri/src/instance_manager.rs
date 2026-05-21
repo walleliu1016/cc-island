@@ -108,6 +108,9 @@ pub struct ClaudeInstanceDisplay {
     pub tool_input: Option<ToolInput>,
     pub started_at: u64,
     pub last_activity_at: u64,
+    /// Tool activity history for display
+    #[serde(default)]
+    pub activities: Vec<crate::activity_store::ToolActivityDetail>,
 }
 
 impl ClaudeInstance {
@@ -229,6 +232,7 @@ impl ClaudeInstance {
             tool_input: tool_input.cloned(),
             started_at: self.started_at,
             last_activity_at: self.last_activity_at,
+            activities: vec![], // Activities will be filled by lib.rs get_instances
         }
     }
 }

@@ -126,11 +126,11 @@ export function SessionCard({
     ? (pendingPopup?.permission_data?.tool_name || 'Permission')
     : currentToolName;
 
-  // Mock history data for now - will be replaced with real data
-  const mockHistory: string[] = ['Read', 'Edit', 'Bash', 'Write'];
-  const displayHistory = mockHistory.slice(0, 3);
-  const hasMoreHistory = mockHistory.length > 3;
-  const extraCount = mockHistory.length - 3;
+  // Use real activity history from instance.activities
+  const allActivities = instance.activities || [];
+  const displayHistory = allActivities.slice(0, 3).map(a => a.tool_name);
+  const hasMoreHistory = allActivities.length > 3;
+  const extraCount = allActivities.length - 3;
 
   // Running duration
   const runningDuration = formatRunningDuration(instance.started_at);
