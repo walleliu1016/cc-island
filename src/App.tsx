@@ -365,6 +365,7 @@ function App() {
           popups={popups}
           onJump={handleJump}
           onViewChat={handleViewChat}
+          onSettings={() => setShowSettings(true)}
         />
       </div>
     );

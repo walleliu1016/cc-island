@@ -12,6 +12,7 @@ interface DesktopModeProps {
   popups: PopupItem[];
   onJump: (sessionId: string) => void;
   onViewChat: (sessionId: string) => void;
+  onSettings?: () => void;
 }
 
 // Fold threshold: 10 minutes (600 seconds)
@@ -47,7 +48,7 @@ function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
   return 3;
 }
 
-export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopModeProps) {
+export function DesktopMode({ instances, popups, onJump, onViewChat, onSettings }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
   const [showArchiveTab, setShowArchiveTab] = useState(false);
 
@@ -113,8 +114,23 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
         {/* Center: Spacer (drag area) */}
         <div className="flex-1" />
 
-        {/* Right: Mode switch + Window controls */}
+        {/* Right: Mode switch + Settings + Window controls */}
         <div className="flex items-center gap-2">
+          {/* Settings button */}
+          {onSettings && (
+            <button
+              onClick={onSettings}
+              className="rounded p-1.5 hover:bg-white/10 transition-colors"
+              style={{ color: '#888' }}
+              title="设置"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <circle cx="7" cy="7" r="2" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M7 2v2M7 10v2M2 7h2M10 7h2M3.5 3.5l1.4 1.4M9.1 9.1l1.4 1.4M3.5 10.5l1.4-1.4M9.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
+
           {/* 灵动岛模式 button */}
           <button
             onClick={() => setIslandMode()}
