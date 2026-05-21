@@ -181,6 +181,26 @@ function App() {
   // Resize window when state changes
   useEffect(() => {
     const resizeWindow = async () => {
+      // Desktop mode - larger window, not always on top
+      if (layoutMode === 'desktop') {
+        try {
+          await invoke('resize_window', { width: 480, height: 600 });
+          await invoke('set_always_on_top', { alwaysOnTop: false });
+        } catch (e) {
+          console.error('Failed to resize window for desktop mode:', e);
+        }
+        return;
+      }
+
+      // Island mode - always on top
+      if (layoutMode === 'island') {
+        try {
+          await invoke('set_always_on_top', { alwaysOnTop: true });
+        } catch (e) {
+          console.error('Failed to set always on top:', e);
+        }
+      }
+
       if (showSettings || showHooksSetup) {
         try {
           await invoke('resize_window', { width: MODAL_WIDTH, height: MODAL_HEIGHT });
@@ -210,7 +230,7 @@ function App() {
       }
     };
     resizeWindow();
-  }, [isExpanded, showSettings, showHooksSetup, selectedSessionId, headerPhase]);
+  }, [layoutMode, isExpanded, showSettings, showHooksSetup, selectedSessionId, headerPhase]);
 
   // Get corner radii based on state (matching Claude Island asymmetric corners)
   const isOpen = showExpanded;
@@ -269,13 +289,13 @@ function App() {
   // Get current phase for status icon (used in collapsed state display logic)
   // Phase determines which indicator to show
 
-  // Desktop mode rendering
+  // Desktop mode rendering - normal app window
   if (layoutMode === 'desktop') {
     // If viewing a specific session, show ChatView
     if (selectedSessionId && selectedInstance) {
       return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center pointer-events-none">
-          <div className="w-[480px] h-[400px] pointer-events-auto bg-black rounded-xl overflow-hidden">
+        <div className="w-screen h-screen bg-[#1a1a1a] p-4">
+          <div className="w-full h-full max-w-[480px] mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
             <ChatView
               sessionId={selectedSessionId}
               projectName={selectedInstance.project_name}
@@ -290,8 +310,8 @@ function App() {
     }
 
     return (
-      <div className="w-screen h-screen flex flex-col items-center justify-center pointer-events-none">
-        <div className="w-[480px] h-[500px] pointer-events-auto">
+      <div className="w-screen h-screen bg-[#1a1a1a] p-4">
+        <div className="w-full h-full max-w-[480px] mx-auto shadow-2xl">
           <DesktopMode
             instances={activeInstances}
             popups={popups}

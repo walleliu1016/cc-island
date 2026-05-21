@@ -260,6 +260,12 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn set_always_on_top(window: tauri::Window, always_on_top: bool) -> Result<(), String> {
+    window.set_always_on_top(always_on_top).map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let state = SHARED_STATE.read();
     state.instances.get_all_instances_display()
@@ -819,6 +825,7 @@ pub fn run() {
             .invoke_handler(tauri::generate_handler![
                 start_drag,
                 resize_window,
+                set_always_on_top,
                 get_instances,
                 get_popups,
                 get_recent_activities,

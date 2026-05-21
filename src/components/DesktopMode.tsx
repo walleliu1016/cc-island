@@ -67,11 +67,14 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
       background: 'rgba(20,20,20,0.98)',
       border: '1px solid rgba(255,255,255,0.12)',
     }}>
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-3" style={{
-        background: 'rgba(30,30,30,0.5)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-      }}>
+      {/* Title bar - draggable */}
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        data-tauri-drag-region
+        style={{
+          background: 'rgba(30,30,30,0.5)',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+        }}>
         <div className="flex items-center gap-2">
           {/* Logo */}
           <svg width="18" height="18" viewBox="0 0 18 18">
