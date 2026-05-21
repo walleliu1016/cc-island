@@ -20,8 +20,19 @@ interface SessionCardProps {
   allInstances: ClaudeInstance[];
   pendingPopup?: PopupItem;
   onJump: (sessionId: string) => void;
-  onViewChat: (sessionId: string) => void;
+  onViewChat?: (sessionId: string) => void;
+  onRespond?: (popupId: string, decision: 'allow' | 'deny') => void;
+  onViewAsk?: (sessionId: string) => void;
   isDesktopMode?: boolean;
+}
+
+// Phase priority: lower = higher priority (exported for InstanceList)
+export function getPhasePriority(status: InstanceStatus, pendingPopup?: PopupItem): number {
+  if (pendingPopup) return 0; // Approval has highest priority
+  if (status.type === 'working' || status.type === 'thinking' || status.type === 'waiting') return 1;
+  if (status.type === 'compacting') return 1;
+  if (status.type === 'idle') return 2;
+  return 3; // error, ended
 }
 
 // Status text mapping (Chinese)
@@ -89,6 +100,8 @@ export function SessionCard({
   pendingPopup,
   onJump,
   onViewChat,
+  onRespond,
+  onViewAsk,
   isDesktopMode = false,
 }: SessionCardProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -227,50 +240,82 @@ export function SessionCard({
 
         {/* Action buttons */}
         <div className="flex items-center gap-1.5">
-          {/* View chat button */}
-          {buttonStyle === 'compact' ? (
-            <button
-              onClick={() => onViewChat(instance.session_id)}
-              className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
-              title="View chat"
-            >
-💬
-            </button>
-          ) : (
-            <button
-              onClick={() => onViewChat(instance.session_id)}
-              className="flex items-center gap-1 px-2 py-1 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
-              title="View chat"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                <path d="M2 2h8v6H4l-2 2V2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-              </svg>
-              <span>Chat</span>
-            </button>
-          )}
-
-          {/* Jump terminal button (only if not ended) */}
-          {!isEnded && (
-            buttonStyle === 'compact' ? (
+          {/* Approval/Ask handling */}
+          {isWaitingForApproval && pendingPopup ? (
+            pendingPopup.type === 'ask' ? (
+              // Ask question button
               <button
-                onClick={() => onJump(instance.session_id)}
-                className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
-                title="Jump to terminal"
+                onClick={() => onViewAsk?.(instance.session_id)}
+                className="px-2 py-1 text-xs font-medium text-black bg-white hover:bg-white/90 rounded transition-colors"
               >
-⌨️
+                去回答
               </button>
             ) : (
-              <button
-                onClick={() => onJump(instance.session_id)}
-                className="p-1.5 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
-                title="Jump to terminal"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                  <rect x="1" y="2" width="10" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M3 4l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+              // Permission approval buttons
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => onRespond?.(pendingPopup.id, 'deny')}
+                  className="px-2 py-1 text-xs font-medium text-white/80 bg-white/[0.08] hover:bg-red-500/80 hover:text-white rounded transition-colors"
+                >
+                  Deny
+                </button>
+                <button
+                  onClick={() => onRespond?.(pendingPopup.id, 'allow')}
+                  className="px-2 py-1 text-xs font-medium text-black bg-white hover:bg-white/90 rounded transition-colors"
+                >
+                  Allow
+                </button>
+              </div>
             )
+          ) : (
+            // Regular action buttons
+            <>
+              {/* View chat button */}
+              {buttonStyle === 'compact' ? (
+                <button
+                  onClick={() => onViewChat?.(instance.session_id)}
+                  className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                  title="View chat"
+                >
+                  💬
+                </button>
+              ) : (
+                <button
+                  onClick={() => onViewChat?.(instance.session_id)}
+                  className="flex items-center gap-1 px-2 py-1 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
+                  title="View chat"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M2 2h8v6H4l-2 2V2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                  </svg>
+                  <span>Chat</span>
+                </button>
+              )}
+
+          {/* Jump terminal button (only if not ended) */}
+              {!isEnded && (
+                buttonStyle === 'compact' ? (
+                  <button
+                    onClick={() => onJump(instance.session_id)}
+                    className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                    title="Jump to terminal"
+                  >
+                    ⌨️
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onJump(instance.session_id)}
+                    className="p-1.5 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
+                    title="Jump to terminal"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                      <rect x="1" y="2" width="10" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M3 4l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                )
+              )}
+            </>
           )}
         </div>
       </div>
