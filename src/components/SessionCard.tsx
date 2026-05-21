@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { calculateDisplayName, calculateTooltip } from '../utils/displayName';
 import { formatTimeAgo, formatRunningDuration } from '../utils/timeFormat';
@@ -106,6 +106,7 @@ export function SessionCard({
 }: SessionCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showActivityPopup, setShowActivityPopup] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Get status color config
   const statusColor = getStatusColor(instance.status);
@@ -141,12 +142,13 @@ export function SessionCard({
 
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={tooltip}
-      className="relative rounded-xl overflow-hidden transition-all"
+      className="relative rounded-xl transition-all"
       style={{
         backgroundColor: isHovered ? statusColor.bgHighlight : statusColor.bg,
         borderLeft: `3px solid ${statusColor.border}`,
@@ -320,15 +322,14 @@ export function SessionCard({
         </div>
       </div>
 
-      {/* Activity Popup */}
-      <AnimatePresence>
-        {showActivityPopup && (
-          <ActivityPopup
-            activities={instance.activities || []}
-            onClose={() => setShowActivityPopup(false)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Activity Popup - rendered via Portal */}
+      {showActivityPopup && (
+        <ActivityPopup
+          activities={instance.activities || []}
+          onClose={() => setShowActivityPopup(false)}
+          anchorRef={cardRef}
+        />
+      )}
     </motion.div>
   );
 }
