@@ -1,6 +1,6 @@
 [package]
 name = "cc-island-server"
-version = "0.3.0"
+version = "0.3.4"
 description = "CC-Island Server Binary (background mode, no GUI)"
 authors = ["you"]
 edition = "2021"
