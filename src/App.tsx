@@ -354,6 +354,16 @@ function App() {
               setDesktopMode();
             }}
           />
+          {/* Settings Modal for desktop mode ChatView */}
+          {showSettings && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+              <SettingsModal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                onSettingsChange={() => setShowHooksSetup(true)}
+              />
+            </div>
+          )}
         </div>
       );
     }
@@ -367,6 +377,25 @@ function App() {
           onViewChat={handleViewChat}
           onSettings={() => setShowSettings(true)}
         />
+        {/* Settings Modal for desktop mode */}
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+            <SettingsModal
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              onSettingsChange={() => setShowHooksSetup(true)}
+            />
+          </div>
+        )}
+        {/* Hooks Setup Modal for desktop mode */}
+        {showHooksSetup && hooksCheckResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+            <HooksSetupModal
+              result={hooksCheckResult}
+              onComplete={() => setShowHooksSetup(false)}
+            />
+          </div>
+        )}
       </div>
     );
   }
