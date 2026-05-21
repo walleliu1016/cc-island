@@ -44,6 +44,47 @@ function App() {
   // Track if desktop mode initial size has been set (to preserve user adjustments)
   const desktopSizeInitialized = useRef(false);
 
+  // Hover expand/collapse timers for island mode
+  const hoverExpandTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverCollapseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hover handlers for island mode auto-expand/collapse
+  const handleMouseEnter = () => {
+    // Clear collapse timeout if user re-enters quickly
+    if (hoverCollapseTimeout.current) {
+      clearTimeout(hoverCollapseTimeout.current);
+      hoverCollapseTimeout.current = null;
+    }
+    // Expand after short delay (150ms) to avoid accidental expansion
+    if (!isExpanded && !selectedSessionId && !showSettings && !showHooksSetup) {
+      hoverExpandTimeout.current = setTimeout(() => {
+        setIsExpanded(true);
+      }, 150);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    // Clear expand timeout if user leaves before expansion
+    if (hoverExpandTimeout.current) {
+      clearTimeout(hoverExpandTimeout.current);
+      hoverExpandTimeout.current = null;
+    }
+    // Collapse after delay (200ms) to allow user to click buttons inside
+    if (isExpanded && !selectedSessionId && !showSettings && !showHooksSetup) {
+      hoverCollapseTimeout.current = setTimeout(() => {
+        setIsExpanded(false);
+      }, 200);
+    }
+  };
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverExpandTimeout.current) clearTimeout(hoverExpandTimeout.current);
+      if (hoverCollapseTimeout.current) clearTimeout(hoverCollapseTimeout.current);
+    };
+  }, []);
+
   // Check hooks configuration on startup
   useEffect(() => {
     const checkHooks = async () => {
@@ -366,7 +407,8 @@ function App() {
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
           style={{ height: COLLAPSED_HEIGHT }}
           data-tauri-drag-region
-          onClick={() => setIsExpanded(!isExpanded)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
@@ -487,6 +529,8 @@ function App() {
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
               className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
             >
               <div className="max-h-[360px] overflow-y-auto scrollbar-thin w-full rounded-b-xl">
                 {activeInstances.length > 0 && (
