@@ -115,7 +115,7 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
 
         {/* Right: Mode switch + Window controls */}
         <div className="flex items-center gap-2">
-          {/* Island mode button */}
+          {/* 灵动岛模式 button */}
           <button
             onClick={() => setIslandMode()}
             className="rounded px-2 py-1 transition-colors"
@@ -125,9 +125,9 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
               color: '#4caf50',
               fontSize: 11,
             }}
-            title="切换到 Island 模式"
+            title="切换到灵动岛模式"
           >
-            Island
+            灵动岛
           </button>
 
           {/* Window controls */}
