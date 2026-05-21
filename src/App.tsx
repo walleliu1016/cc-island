@@ -271,9 +271,27 @@ function App() {
 
   // Desktop mode rendering
   if (layoutMode === 'desktop') {
+    // If viewing a specific session, show ChatView
+    if (selectedSessionId && selectedInstance) {
+      return (
+        <div className="w-screen h-screen flex flex-col items-center justify-center pointer-events-none">
+          <div className="w-[480px] h-[400px] pointer-events-auto bg-black rounded-xl overflow-hidden">
+            <ChatView
+              sessionId={selectedSessionId}
+              projectName={selectedInstance.project_name}
+              onClose={() => {
+                setSelectedSessionId(null);
+                setDesktopMode();
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center pointer-events-none">
-        <div className="w-[600px] h-[500px] pointer-events-auto">
+        <div className="w-[480px] h-[500px] pointer-events-auto">
           <DesktopMode
             instances={activeInstances}
             popups={popups}
