@@ -62,6 +62,7 @@ twox-hash = "1.6"
 qrcode = "0.14"
 hostname = "0.4"
 notify = { version = "8", features = ["macos_kqueue"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # OpenSSL configuration for server mode (vendored for static linking)
 [target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]

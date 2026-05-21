@@ -164,28 +164,56 @@
 
 ## 6. 后端数据需求
 
-### 6.1 新增字段
+### 6.1 SQLite持久化存储
 
-ClaudeInstance 需要增加：
-- `recent_activities: ToolActivity[]` - 最近10条工具活动
+数据库位置：`~/.cc-island/data.db`
 
-ToolActivity 结构：
-```typescript
-interface ToolActivity {
-  tool_name: string;      // 工具名：Bash, Read, Edit, etc.
-  content: string;        // 执行内容：命令/文件路径/问题
-  timestamp: number;      // 执行时间（Unix秒）
-  result?: string;        // 结果摘要
-  status: 'success' | 'error' | 'running'; // 执行状态
+表结构：
+```sql
+CREATE TABLE IF NOT EXISTS tool_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    content TEXT,
+    timestamp INTEGER NOT NULL,
+    status TEXT NOT NULL,  -- 'running', 'success', 'error'
+    result TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_id ON tool_activities(session_id);
+CREATE INDEX IF NOT EXISTS idx_timestamp ON tool_activities(timestamp);
+```
+
+### 6.2 新增模块
+
+创建 `src-tauri/src/activity_store.rs`：
+- `init_db()` - 初始化数据库连接
+- `insert_activity()` - 插入活动记录
+- `update_activity_result()` - 更新执行结果（PostToolUse）
+- `get_activities()` - 获取session的最近N条活动
+- `cleanup_old_activities()` - 清理超过7天的记录
+
+### 6.3 ToolActivityDetail 结构
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolActivityDetail {
+    pub id: i64,
+    pub session_id: String,
+    pub tool_name: String,
+    pub content: String,
+    pub timestamp: u64,
+    pub status: String,
+    pub result: Option<String>,
 }
 ```
 
-### 6.2 数据收集
+### 6.4 数据收集流程
 
-- PreToolUse hook：记录工具开始执行
-- PostToolUse hook：记录执行结果
-- 维护每个session的活动队列（最多保留10条）
-- 提供 `get_recent_activities` IPC命令
+- **PreToolUse hook**：调用 `insert_activity()` 插入记录（status="running"）
+- **PostToolUse hook**：调用 `update_activity_result()` 更新结果和状态
+- **IPC命令**：`get_activities(session_id, limit=10)` 查询最近活动
 
 ---
 

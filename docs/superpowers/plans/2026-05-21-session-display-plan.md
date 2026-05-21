@@ -32,129 +32,317 @@
 
 ---
 
-## Task 1: Backend - ToolActivity Data Collection
+## Task 1: Backend - SQLite Activity Store
 
 **Files:**
+- Create: `src-tauri/src/activity_store.rs`
 - Modify: `src-tauri/src/lib.rs`
 - Modify: `src-tauri/src/http_server.rs`
-- Modify: `src-tauri/src/instance_manager.rs`
+- Modify: `src-tauri/Cargo.toml`
 
-- [ ] **Step 1: Add ToolActivityDetail struct in lib.rs**
+- [ ] **Step 1: Add rusqlite dependency in Cargo.toml**
+
+Already added: `rusqlite = { version = "0.32", features = ["bundled"] }`
+
+- [ ] **Step 2: Create activity_store.rs module**
 
 ```rust
-// Add after existing ToolActivity struct (around line 60)
-/// Detailed tool activity for display (with result)
+// Copyright (c) 2025 CC-Island Contributors
+// SPDX-License-Identifier: MIT
+use rusqlite::{Connection, Result as SqliteResult};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+/// Tool activity detail for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolActivityDetail {
+    pub id: i64,
+    pub session_id: String,
     pub tool_name: String,
-    pub content: String,       // Command/file path/question
+    pub content: String,
     pub timestamp: u64,
-    pub result: Option<String>, // Result summary
-    pub status: String,        // "success", "error", "running"
+    pub status: String,
+    pub result: Option<String>,
+}
+
+/// SQLite store for tool activities
+pub struct ActivityStore {
+    conn: Mutex<Connection>,
+}
+
+impl ActivityStore {
+    /// Initialize database at ~/.cc-island/data.db
+    pub fn new() -> SqliteResult<Self> {
+        let db_path = Self::get_db_path();
+        
+        // Create parent directory if not exists
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        
+        let conn = Connection::open(&db_path)?;
+        
+        // Create table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS tool_activities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                content TEXT,
+                timestamp INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                result TEXT,
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+        
+        // Create indexes
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session_id ON tool_activities(session_id)",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_timestamp ON tool_activities(timestamp)",
+            [],
+        )?;
+        
+        Ok(Self { conn: Mutex::new(conn) })
+    }
+    
+    fn get_db_path() -> PathBuf {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".cc-island")
+            .join("data.db")
+    }
+    
+    /// Insert a new activity record
+    pub fn insert_activity(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        content: &str,
+        status: &str,
+    ) -> SqliteResult<i64> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO tool_activities (session_id, tool_name, content, timestamp, status, result, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6)",
+            [session_id, tool_name, content, &timestamp.to_string(), status, &timestamp.to_string()],
+        )?;
+        
+        Ok(conn.last_insert_rowid())
+    }
+    
+    /// Update activity result (for PostToolUse)
+    pub fn update_activity_result(&self, id: i64, status: &str, result: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE tool_activities SET status = ?1, result = ?2 WHERE id = ?3",
+            [status, result, &id.to_string()],
+        )?;
+        Ok(())
+    }
+    
+    /// Get recent activities for a session
+    pub fn get_activities(&self, session_id: &str, limit: i64) -> SqliteResult<Vec<ToolActivityDetail>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, tool_name, content, timestamp, status, result
+             FROM tool_activities
+             WHERE session_id = ?1
+             ORDER BY timestamp DESC
+             LIMIT ?2"
+        )?;
+        
+        let activities = stmt.query_map([session_id, &limit.to_string()], |row| {
+            Ok(ToolActivityDetail {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                tool_name: row.get(2)?,
+                content: row.get(3)?,
+                timestamp: row.get(4)?,
+                status: row.get(5)?,
+                result: row.get(6)?,
+            })
+        })?
+        .collect::<SqliteResult<Vec<_>>>()?;
+        
+        Ok(activities)
+    }
+    
+    /// Get latest running activity for a session (to update on PostToolUse)
+    pub fn get_latest_running(&self, session_id: &str) -> SqliteResult<Option<(i64, String)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, tool_name FROM tool_activities
+             WHERE session_id = ?1 AND status = 'running'
+             ORDER BY timestamp DESC LIMIT 1"
+        )?;
+        
+        let result = stmt.query_row([session_id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        }).ok();
+        
+        Ok(result)
+    }
+    
+    /// Cleanup old activities (older than 7 days)
+    pub fn cleanup_old(&self, days: u64) -> SqliteResult<usize> {
+        let cutoff = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() - (days * 86400);
+        
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute(
+            "DELETE FROM tool_activities WHERE created_at < ?1",
+            [&cutoff.to_string()],
+        )?;
+        
+        Ok(deleted)
+    }
 }
 ```
 
-- [ ] **Step 2: Add activities field to ClaudeInstance in instance_manager.rs**
+- [ ] **Step 3: Add module and global store in lib.rs**
 
-Find `pub struct ClaudeInstance` and add field:
 ```rust
-pub activities: Vec<crate::lib::ToolActivityDetail>, // Recent tool activities (max 10)
+// Add at top with other modules
+pub mod activity_store;
+
+// Add after SHARED_STATE declaration
+pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
+    Arc::new(activity_store::ActivityStore::new().expect("Failed to init activity store"))
+});
 ```
 
-Update `ClaudeInstance::new()` to initialize:
+- [ ] **Step 4: Add IPC command get_activities in lib.rs**
+
 ```rust
-activities: Vec::new(),
+#[tauri::command]
+fn get_activities(session_id: String, limit: Option<i64>) -> Vec<activity_store::ToolActivityDetail> {
+    let limit = limit.unwrap_or(10);
+    ACTIVITY_STORE.get_activities(&session_id, limit).unwrap_or_default()
+}
 ```
 
-- [ ] **Step 3: Add activity collection in http_server.rs**
-
-Add helper function to record tool activity:
+Register in invoke_handler:
 ```rust
-fn record_tool_activity(
-    state: &Arc<RwLock<AppState>>,
-    session_id: &str,
-    tool_name: String,
-    content: String,
-    status: String,
-    result: Option<String>,
-) {
-    let activity = crate::lib::ToolActivityDetail {
-        tool_name,
-        content,
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-        result,
-        status,
+#[cfg(feature = "desktop")]
+tauri::generate_handler![
+    // ... existing commands ...
+    get_activities,
+]
+```
+
+- [ ] **Step 5: Add activity recording in http_server.rs**
+
+Add helper function:
+```rust
+fn extract_tool_content(tool_input: &Option<serde_json::Value>, tool_name: &str) -> String {
+    match tool_input {
+        Some(input) => {
+            if tool_name == "Bash" {
+                input.get("command").and_then(|v| v.as_str()).unwrap_or("")
+            } else if tool_name == "Read" || tool_name == "Write" || tool_name == "Edit" {
+                input.get("file_path").and_then(|v| v.as_str()).unwrap_or("")
+            } else if tool_name == "AskUserQuestion" {
+                input.get("questions").map(|_| "选择问题").unwrap_or("")
+            } else {
+                serde_json::to_string(input).unwrap_or_default()
+            }
+        }
+        None => "",
+    }.to_string()
+}
+
+fn record_tool_start(state: &Arc<RwLock<AppState>>, input: &crate::hook_handler::HookInput) {
+    let session_id = &input.session_id;
+    let tool_name = input.tool_name.clone().unwrap_or_default();
+    let content = extract_tool_content(&input.tool_input, &tool_name);
+    
+    let id = crate::ACTIVITY_STORE.insert_activity(session_id, &tool_name, &content, "running").ok();
+    
+    // Store id in state for later update (using a HashMap<session_id, Vec<activity_id>>)
+    if let Some(id) = id {
+        let mut state_guard = state.write();
+        if let Some(instance) = state_guard.instances.get_mut(session_id) {
+            instance.pending_activity_id = Some(id);
+        }
+    }
+}
+
+fn record_tool_end(state: &Arc<RwLock<AppState>>, input: &crate::hook_handler::HookInput) {
+    let session_id = &input.session_id;
+    
+    // Get the pending activity id
+    let pending_id = {
+        let state_guard = state.read();
+        state_guard.instances.get(session_id)
+            .and_then(|i| i.pending_activity_id)
     };
     
-    let mut state_guard = state.write();
-    if let Some(instance) = state_guard.instances.get_mut(session_id) {
-        instance.activities.push(activity);
-        // Keep only last 10
-        if instance.activities.len() > 10 {
-            instance.activities.remove(0);
+    if let Some(id) = pending_id {
+        // Determine status and result
+        let status = if input.tool_result.as_ref().map(|r| r.contains("error") || r.contains("Error")).unwrap_or(false) {
+            "error"
+        } else {
+            "success"
+        };
+        let result = input.tool_result.clone().unwrap_or_default();
+        
+        crate::ACTIVITY_STORE.update_activity_result(id, status, &result).ok();
+        
+        // Clear pending id
+        let mut state_guard = state.write();
+        if let Some(instance) = state_guard.instances.get_mut(session_id) {
+            instance.pending_activity_id = None;
         }
     }
 }
 ```
 
-- [ ] **Step 4: Call record_tool_activity on PreToolUse hook**
+- [ ] **Step 6: Call recording functions in handle_hook**
 
-In `handle_hook` function, after processing PreToolUse:
+In `handle_hook` function, add calls for PreToolUse and PostToolUse:
+
 ```rust
+// After hook_event parsing
 if hook_event == "PreToolUse" {
-    let tool_name = input.tool_name.clone().unwrap_or_default();
-    let content = extract_tool_content(&input.tool_input, &tool_name);
-    record_tool_activity(&state, &input.session_id, tool_name, content, "running".to_string(), None);
+    record_tool_start(&state, &input);
 }
-```
 
-- [ ] **Step 5: Call record_tool_activity on PostToolUse hook**
-
-```rust
 if hook_event == "PostToolUse" {
-    let tool_name = input.tool_name.clone().unwrap_or_default();
-    let content = extract_tool_content(&input.tool_input, &tool_name);
-    // Determine success/error from tool_result
-    let status = if input.tool_result.as_ref().map(|r| r.contains("error")).unwrap_or(false) {
-        "error"
-    } else {
-        "success"
-    };
-    let result = input.tool_result.clone();
-    record_tool_activity(&state, &input.session_id, tool_name, content, status.to_string(), result);
+    record_tool_end(&state, &input);
 }
 ```
 
-- [ ] **Step 6: Add IPC command get_activities**
+- [ ] **Step 7: Add pending_activity_id field to ClaudeInstance**
 
-In lib.rs invoke_handler:
+In `src-tauri/src/instance_manager.rs`:
 ```rust
-.invoke_handler(tauri::Builder::default().invoke_handler(
-    #[cfg(feature = "desktop")]
-    tauri::generate_handler![
-        // ... existing commands ...
-        get_activities,
-    ]
-))
-
-// Add command function
-#[tauri::command]
-fn get_activities(session_id: String) -> Vec<ToolActivityDetail> {
-    let state = SHARED_STATE.read();
-    state.instances.get(&session_id)
-        .map(|i| i.activities.clone())
-        .unwrap_or_default()
+pub struct ClaudeInstance {
+    // ... existing fields ...
+    pub pending_activity_id: Option<i64>, // For tracking PreToolUse to PostToolUse
 }
+
+// In ClaudeInstance::new(), initialize:
+pending_activity_id: None,
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src-tauri/src/lib.rs src-tauri/src/http_server.rs src-tauri/src/instance_manager.rs
-git commit -m "feat(backend): add ToolActivityDetail collection and IPC command"
+git add src-tauri/src/activity_store.rs src-tauri/src/lib.rs src-tauri/src/http_server.rs src-tauri/src/instance_manager.rs src-tauri/Cargo.toml
+git commit -m "feat(backend): add SQLite activity store for tool history persistence"
 ```
 
 ---
@@ -170,17 +358,13 @@ git commit -m "feat(backend): add ToolActivityDetail collection and IPC command"
 ```typescript
 // Add after existing ToolActivity interface
 export interface ToolActivityDetail {
+  id: number;
+  session_id: string;
   tool_name: string;
   content: string;
   timestamp: number;
-  result?: string;
   status: 'success' | 'error' | 'running';
-}
-
-// Add to ClaudeInstance interface
-export interface ClaudeInstance {
-  // ... existing fields ...
-  activities?: ToolActivityDetail[];
+  result?: string;
 }
 ```
 
