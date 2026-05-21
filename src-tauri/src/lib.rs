@@ -266,6 +266,12 @@ fn set_always_on_top(window: tauri::Window, always_on_top: bool) -> Result<(), S
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn set_skip_taskbar(window: tauri::Window, skip: bool) -> Result<(), String> {
+    window.set_skip_taskbar(skip).map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn minimize_window(window: tauri::Window) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
 }
@@ -846,6 +852,7 @@ pub fn run() {
                 start_drag,
                 resize_window,
                 set_always_on_top,
+                set_skip_taskbar,
                 minimize_window,
                 close_window,
                 get_instances,

@@ -236,6 +236,7 @@ function App() {
             desktopSizeInitialized.current = true;
           }
           await invoke('set_always_on_top', { alwaysOnTop: false });
+          await invoke('set_skip_taskbar', { skip: false });
         } catch (e) {
           console.error('Failed to setup desktop mode:', e);
         }
@@ -245,9 +246,10 @@ function App() {
       // Reset desktop size flag when switching back to island mode
       desktopSizeInitialized.current = false;
 
-      // Island mode - always on top
+      // Island mode - always on top, skip taskbar
       try {
         await invoke('set_always_on_top', { alwaysOnTop: true });
+        await invoke('set_skip_taskbar', { skip: true });
       } catch (e) {
         console.error('Failed to set always on top:', e);
       }
