@@ -89,9 +89,8 @@ export function DesktopMode({ instances, popups, onJump, onViewChat }: DesktopMo
   };
 
   return (
-    <div className="h-full flex flex-col rounded-xl overflow-hidden" style={{
+    <div className="h-full w-full flex flex-col" style={{
       background: 'rgba(20,20,20,0.98)',
-      border: '1px solid rgba(255,255,255,0.12)',
     }}>
       {/* Window header bar - draggable with controls */}
       <div

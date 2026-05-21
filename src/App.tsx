@@ -294,31 +294,27 @@ function App() {
     // If viewing a specific session, show ChatView
     if (selectedSessionId && selectedInstance) {
       return (
-        <div className="w-screen h-screen bg-[#1a1a1a] p-4">
-          <div className="w-full h-full max-w-[480px] mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
-            <ChatView
-              sessionId={selectedSessionId}
-              projectName={selectedInstance.project_name}
-              onClose={() => {
-                setSelectedSessionId(null);
-                setDesktopMode();
-              }}
-            />
-          </div>
+        <div className="w-screen h-screen bg-black">
+          <ChatView
+            sessionId={selectedSessionId}
+            projectName={selectedInstance.project_name}
+            onClose={() => {
+              setSelectedSessionId(null);
+              setDesktopMode();
+            }}
+          />
         </div>
       );
     }
 
     return (
-      <div className="w-screen h-screen bg-[#1a1a1a] p-4">
-        <div className="w-full h-full max-w-[480px] mx-auto shadow-2xl">
-          <DesktopMode
-            instances={activeInstances}
-            popups={popups}
-            onJump={handleJump}
-            onViewChat={handleViewChat}
-          />
-        </div>
+      <div className="w-screen h-screen bg-black">
+        <DesktopMode
+          instances={activeInstances}
+          popups={popups}
+          onJump={handleJump}
+          onViewChat={handleViewChat}
+        />
       </div>
     );
   }
