@@ -139,6 +139,17 @@ export interface ToolActivity {
   timestamp: number;
 }
 
+// Tool activity detail with more information
+export interface ToolActivityDetail {
+  id: number;
+  session_id: string;
+  tool_name: string;
+  content: string;
+  timestamp: number;
+  status: 'success' | 'error' | 'running';
+  result?: string;
+}
+
 // Session notification (start/end)
 export interface SessionNotification {
   project_name: string;
