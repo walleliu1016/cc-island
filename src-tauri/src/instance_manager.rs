@@ -69,6 +69,7 @@ pub struct ToolInput {
 pub struct ClaudeInstance {
     pub session_id: SessionId,
     pub project_name: String,
+    pub alias: Option<String>,  // User-defined alias (matched by cwd)
     pub custom_name: Option<String>,
     /// Session cwd at startup - used to locate JSONL file (must NOT change during session)
     pub session_cwd: Option<String>,
@@ -95,6 +96,7 @@ pub struct ClaudeInstance {
 pub struct ClaudeInstanceDisplay {
     pub session_id: SessionId,
     pub project_name: String,
+    pub alias: Option<String>,
     pub custom_name: Option<String>,
     /// Session cwd at startup - used for JSONL file location
     pub session_cwd: Option<String>,
@@ -116,6 +118,7 @@ impl ClaudeInstance {
         Self {
             session_id,
             project_name,
+            alias: None,
             custom_name: None,
             session_cwd: None,
             process_info: None,
@@ -214,6 +217,7 @@ impl ClaudeInstance {
         ClaudeInstanceDisplay {
             session_id: self.session_id.clone(),
             project_name: self.project_name.clone(),
+            alias: self.alias.clone(),
             custom_name: self.custom_name.clone(),
             session_cwd: self.session_cwd.clone(),
             process_info: self.process_info.clone(),

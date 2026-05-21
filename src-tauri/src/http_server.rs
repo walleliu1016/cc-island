@@ -258,6 +258,14 @@ async fn handle_hook(
                     let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
                     instance.session_cwd = session_cwd.clone();
 
+                    // Apply alias from aliases.json if cwd matches
+                    if let Some(cwd) = &session_cwd {
+                        if let Some(alias) = crate::alias_store::get_alias(cwd) {
+                            instance.alias = Some(alias.clone());
+                            tracing::info!("Applied alias '{}' for recovered session {} (cwd: {})", alias, session_id, cwd);
+                        }
+                    }
+
                     // Try to find process info
                     if let Some(cwd) = &input.cwd {
                         if let Some(process_info) = crate::platform::find_claude_process_by_cwd(cwd) {
@@ -286,6 +294,14 @@ async fn handle_hook(
                     let session_cwd = input.cwd.clone();
                     let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
                     instance.session_cwd = session_cwd.clone();
+
+                    // Apply alias from aliases.json if cwd matches
+                    if let Some(cwd) = &session_cwd {
+                        if let Some(alias) = crate::alias_store::get_alias(cwd) {
+                            instance.alias = Some(alias.clone());
+                            tracing::info!("Applied alias '{}' for session {} (cwd: {})", alias, session_id, cwd);
+                        }
+                    }
 
                     // Try to find process info
                     if let Some(cwd) = &input.cwd {

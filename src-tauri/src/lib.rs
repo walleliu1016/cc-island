@@ -11,6 +11,7 @@ pub mod machine_id;
 pub mod cloud_client;
 pub mod conversation_parser;
 pub mod jsonl_watcher;
+pub mod alias_store;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -20,6 +21,7 @@ use cloud_client::{CloudClient, CloudConfig};
 use conversation_parser::ConversationParser;
 use jsonl_watcher::JsonlWatcherHandle;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg(feature = "desktop")]
 use tauri::menu::{Menu, MenuItem};
@@ -547,6 +549,24 @@ fn generate_device_qrcode(server_url: String) -> Result<String, String> {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn get_alias(cwd: String) -> Option<String> {
+    alias_store::get_alias(&cwd)
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn set_alias(cwd: String, alias: String) -> Result<(), String> {
+    alias_store::set_alias(&cwd, &alias)
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn get_all_aliases() -> HashMap<String, String> {
+    alias_store::get_all_aliases()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
     if settings.cloud_mode {
@@ -795,7 +815,10 @@ pub fn run() {
                 get_product_name,
                 get_device_token,
                 get_cloud_connection_status,
-                generate_device_qrcode
+                generate_device_qrcode,
+                get_alias,
+                set_alias,
+                get_all_aliases
             ])
             .setup(|app| {
                 // Ensure device_name has value (use hostname if empty)

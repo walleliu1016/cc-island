@@ -11,7 +11,7 @@
     { "title": "📦 Build", "labels": ["build"] },
     { "title": "⚙️ CI/CD", "labels": ["ci"] }
   ],
-  "commit_template": "- {{message}}",
+  "commit_template": "- {{messageShort}}",
   "pr_template": "- {{title}} (#{{number}}) @{{author}}",
   "empty_template": "- No changes",
   "label_extractor": [
@@ -25,5 +25,11 @@
     { "pattern": "^chore(\\(.+\\))?:", "target": "chore" },
     { "pattern": "^build(\\(.+\\))?:", "target": "build" },
     { "pattern": "^ci(\\(.+\\))?:", "target": "ci" }
+  ],
+  "transformers": [
+    {
+      "pattern": "^(feat|feature|fix|bugfix|docs|documentation|refactor|style|perf|performance|test|tests|chore|build|ci)(\\(.+\\))?:\\s*",
+      "target": ""
+    }
   ]
 }
