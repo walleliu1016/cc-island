@@ -357,7 +357,7 @@ function App() {
           {/* Settings Modal for desktop mode ChatView */}
           {showSettings && (
             <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
-              <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+              <div className="relative w-full h-full">
                 <SettingsModal
                   isOpen={showSettings}
                   onClose={() => setShowSettings(false)}
@@ -382,7 +382,7 @@ function App() {
         {/* Settings Modal for desktop mode */}
         {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
-            <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+            <div className="relative w-full h-full">
               <SettingsModal
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
@@ -394,7 +394,7 @@ function App() {
         {/* Hooks Setup Modal for desktop mode */}
         {showHooksSetup && hooksCheckResult && (
           <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
-            <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+            <div className="relative w-full h-full">
               <HooksSetupModal
                 result={hooksCheckResult}
                 onComplete={() => setShowHooksSetup(false)}

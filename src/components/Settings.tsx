@@ -192,7 +192,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const configuredCount = hooksResult.hooks.filter(h => h.configured).length;
 
   return (
-    <div className="flex flex-col h-[360px] bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
       {/* Top Navigation Bar with Save Button */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center">
@@ -718,7 +718,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
   const optionalHooks = result.hooks.filter(h => !h.required);
 
   return (
-    <div className="flex flex-col h-[360px] bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
       {/* Top Navigation Bar */}
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <span className="text-sm font-medium text-white/80">配置 Claude Code Hooks</span>
