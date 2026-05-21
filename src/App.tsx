@@ -356,12 +356,14 @@ function App() {
           />
           {/* Settings Modal for desktop mode ChatView */}
           {showSettings && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-              <SettingsModal
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
-                onSettingsChange={() => setShowHooksSetup(true)}
-              />
+            <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
+              <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+                <SettingsModal
+                  isOpen={showSettings}
+                  onClose={() => setShowSettings(false)}
+                  onSettingsChange={() => setShowHooksSetup(true)}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -379,21 +381,25 @@ function App() {
         />
         {/* Settings Modal for desktop mode */}
         {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-            <SettingsModal
-              isOpen={showSettings}
-              onClose={() => setShowSettings(false)}
-              onSettingsChange={() => setShowHooksSetup(true)}
-            />
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
+            <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+              <SettingsModal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                onSettingsChange={() => setShowHooksSetup(true)}
+              />
+            </div>
           </div>
         )}
         {/* Hooks Setup Modal for desktop mode */}
         {showHooksSetup && hooksCheckResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-            <HooksSetupModal
-              result={hooksCheckResult}
-              onComplete={() => setShowHooksSetup(false)}
-            />
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
+            <div className="relative" style={{ maxWidth: '480px', maxHeight: '400px' }}>
+              <HooksSetupModal
+                result={hooksCheckResult}
+                onComplete={() => setShowHooksSetup(false)}
+              />
+            </div>
           </div>
         )}
       </div>
