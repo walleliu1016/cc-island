@@ -181,15 +181,14 @@ function App() {
   // Resize window when state changes
   useEffect(() => {
     const resizeWindow = async () => {
-      // Desktop mode - larger window, not always on top
+      // Desktop mode - only set always_on_top, don't resize (user can adjust)
       if (layoutMode === 'desktop') {
         try {
-          await invoke('resize_window', { width: 480, height: 600 });
           await invoke('set_always_on_top', { alwaysOnTop: false });
         } catch (e) {
-          console.error('Failed to resize window for desktop mode:', e);
+          console.error('Failed to set always on top:', e);
         }
-        return;
+        return; // Don't resize, let user control window size
       }
 
       // Island mode - always on top
