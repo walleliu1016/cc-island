@@ -912,113 +912,6 @@ pub fn run() {
     });
 }
 
-/// Run in background mode (no UI)
-/// Suitable for server/headless deployment
-pub fn run_background() {
-    // Initialize tracing with file output
-    init_tracing();
-
-    tracing::info!("CC-Island starting in background mode...");
-
-    // Ensure device_name has value (use hostname if empty)
-    {
-        let mut state = SHARED_STATE.write();
-        ensure_device_name(&mut state.settings);
-        tracing::info!("Device name: {:?}", state.settings.device_name);
-        if let Err(e) = config::save_settings(&state.settings) {
-            tracing::warn!("Failed to save device_name: {}", e);
-        }
-    }
-
-    // Run background logic
-    run_background_logic();
-}
-
-/// Background mode logic (shared between run_background and run_background_temporary)
-fn run_background_logic() {
-
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-
-    rt.block_on(async {
-        // Initialize logging flag from saved settings
-        {
-            let state = SHARED_STATE.read();
-            set_logging_enabled(state.settings.enable_logging);
-            tracing::info!("Logging enabled: {}", state.settings.enable_logging);
-        }
-
-        // Auto-setup hooks on startup
-        config::auto_setup_hooks();
-
-        // Start HTTP server
-        tracing::info!("Starting HTTP server on port 17527...");
-        let server = HttpServer::new(17527);
-        tokio::spawn(async move {
-            if let Err(e) = server.run().await {
-                tracing::error!("HTTP server error: {}", e);
-            }
-        });
-
-        // Initialize and start JSONL watcher
-        {
-            let mut state = SHARED_STATE.write();
-            let mut watcher = JsonlWatcherHandle::new(SHARED_STATE.clone());
-            watcher.start();
-            state.jsonl_watcher = Some(watcher);
-            tracing::info!("JSONL watcher initialized");
-        }
-
-        // Start Cloud client (if configured)
-        {
-            let state = SHARED_STATE.read();
-            if state.settings.cloud_mode {
-                if let Some(ref url) = state.settings.cloud_server_url {
-                    let url_clone = url.clone();
-                    let device_name = state.settings.device_name.clone();
-                    drop(state);
-
-                    tracing::info!("Cloud mode enabled, connecting to {}", url_clone);
-                    start_cloud_with_reconnect(url_clone, device_name);
-                } else {
-                    tracing::warn!("Cloud mode enabled but no server URL configured");
-                }
-            } else {
-                tracing::info!("Cloud mode disabled");
-            }
-        }
-
-        tracing::info!("CC-Island background mode started successfully");
-
-        // Print pairing info for Mobile
-        {
-            let state = SHARED_STATE.read();
-            let device_token = machine_id::get_machine_token();
-            tracing::info!("=== Pairing Info for Mobile App ===");
-            tracing::info!("Device Token: {}", device_token);
-            tracing::info!("Device Name: {}", state.settings.device_name.clone().unwrap_or_default());
-            if let Some(url) = &state.settings.cloud_server_url {
-                tracing::info!("Server URL: {}", url);
-                tracing::info!("Status: Cloud mode enabled ✓");
-            } else {
-                tracing::info!("Server URL: (not configured)");
-                tracing::info!("Status: Cloud mode disabled - run 'cc-island --config --cloud-mode' to enable");
-            }
-            tracing::info!("====================================");
-        }
-
-        tracing::info!("Press Ctrl+C to stop...");
-
-        // Wait for termination signal
-        tokio::signal::ctrl_c().await.ok();
-        tracing::info!("Received Ctrl+C, shutting down...");
-
-        // Cleanup
-        stop_cloud_client();
-
-        tracing::info!("CC-Island background mode stopped");
-    });
-}
-
 /// Show current configuration
 pub fn show_config() {
     let settings = config::load_settings();
@@ -1053,7 +946,6 @@ pub fn show_pair_info() {
         println!("1. 在 Mobile App Settings 中点击 '+' 添加设备");
         println!("2. 输入 Device Token: {}", device_token);
         println!("3. 输入 Server URL: {}", server_url.unwrap());
-        println!("4. 确保本程序在后台运行 (cc-island --background)");
     } else if !settings.cloud_mode {
         println!("⚠ Cloud mode is DISABLED");
         println!();
@@ -1190,34 +1082,6 @@ pub fn run_config(args: &[String]) {
             eprintln!("Failed to save configuration: {}", e);
         }
     }
-}
-
-/// Run in background mode with command line argument overrides (temporary, NOT saved)
-/// Priority: CLI args > config file > defaults
-pub fn run_background_temporary(args: &[String]) {
-    // Initialize tracing with file output
-    init_tracing();
-
-    tracing::info!("CC-Island starting in background mode (temporary)...");
-
-    // Apply command line overrides to settings (DO NOT save)
-    let mut settings = parse_config_args(args);
-
-    tracing::info!("Settings after CLI parse: device_name={:?}, cloud_mode={}", settings.device_name, settings.cloud_mode);
-
-    // Ensure device_name has value (use hostname if empty)
-    ensure_device_name(&mut settings);
-
-    tracing::info!("Settings after ensure_device_name: device_name={:?}", settings.device_name);
-
-    // Update global state with temporary settings
-    {
-        let mut state = SHARED_STATE.write();
-        state.settings = settings.clone();
-    }
-
-    // Run background logic (settings not saved to file)
-    run_background_logic();
 }
 
 /// Configuration management: set and save settings (persistent)
