@@ -382,6 +382,8 @@ function App() {
           onRespond={handleRespond}
           onViewAsk={handleViewAsk}
           onSettings={() => setShowSettings(true)}
+          cloudStatus={cloudStatus}
+          sessionNotification={sessionNotification}
         />
         {/* Settings Modal for desktop mode */}
         {showSettings && (

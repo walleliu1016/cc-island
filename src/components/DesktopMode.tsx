@@ -3,9 +3,16 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../stores/appStore';
-import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
+import { ClaudeInstance, PopupItem, InstanceStatus, SessionNotification } from '../types';
 import { SessionCard } from './SessionCard';
 import { ArchiveTab } from './ArchiveTab';
+
+interface CloudStatus {
+  connected: boolean;
+  connecting: boolean;
+  failed: boolean;
+  failedReason: string;
+}
 
 interface DesktopModeProps {
   instances: ClaudeInstance[];
@@ -15,6 +22,8 @@ interface DesktopModeProps {
   onRespond: (popupId: string, decision: 'allow' | 'deny') => void;
   onViewAsk: (sessionId: string) => void;
   onSettings?: () => void;
+  cloudStatus?: CloudStatus;
+  sessionNotification?: SessionNotification | null;
 }
 
 // Fold threshold: 10 minutes (600 seconds)
@@ -50,7 +59,7 @@ function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
   return 3;
 }
 
-export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, onViewAsk, onSettings }: DesktopModeProps) {
+export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, onViewAsk, onSettings, cloudStatus, sessionNotification }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
   const [showArchiveTab, setShowArchiveTab] = useState(false);
 
@@ -111,6 +120,23 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
           </svg>
           <span className="text-white/90 font-semibold" style={{ fontSize: 13 }}>CC-Island</span>
           <span className="text-green-400" style={{ fontSize: 11 }}>● {active.length}个会话</span>
+          {/* Cloud connection indicator */}
+          {cloudStatus && (
+            <div
+              className="flex items-center justify-center"
+              title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : cloudStatus.failed ? `连接失败: ${cloudStatus.failedReason}` : '未连接'}
+            >
+              {cloudStatus.connected ? (
+                <span className="text-green-400 text-xs">☁</span>
+              ) : cloudStatus.connecting ? (
+                <span className="text-yellow-400 text-xs animate-pulse">☁</span>
+              ) : cloudStatus.failed ? (
+                <span className="text-red-400 text-xs">☁</span>
+              ) : (
+                <span className="text-white/30 text-xs">☁</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Center: Spacer (drag area) */}
@@ -179,6 +205,25 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
 
       {/* Content */}
       <div className="flex-1 flex flex-col p-3 overflow-y-auto gap-2">
+        {/* Session notification toast */}
+        {sessionNotification && (
+          <div
+            className="px-3 py-2 rounded-lg text-sm animate-pulse"
+            style={{
+              background: sessionNotification.notification_type === 'started'
+                ? 'rgba(76,175,80,0.2)'
+                : 'rgba(244,67,54,0.2)',
+              color: sessionNotification.notification_type === 'started'
+                ? '#4caf50'
+                : '#f44336',
+            }}
+          >
+            {sessionNotification.notification_type === 'started'
+              ? `🚀 ${sessionNotification.project_name}已启动`
+              : `⏹ ${sessionNotification.project_name}已停止`}
+          </div>
+        )}
+
         {/* Archive Tab */}
         <ArchiveTab
           showArchiveTab={showArchiveTab}
