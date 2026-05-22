@@ -12,6 +12,8 @@ interface DesktopModeProps {
   popups: PopupItem[];
   onJump: (sessionId: string) => void;
   onViewChat: (sessionId: string) => void;
+  onRespond: (popupId: string, decision: 'allow' | 'deny') => void;
+  onViewAsk: (sessionId: string) => void;
   onSettings?: () => void;
 }
 
@@ -48,7 +50,7 @@ function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
   return 3;
 }
 
-export function DesktopMode({ instances, popups, onJump, onViewChat, onSettings }: DesktopModeProps) {
+export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, onViewAsk, onSettings }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
   const [showArchiveTab, setShowArchiveTab] = useState(false);
 
@@ -196,6 +198,8 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onSettings 
               pendingPopup={popups.find(p => p.session_id === instance.session_id)}
               onJump={onJump}
               onViewChat={onViewChat}
+              onRespond={onRespond}
+              onViewAsk={onViewAsk}
               isDesktopMode={true}
             />
           ))}

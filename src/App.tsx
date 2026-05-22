@@ -379,6 +379,8 @@ function App() {
           popups={popups}
           onJump={handleJump}
           onViewChat={handleViewChat}
+          onRespond={handleRespond}
+          onViewAsk={handleViewAsk}
           onSettings={() => setShowSettings(true)}
         />
         {/* Settings Modal for desktop mode */}
