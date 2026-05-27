@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 紫色主题 CSS 变量 */
+:root {
+  --bg-deep: #0f0f23;
+  --bg-surface: #1a1a2e;
+  --bg-elevated: #22223a;
+  --brand-primary: #2d2b55;
+  --brand-secondary: #5a4fcf;
+  --brand-accent: #7c3aed;
+  --brand-light: #8b5cf6;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #60a5fa;
+}
+
 /* Dynamic Island styles - matching Claude Island (farouqaldori) exactly */
 :root {
   --island-height: 38px;  /* Fallback notch height */
@@ -170,4 +188,44 @@ html, body {
 .markdown-content h4 {
   margin: 0.5em 0 0.25em;
   font-weight: 500;
+}
+
+/* 状态徽章基础样式 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-badge.running {
+  background: rgba(16,185,129,0.12);
+  color: var(--success);
+}
+
+.status-badge.pending {
+  background: rgba(245,158,11,0.12);
+  color: var(--warning);
+}
+
+.status-badge.failed {
+  background: rgba(239,68,68,0.12);
+  color: var(--danger);
+}
+
+.status-badge.completed {
+  background: rgba(107,114,128,0.12);
+  color: var(--text-secondary);
+}
+
+/* Tool chip 样式 */
+.tool-chip {
+  font-size: 10px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
