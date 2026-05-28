@@ -170,3 +170,11 @@ export interface ChatMessage {
   toolName?: string;
   timestamp: number;
 }
+
+// Stats response for stats bar (DesktopMode)
+export interface StatsResponse {
+  session_count: number;
+  message_count: number;
+  tool_count: number;
+  active_count: number;
+}
