@@ -10,6 +10,7 @@ export const StatusColors = {
     bg: 'rgba(76,175,80,0.08)',
     bgHighlight: 'rgba(76,175,80,0.15)',
     icon: '⚡',
+    statusBar: '#10b981',
   },
   thinking: {
     border: '#ffb700',
@@ -17,6 +18,7 @@ export const StatusColors = {
     bg: 'rgba(255,183,0,0.08)',
     bgHighlight: 'rgba(255,183,0,0.15)',
     icon: '💭',
+    statusBar: '#10b981',
   },
   idle: {
     border: '#9e9e9e',
@@ -24,6 +26,7 @@ export const StatusColors = {
     bg: 'rgba(158,158,158,0.05)',
     bgHighlight: 'rgba(158,158,158,0.10)',
     icon: '●',
+    statusBar: '#64748b',
   },
   ended: {
     border: '#ff9800',
@@ -31,6 +34,7 @@ export const StatusColors = {
     bg: 'rgba(255,152,0,0.08)',
     bgHighlight: 'rgba(255,152,0,0.15)',
     icon: '●',
+    statusBar: '#64748b',
   },
   error: {
     border: '#f44336',
@@ -38,6 +42,15 @@ export const StatusColors = {
     bg: 'rgba(244,67,54,0.08)',
     bgHighlight: 'rgba(244,67,54,0.15)',
     icon: '⚠',
+    statusBar: '#ef4444',
+  },
+  waitingforapproval: {
+    border: '#f59e0b',
+    text: '#f59e0b',
+    bg: 'rgba(245,158,11,0.08)',
+    bgHighlight: 'rgba(245,158,11,0.15)',
+    icon: '🔒',
+    statusBar: '#f59e0b',
   },
 };
 
@@ -67,7 +80,7 @@ export function getStatusColor(status: InstanceStatus): StatusColorsConfig {
     case 'error':
       return StatusColors.error;
     case 'waitingforapproval':
-      return StatusColors.running;
+      return StatusColors.waitingforapproval;
     case 'compacting':
       return StatusColors.thinking;
     default:
