@@ -39,23 +39,43 @@ export function getPhasePriority(status: InstanceStatus, pendingPopup?: PopupIte
 function getStatusText(status: InstanceStatus): string {
   switch (status.type) {
     case 'working':
-      return status.data || 'Working';
+      return status.data || '运行中';
     case 'thinking':
-      return 'Thinking';
+      return '思考中';
     case 'waiting':
-      return 'Waiting';
+      return '等待中';
     case 'waitingforapproval':
-      return 'Needs Approval';
+      return '需要授权';
     case 'compacting':
-      return 'Compacting';
+      return '压缩中';
     case 'error':
-      return 'Error';
+      return '错误';
     case 'ended':
-      return 'Ended';
+      return '已结束';
     case 'idle':
-      return 'Idle';
+      return '空闲';
     default:
-      return 'Idle';
+      return '空闲';
+  }
+}
+
+// Get status badge class based on status
+function getStatusBadgeClass(status: InstanceStatus): string {
+  const baseClass = 'status-badge';
+  switch (status.type) {
+    case 'working':
+    case 'waiting':
+    case 'thinking':
+    case 'compacting':
+      return `${baseClass} running`;
+    case 'waitingforapproval':
+      return `${baseClass} pending`;
+    case 'error':
+      return `${baseClass} failed`;
+    case 'ended':
+    case 'idle':
+    default:
+      return `${baseClass} completed`;
   }
 }
 
@@ -148,14 +168,22 @@ export function SessionCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={tooltip}
-      className="relative rounded-xl transition-all"
+      className={`relative rounded-xl transition-all ${isWaitingForApproval ? 'border border-purple-500/35' : ''}`}
       style={{
         backgroundColor: isHovered ? statusColor.bgHighlight : statusColor.bg,
-        borderLeft: `3px solid ${statusColor.border}`,
       }}
     >
+      {/* Left status bar (4px width) */}
+      <div
+        className="absolute left-0 top-0 bottom-0 rounded-l-xl"
+        style={{
+          width: '4px',
+          backgroundColor: statusColor.statusBar,
+        }}
+      />
+
       {/* Row 1: Fixed layout */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 px-3 py-2 ml-1">
         {/* Project name + session number */}
         <div className="flex-1 min-w-0">
           <span className="text-white text-sm font-medium truncate">
@@ -163,16 +191,9 @@ export function SessionCard({
           </span>
         </div>
 
-        {/* Status indicator */}
-        <div
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
-          style={{
-            backgroundColor: hexToRgba(statusColor.border, 0.2),
-            color: statusColor.text,
-          }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor.border }} />
-          <span>{getStatusText(instance.status)}</span>
+        {/* Status badge using CSS class */}
+        <div className={getStatusBadgeClass(instance.status)}>
+          {getStatusText(instance.status)}
         </div>
 
         {/* Running duration */}
@@ -189,7 +210,7 @@ export function SessionCard({
       </div>
 
       {/* Row 2: Dynamic layout */}
-      <div className="flex items-center gap-2 px-3 py-1.5 text-xs">
+      <div className="flex items-center gap-2 px-3 py-1.5 text-xs ml-1">
         {/* Current command (if running) */}
         {currentCommand && (
           <div
@@ -211,14 +232,13 @@ export function SessionCard({
           <span className="text-white/30">|</span>
         )}
 
-        {/* History tags */}
+        {/* Tool chips using CSS class */}
         {displayHistory.length > 0 && (
           <div className="flex items-center gap-1">
             {displayHistory.map((toolName, idx) => (
               <span
                 key={idx}
-                className="px-1.5 py-0.5 rounded text-white/60"
-                style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+                className="tool-chip"
               >
                 {formatToolName(toolName)}
               </span>
@@ -248,22 +268,22 @@ export function SessionCard({
               // Ask question button
               <button
                 onClick={() => onViewAsk?.(instance.session_id)}
-                className="px-2 py-1 text-xs font-medium text-black bg-white hover:bg-white/90 rounded transition-colors"
+                className="px-2.5 py-1 text-xs font-medium text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg transition-colors"
               >
                 去回答
               </button>
             ) : (
-              // Permission approval buttons
+              // Permission approval buttons with new style
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onRespond?.(pendingPopup.id, 'deny')}
-                  className="px-2 py-1 text-xs font-medium text-white/80 bg-white/[0.08] hover:bg-red-500/80 hover:text-white rounded transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium text-white/80 bg-white/[0.06] hover:bg-red-500/80 hover:text-white rounded-lg transition-colors"
                 >
                   Deny
                 </button>
                 <button
                   onClick={() => onRespond?.(pendingPopup.id, 'allow')}
-                  className="px-2 py-1 text-xs font-medium text-black bg-white hover:bg-white/90 rounded transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium text-white bg-[#10b981] hover:bg-[#059669] rounded-lg transition-colors"
                 >
                   Allow
                 </button>
