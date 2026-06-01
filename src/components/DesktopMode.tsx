@@ -1,9 +1,9 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../stores/appStore';
-import { ClaudeInstance, PopupItem, InstanceStatus, SessionNotification } from '../types';
+import { ClaudeInstance, PopupItem, InstanceStatus, SessionNotification, StatsResponse } from '../types';
 import { SessionCard } from './SessionCard';
 import { ArchiveTab } from './ArchiveTab';
 
@@ -62,6 +62,37 @@ function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
 export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, onViewAsk, onSettings, cloudStatus, sessionNotification }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
   const [showArchiveTab, setShowArchiveTab] = useState(false);
+  const [productName, setProductName] = useState<string>('');
+  const [stats, setStats] = useState<StatsResponse>({ session_count: 0, message_count: 0, tool_count: 0, active_count: 0 });
+
+  // Fetch product name and stats
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [name, statsData] = await Promise.all([
+          invoke<string>('get_product_name'),
+          invoke<StatsResponse>('get_stats')
+        ]);
+        setProductName(name);
+        setStats(statsData);
+      } catch (e) {
+        console.error('Failed to fetch data:', e);
+      }
+    };
+    fetchData();
+
+    // Poll stats every 2 seconds
+    const interval = setInterval(async () => {
+      try {
+        const statsData = await invoke<StatsResponse>('get_stats');
+        setStats(statsData);
+      } catch (e) {
+        console.error('Failed to fetch stats:', e);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const { active, archived } = splitInstances(instances);
 
@@ -113,34 +144,78 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        {/* Left: Logo + Title */}
-        <div className="flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle cx="8" cy="8" r="6" fill="#d97857"/>
-          </svg>
-          <span className="text-white/90 font-semibold" style={{ fontSize: 13 }}>CC-Island</span>
-          <span className="text-green-400" style={{ fontSize: 11 }}>● {active.length}个会话</span>
-          {/* Cloud connection indicator */}
-          {cloudStatus && (
-            <div
-              className="flex items-center justify-center"
-              title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : cloudStatus.failed ? `连接失败: ${cloudStatus.failedReason}` : '未连接'}
-            >
-              {cloudStatus.connected ? (
-                <span className="text-green-400 text-xs">☁</span>
-              ) : cloudStatus.connecting ? (
-                <span className="text-yellow-400 text-xs animate-pulse">☁</span>
-              ) : cloudStatus.failed ? (
-                <span className="text-red-400 text-xs">☁</span>
-              ) : (
-                <span className="text-white/30 text-xs">☁</span>
+        {/* Left: Avatar + Title + Stats */}
+        <div className="flex items-center gap-3">
+          {/* User Avatar - Purple gradient with first letter */}
+          <div
+            className="flex items-center justify-center font-bold text-white"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+              fontSize: 14,
+            }}
+          >
+            {productName.charAt(0).toUpperCase() || 'C'}
+          </div>
+
+          {/* Title and session count */}
+          <div className="flex flex-col">
+            <span className="text-white/90 font-semibold" style={{ fontSize: 13 }}>{productName || 'CC-Island'}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-green-400" style={{ fontSize: 11 }}>● {stats.session_count}个会话</span>
+              {/* Cloud connection indicator */}
+              {cloudStatus && (
+                <div
+                  className="flex items-center justify-center"
+                  title={cloudStatus.connected ? '云服务已连接' : cloudStatus.connecting ? '正在连接...' : cloudStatus.failed ? `连接失败: ${cloudStatus.failedReason}` : '未连接'}
+                >
+                  {cloudStatus.connected ? (
+                    <span className="text-green-400 text-xs">☁</span>
+                  ) : cloudStatus.connecting ? (
+                    <span className="text-yellow-400 text-xs animate-pulse">☁</span>
+                  ) : cloudStatus.failed ? (
+                    <span className="text-red-400 text-xs">☁</span>
+                  ) : (
+                    <span className="text-white/30 text-xs">☁</span>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Center: Spacer (drag area) */}
-        <div className="flex-1" />
+        {/* Center: Quick buttons */}
+        <div className="flex items-center gap-2">
+          {/* 快捷 button */}
+          <button
+            className="font-medium transition-colors"
+            style={{
+              background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+              borderRadius: 10,
+              padding: '6px 12px',
+              color: 'white',
+              fontSize: 11,
+            }}
+          >
+            快捷
+          </button>
+
+          {/* APM button */}
+          <button
+            className="font-medium transition-colors"
+            style={{
+              background: 'rgba(75,85,99,0.8)',
+              borderRadius: 10,
+              padding: '6px 12px',
+              color: 'white',
+              fontSize: 11,
+            }}
+          >
+            APM
+          </button>
+        </div>
 
         {/* Right: Mode switch + Settings + Window controls */}
         <div className="flex items-center gap-2">
@@ -200,6 +275,55 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
               </svg>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Stats bar - 4 stat cards */}
+      <div className="flex items-center gap-2 px-4 py-2" style={{ background: 'rgba(30,30,30,0.95)' }}>
+        {/* Session count - Purple gradient */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(168,85,247,0.1)' }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="2" y="2" width="8" height="8" rx="2" stroke="#a855f7" strokeWidth="1.2"/>
+          </svg>
+          <span className="font-bold text-sm" style={{ background: 'linear-gradient(135deg, #c4b5fd 0%, #818cf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            {stats.session_count}
+          </span>
+          <span className="text-white/50 text-xs">会话</span>
+        </div>
+
+        {/* Message count - Green gradient */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(34,197,94,0.1)' }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 3h8v6H2z" stroke="#22c55e" strokeWidth="1.2"/>
+            <path d="M2 3l4 3 4-3" stroke="#22c55e" strokeWidth="1.2" fill="none"/>
+          </svg>
+          <span className="font-bold text-sm" style={{ background: 'linear-gradient(135deg, #6ee7b7 0%, #34d399 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            {stats.message_count}
+          </span>
+          <span className="text-white/50 text-xs">消息</span>
+        </div>
+
+        {/* Tool count - Yellow gradient */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(251,191,36,0.1)' }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 6l2 2 4-4" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="font-bold text-sm" style={{ background: 'linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            {stats.tool_count}
+          </span>
+          <span className="text-white/50 text-xs">调用</span>
+        </div>
+
+        {/* Active count - Blue gradient */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(96,165,250,0.1)' }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="4" stroke="#60a5fa" strokeWidth="1.2"/>
+            <circle cx="6" cy="6" r="2" fill="#60a5fa"/>
+          </svg>
+          <span className="font-bold text-sm" style={{ background: 'linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            {stats.active_count}
+          </span>
+          <span className="text-white/50 text-xs">进行中</span>
         </div>
       </div>
 
