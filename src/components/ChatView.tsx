@@ -7,17 +7,17 @@ import remarkGfm from 'remark-gfm';
 import { ChatMessage, PopupItem, AskQuestion, AskOption, AppSettings } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
 
-// Message type colors (inspired by claude-code-transcripts)
+// Message type colors (purple theme)
 const MessageColors = {
-  user: { bg: 'rgba(25, 118, 210, 0.12)', border: '#1976d2', text: '#1976d2' },
-  assistant: { bg: 'rgba(255,255,255,0.03)', border: '#9e9e9e', text: '#e0e0e0' },
+  user: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
+  assistant: { bg: 'rgba(255,255,255,0.06)', border: '#9e9e9e', text: '#e0e0e0' },
   thinking: { bg: 'rgba(255, 193, 7, 0.08)', border: '#ffc107', text: '#ffc107' },
-  toolCall: { bg: 'rgba(156, 39, 176, 0.08)', border: '#9c27b0', text: '#9c27b0' },
+  toolCall: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
   toolResult: { bg: 'rgba(76, 175, 80, 0.08)', border: '#4caf50', text: '#4caf50' },
   toolError: { bg: 'rgba(244, 67, 54, 0.08)', border: '#f44336', text: '#f44336' },
-  write: { bg: 'linear-gradient(135deg, rgba(25, 118, 210, 0.08) 0%, rgba(76, 175, 80, 0.08) 100%)', border: '#4caf50', text: '#2e7d32' },
+  write: { bg: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(76, 175, 80, 0.08) 100%)', border: '#4caf50', text: '#7c3aed' },
   edit: { bg: 'linear-gradient(135deg, rgba(255, 152, 0, 0.08) 0%, rgba(244, 67, 54, 0.08) 100%)', border: '#ff9800', text: '#e65100' },
-  bash: { bg: 'rgba(156, 39, 176, 0.08)', border: '#9c27b0', text: '#9c27b0' },
+  bash: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
   todo: { bg: 'linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(139, 195, 74, 0.08) 100%)', border: '#81c784', text: '#2e7d32' },
 };
 
@@ -606,7 +606,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
       {/* Top Navigation Bar */}
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <button
