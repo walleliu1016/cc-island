@@ -70,6 +70,11 @@ impl ChatHistory {
     pub fn get_all(&self) -> Vec<ChatMessage> {
         self.messages.values().flat_map(|v| v.clone()).collect()
     }
+
+    /// Get total count of all messages across all sessions
+    pub fn total_count(&self) -> usize {
+        self.messages.values().map(|v| v.len()).sum()
+    }
 }
 
 impl Default for ChatHistory {

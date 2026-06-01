@@ -160,4 +160,15 @@ impl ActivityStore {
 
         Ok(deleted)
     }
+
+    /// Get total count of all tool activities
+    pub fn total_count(&self) -> SqliteResult<usize> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM tool_activities",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count as usize)
+    }
 }

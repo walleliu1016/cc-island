@@ -78,6 +78,16 @@ pub enum CloudConnectionStatus {
     Failed(String), // Connection failed with error message
 }
 
+/// Stats response for stats bar display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsResponse {
+    pub session_count: usize,
+    pub message_count: usize,
+    pub tool_count: usize,
+    pub active_count: usize,
+}
+
 /// Global state shared between HTTP server and frontend
 pub struct AppState {
     pub instances: InstanceManager,
@@ -618,6 +628,35 @@ fn get_activities(session_id: String, limit: Option<i64>) -> Vec<activity_store:
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn get_stats() -> StatsResponse {
+    let state = SHARED_STATE.read();
+    let session_count = state.instances.count();
+    let message_count = state.chat_history.total_count();
+    let tool_count = ACTIVITY_STORE.total_count().unwrap_or(0);
+
+    // Count active instances (working, thinking, waiting)
+    let active_count = state.instances.get_all_instances()
+        .iter()
+        .filter(|i| {
+            matches!(
+                i.status,
+                instance_manager::InstanceStatus::Working(_)
+                    | instance_manager::InstanceStatus::Thinking
+                    | instance_manager::InstanceStatus::Waiting
+            )
+        })
+        .count();
+
+    StatsResponse {
+        session_count,
+        message_count,
+        tool_count,
+        active_count,
+    }
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
     if settings.cloud_mode {
@@ -874,7 +913,8 @@ pub fn run() {
                 get_alias,
                 set_alias,
                 get_all_aliases,
-                get_activities
+                get_activities,
+                get_stats
             ])
             .setup(|app| {
                 // Ensure device_name has value (use hostname if empty)
