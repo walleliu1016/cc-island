@@ -192,7 +192,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
   const configuredCount = hooksResult.hooks.filter(h => h.configured).length;
 
   return (
-    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
       {/* Top Navigation Bar with Save Button */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center">
@@ -215,7 +215,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
             saveAll();
           }}
           disabled={saving}
-          className="px-3 py-1.5 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-xs font-medium"
+          className="px-3 py-1.5 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-xs font-medium"
         >
           {saving ? '保存中...' : '保存'}
         </button>
@@ -227,7 +227,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           onClick={() => setActiveTab('hooks')}
           className={`flex-1 py-2 text-xs font-medium transition-colors ${
             activeTab === 'hooks'
-              ? 'text-white border-b-2 border-white'
+              ? 'text-white border-b-2 border-[#7c3aed]'
               : 'text-white/50 hover:text-white/70'
           }`}
         >
@@ -237,7 +237,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           onClick={() => setActiveTab('general')}
           className={`flex-1 py-2 text-xs font-medium transition-colors ${
             activeTab === 'general'
-              ? 'text-white border-b-2 border-white'
+              ? 'text-white border-b-2 border-[#7c3aed]'
               : 'text-white/50 hover:text-white/70'
           }`}
         >
@@ -247,7 +247,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           onClick={() => setActiveTab('remote')}
           className={`flex-1 py-2 text-xs font-medium transition-colors ${
             activeTab === 'remote'
-              ? 'text-white border-b-2 border-white'
+              ? 'text-white border-b-2 border-[#7c3aed]'
               : 'text-white/50 hover:text-white/70'
           }`}
         >
@@ -276,7 +276,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
               <div className="mb-3">
                 <button
                   onClick={() => setShowRequired(!showRequired)}
-                  className="w-full flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                  className="w-full flex items-center justify-between p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-white/60 text-xs">必须的 Hooks</span>
@@ -317,7 +317,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
               {hooksResult.hooks.filter(h => !h.required).map(hook => (
                 <label
                   key={hook.name}
-                  className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors mb-1"
+                  className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors mb-1"
                 >
                   <input
                     type="checkbox"
@@ -341,12 +341,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
             >
               {/* Toggle Options */}
               <div className="space-y-1">
-                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.auto_allow_permissions}
                     onChange={e => setSettings({ ...settings, auto_allow_permissions: e.target.checked })}
-                    className="w-4 h-4 rounded accent-white"
+                    className="w-4 h-4 rounded accent-[#7c3aed]"
                   />
                   <div className="flex-1">
                     <span className="text-white/80 text-sm">自动允许执行命令</span>
@@ -354,32 +354,32 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.auto_deny_on_timeout}
                     onChange={e => setSettings({ ...settings, auto_deny_on_timeout: e.target.checked })}
-                    className="w-4 h-4 rounded accent-white"
+                    className="w-4 h-4 rounded accent-[#7c3aed]"
                   />
                   <span className="text-white/80 text-sm flex-1">超时时自动拒绝</span>
                 </label>
 
-                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.show_notifications}
                     onChange={e => setSettings({ ...settings, show_notifications: e.target.checked })}
-                    className="w-4 h-4 rounded accent-white"
+                    className="w-4 h-4 rounded accent-[#7c3aed]"
                   />
                   <span className="text-white/80 text-sm flex-1">显示状态通知</span>
                 </label>
 
-                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.enable_logging}
                     onChange={e => setSettings({ ...settings, enable_logging: e.target.checked })}
-                    className="w-4 h-4 rounded accent-white"
+                    className="w-4 h-4 rounded accent-[#7c3aed]"
                   />
                   <div className="flex-1">
                     <span className="text-white/80 text-sm">启用日志记录</span>
@@ -387,12 +387,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.show_thinking_messages}
                     onChange={e => setSettings({ ...settings, show_thinking_messages: e.target.checked })}
-                    className="w-4 h-4 rounded accent-white"
+                    className="w-4 h-4 rounded accent-[#7c3aed]"
                   />
                   <div className="flex-1">
                     <span className="text-white/80 text-sm">显示思考过程</span>
@@ -410,7 +410,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.max_instances}
                       onChange={e => setSettings({ ...settings, max_instances: parseInt(e.target.value) || 10 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                   <div>
@@ -419,7 +419,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.max_popup_queue}
                       onChange={e => setSettings({ ...settings, max_popup_queue: parseInt(e.target.value) || 5 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                 </div>
@@ -431,7 +431,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.permission_timeout}
                       onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                   <div>
@@ -440,7 +440,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.ask_timeout}
                       onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                 </div>
@@ -452,7 +452,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.warning_time}
                       onChange={e => setSettings({ ...settings, warning_time: parseInt(e.target.value) || 30 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                   <div>
@@ -461,7 +461,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.critical_time}
                       onChange={e => setSettings({ ...settings, critical_time: parseInt(e.target.value) || 10 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                 </div>
@@ -473,7 +473,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.poll_interval}
                       onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                   <div>
@@ -482,7 +482,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       type="number"
                       value={settings.notification_auto_close}
                       onChange={e => setSettings({ ...settings, notification_auto_close: parseInt(e.target.value) || 5000 })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
                     />
                   </div>
                 </div>
@@ -494,7 +494,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                     placeholder="http://localhost:8080/hook"
                     value={settings.hook_forward_url || ''}
                     onChange={e => setSettings({ ...settings, hook_forward_url: e.target.value || null })}
-                    className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                    className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
                   />
                 </div>
               </div>
@@ -511,12 +511,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
               {/* Mobile Remote Access (Cloud Relay) */}
               <div className="text-white/80 text-sm mb-2">通过云服务器实现手机远程访问</div>
 
-              <label className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+              <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
                 <input
                   type="checkbox"
                   checked={settings.cloud_mode || false}
                   onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })}
-                  className="w-4 h-4 rounded accent-white"
+                  className="w-4 h-4 rounded accent-[#7c3aed]"
                 />
                 <div className="flex-1">
                   <span className="text-white/80 text-sm">启用远程访问</span>
@@ -533,7 +533,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       placeholder="wss://cloud.example.com:17528"
                       value={settings.cloud_server_url || ''}
                       onChange={e => setSettings({ ...settings, cloud_server_url: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
                     />
                   </div>
 
@@ -544,11 +544,11 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
                       placeholder="我的电脑"
                       value={settings.device_name || ''}
                       onChange={e => setSettings({ ...settings, device_name: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-white/30 placeholder-white/30"
+                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
                     />
                   </div>
 
-                  <div className="bg-white/[0.08] rounded p-2 mt-2">
+                  <div className="bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] rounded-[10px] p-2 mt-2">
                     <div className="text-white/50 text-xs">设备 Token:</div>
                     <div className="flex items-center gap-2 mt-1">
                       <code className="text-white/70 text-xs bg-black/30 px-1 rounded flex-1 truncate">
@@ -718,7 +718,7 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
   const optionalHooks = result.hooks.filter(h => !h.required);
 
   return (
-    <div className="flex flex-col h-full bg-black w-full rounded-b-xl">
+    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
       {/* Top Navigation Bar */}
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <span className="text-sm font-medium text-white/80">配置 Claude Code Hooks</span>
@@ -774,13 +774,13 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
           {optionalHooks.map(hook => (
             <label
               key={hook.name}
-              className="flex items-center gap-3 p-2 rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
+              className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors"
             >
               <input
                 type="checkbox"
                 checked={selectedHooks.has(hook.name)}
                 onChange={() => toggleHook(hook.name)}
-                className="w-4 h-4 rounded accent-white"
+                className="w-4 h-4 rounded accent-[#7c3aed]"
               />
               <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
               <span className="text-white/40 text-xs">{hook.timeout}s</span>
@@ -792,14 +792,14 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
         <div className="flex gap-2 mt-4">
           <button
             onClick={skipSetup}
-            className="flex-1 py-2 bg-white/10 hover:bg-white/15 text-white/70 rounded-lg transition-colors text-sm"
+            className="flex-1 py-2 bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] text-white/70 rounded-lg transition-colors text-sm"
           >
             稍后配置
           </button>
           <button
             onClick={saveAndContinue}
             disabled={saving}
-            className="flex-1 py-2 bg-white hover:bg-white/90 disabled:bg-white/50 text-black rounded-lg transition-colors text-sm font-medium"
+            className="flex-1 py-2 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-sm font-medium"
           >
             {saving ? '保存中...' : '保存并继续'}
           </button>
