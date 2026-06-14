@@ -973,6 +973,14 @@ pub fn run() {
                     }
                 });
 
+                // Periodic popup cleanup (remove resolved/auto-closed popups after 1s)
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        SHARED_STATE.write().popups.cleanup();
+                    }
+                });
+
                 // Initialize and start JSONL watcher
                 {
                     let mut state = SHARED_STATE.write();

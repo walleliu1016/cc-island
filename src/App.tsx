@@ -77,6 +77,17 @@ function App() {
     }
   };
 
+  // Manual drag handler - works for both header and expanded area
+  // Unlike data-tauri-drag-region, this doesn't block child click/scroll events
+  const handleDrag = async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    try {
+      await invoke('start_drag');
+    } catch (err) {
+      console.error('Failed to start drag:', err);
+    }
+  };
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -376,7 +387,7 @@ function App() {
       <div className="w-screen h-screen bg-black">
         <DesktopMode
           instances={activeInstances}
-          popups={popups}
+          popups={popups.filter(p => p.status === 'pending')}
           onJump={handleJump}
           onViewChat={handleViewChat}
           onRespond={handleRespond}
@@ -448,7 +459,7 @@ function App() {
         <motion.div
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
           style={{ height: COLLAPSED_HEIGHT }}
-          data-tauri-drag-region
+          onMouseDown={handleDrag}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
@@ -571,6 +582,7 @@ function App() {
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
               className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
+              onMouseDown={handleDrag}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >

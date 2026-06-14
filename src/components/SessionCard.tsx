@@ -210,58 +210,58 @@ export function SessionCard({
       </div>
 
       {/* Row 2: Dynamic layout */}
-      <div className="flex items-center gap-2 px-3 py-1.5 text-xs ml-1">
-        {/* Current command (if running) */}
-        {currentCommand && (
-          <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded"
-            style={{
-              backgroundColor: hexToRgba(statusColor.border, 0.15),
-            }}
-          >
-            <span style={{ color: statusColor.border }}>⚡</span>
-            <span className="text-white/80 truncate max-w-[120px]">
-              {formatToolName(currentCommand)}
-              {toolInput && `: ${truncateContent(toolInput, 20)}`}
-            </span>
-          </div>
-        )}
-
-        {/* Separator if both exist */}
-        {currentCommand && displayHistory.length > 0 && (
-          <span className="text-white/30">|</span>
-        )}
-
-        {/* Tool chips using CSS class */}
-        {displayHistory.length > 0 && (
-          <div className="flex items-center gap-1">
-            {displayHistory.map((toolName, idx) => (
-              <span
-                key={idx}
-                className="tool-chip"
-              >
-                {formatToolName(toolName)}
+      <div className="flex items-center gap-2 px-3 py-1.5 text-xs ml-1 overflow-hidden">
+        {/* Content area - shrinks to make room for action buttons */}
+        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+          {/* Current command (if running) */}
+          {currentCommand && (
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded shrink-0"
+              style={{
+                backgroundColor: hexToRgba(statusColor.border, 0.15),
+              }}
+            >
+              <span style={{ color: statusColor.border }}>⚡</span>
+              <span className="text-white/80 truncate max-w-[120px]">
+                {formatToolName(currentCommand)}
+                {toolInput && `: ${truncateContent(toolInput, 20)}`}
               </span>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Expand button (+N) */}
-        {hasMoreHistory && (
-          <button
-            onClick={() => setShowActivityPopup(!showActivityPopup)}
-            className="px-1.5 py-0.5 rounded text-white/50 hover:text-white/70 hover:bg-white/[0.08] transition-colors flex items-center gap-0.5"
-          >
-            <span>+{extraCount}</span>
-            <span className="text-[10px]">▾</span>
-          </button>
-        )}
+          {/* Separator if both exist */}
+          {currentCommand && displayHistory.length > 0 && (
+            <span className="text-white/30 shrink-0">|</span>
+          )}
 
-        {/* Flexible space */}
-        <div className="flex-1" />
+          {/* Tool chips using CSS class */}
+          {displayHistory.length > 0 && (
+            <div className="flex items-center gap-1 overflow-hidden">
+              {displayHistory.map((toolName, idx) => (
+                <span
+                  key={idx}
+                  className="tool-chip shrink-0"
+                >
+                  {formatToolName(toolName)}
+                </span>
+              ))}
+            </div>
+          )}
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1.5">
+          {/* Expand button (+N) */}
+          {hasMoreHistory && (
+            <button
+              onClick={() => setShowActivityPopup(!showActivityPopup)}
+              className="px-1.5 py-0.5 rounded text-white/50 hover:text-white/70 hover:bg-white/[0.08] transition-colors flex items-center gap-0.5 shrink-0"
+            >
+              <span>+{extraCount}</span>
+              <span className="text-[10px]">▾</span>
+            </button>
+          )}
+        </div>
+
+        {/* Action buttons - never shrink */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Approval/Ask handling */}
           {isWaitingForApproval && pendingPopup ? (
             pendingPopup.type === 'ask' ? (
