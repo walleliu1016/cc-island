@@ -1,68 +1,59 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- 温暖渐变背景 -->
-    <linearGradient id="sunsetGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#ff9500"/>
-      <stop offset="30%" style="stop-color:#ff6b35"/>
-      <stop offset="60%" style="stop-color:#1a1a2e"/>
-      <stop offset="100%" style="stop-color:#0f0f1a"/>
+    <!-- 紫色径向渐变（中心提亮） -->
+    <radialGradient id="purpleBg" cx="50%" cy="42%" r="70%">
+      <stop offset="0%" style="stop-color:#a78bfa"/>
+      <stop offset="55%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#4c1d95"/>
+    </radialGradient>
+
+    <!-- 顶部高光 -->
+    <linearGradient id="topGloss" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.18"/>
+      <stop offset="60%" style="stop-color:#ffffff;stop-opacity:0"/>
     </linearGradient>
 
-    <!-- 岛屿渐变 -->
-    <linearGradient id="islandGreen" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" style="stop-color:#1a472a"/>
-      <stop offset="100%" style="stop-color:#4a7c59"/>
-    </linearGradient>
-
-    <!-- 发光 -->
-    <filter id="sunGlow" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="40" result="coloredBlur"/>
+    <!-- 螃蟹白色发光 -->
+    <filter id="crabGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feMerge>
-        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
 
-    <!-- 圆角裁剪 -->
     <clipPath id="roundedClip">
       <rect width="1024" height="1024" rx="225" ry="225"/>
     </clipPath>
   </defs>
 
-  <!-- 圆角背景 -->
-  <rect width="1024" height="1024" rx="225" ry="225" fill="url(#sunsetGradient)"/>
+  <!-- 圆角紫色背景 -->
+  <rect width="1024" height="1024" rx="225" ry="225" fill="url(#purpleBg)"/>
 
   <g clip-path="url(#roundedClip)">
-    <!-- 太阳 -->
-    <circle cx="512" cy="350" r="150" fill="#ffcc00" filter="url(#sunGlow)"/>
-    <circle cx="512" cy="350" r="100" fill="#fff5e0"/>
+    <!-- 顶部高光层 -->
+    <rect width="1024" height="540" rx="225" ry="225" fill="url(#topGloss)"/>
 
-    <!-- E 字母在太阳中心 -->
-    <text x="512" y="400" font-family="SF Pro Display, -apple-system, sans-serif" font-size="120" font-weight="800" fill="#ff9500" text-anchor="middle">E</text>
+    <!-- 像素螃蟹（缩放并居中：crab 66x52 → 660x520，居中在 512,512） -->
+    <g transform="translate(182, 252) scale(10)" filter="url(#crabGlow)">
+      <!-- 左触角 -->
+      <rect x="0" y="13" width="6" height="13" fill="#ffffff"/>
+      <!-- 右触角 -->
+      <rect x="60" y="13" width="6" height="13" fill="#ffffff"/>
 
-    <!-- 岛屿 -->
-    <ellipse cx="512" cy="700" rx="350" ry="120" fill="url(#islandGreen)"/>
+      <!-- 四条腿 -->
+      <rect x="6"  y="39" width="6" height="13" fill="#ffffff"/>
+      <rect x="18" y="39" width="6" height="13" fill="#ffffff"/>
+      <rect x="42" y="39" width="6" height="13" fill="#ffffff"/>
+      <rect x="54" y="39" width="6" height="13" fill="#ffffff"/>
 
-    <!-- 棕榈树左 -->
-    <g transform="translate(300, 520)">
-      <path d="M25 180 Q30 100 35 20" stroke="#5d4037" stroke-width="12" fill="none"/>
-      <ellipse cx="35" cy="20" rx="60" ry="18" fill="#2e7d32" transform="rotate(-40 35 20)"/>
-      <ellipse cx="35" cy="10" rx="55" ry="16" fill="#388e3c" transform="rotate(40 35 10)"/>
-      <ellipse cx="35" cy="5" rx="50" ry="15" fill="#43a047"/>
+      <!-- 主体 -->
+      <rect x="6" y="0" width="54" height="39" fill="#ffffff"/>
+
+      <!-- 左眼 -->
+      <rect x="12" y="13" width="6" height="6.5" fill="#1a0a3a"/>
+      <!-- 右眼 -->
+      <rect x="48" y="13" width="6" height="6.5" fill="#1a0a3a"/>
     </g>
-
-    <!-- 棕榈树右 -->
-    <g transform="translate(580, 540)">
-      <path d="M25 160 Q28 90 32 15" stroke="#5d4037" stroke-width="10" fill="none"/>
-      <ellipse cx="32" cy="15" rx="50" ry="15" fill="#2e7d32" transform="rotate(-35 32 15)"/>
-      <ellipse cx="32" cy="8" rx="45" ry="13" fill="#388e3c" transform="rotate(35 32 8)"/>
-      <ellipse cx="32" cy="3" rx="42" ry="12" fill="#43a047"/>
-    </g>
-
-    <!-- 海浪 -->
-    <path d="M0 800 Q256 770 512 800 T1024 800 L1024 1024 L0 1024 Z" fill="#0a1628" opacity="0.4"/>
-
-    <!-- Ease Island 文字 -->
-    <text x="512" y="900" font-family="SF Pro Display, -apple-system, sans-serif" font-size="56" font-weight="600" fill="white" text-anchor="middle" opacity="0.9">Ease Island</text>
   </g>
 </svg>
