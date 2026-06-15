@@ -46,6 +46,7 @@ export interface ClaudeInstance {
   tool_input?: ToolInput;
   started_at: number;
   last_activity_at: number;
+  first_prompt?: string;  // First user prompt for disambiguation
   activities?: ToolActivityDetail[];  // Tool activity history for display
 }
 

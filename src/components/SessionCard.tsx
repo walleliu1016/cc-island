@@ -184,11 +184,22 @@ export function SessionCard({
 
       {/* Row 1: Fixed layout */}
       <div className="flex items-center gap-2 px-3 py-2 ml-1">
-        {/* Project name + session number */}
-        <div className="flex-1 min-w-0">
-          <span className="text-white text-sm font-medium truncate">
+        {/* Project name + first_prompt subtitle */}
+        <div className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
+          <span className="text-white text-sm font-medium truncate shrink-0 max-w-[60%]">
             {displayName}
           </span>
+          {instance.first_prompt && (
+            <span
+              className="text-white/45 text-xs truncate transition-all duration-200 hover:text-white/70"
+              style={{
+                maxWidth: isHovered ? '320px' : '160px',
+              }}
+              title={instance.first_prompt}
+            >
+              · {instance.first_prompt}
+            </span>
+          )}
         </div>
 
         {/* Status badge using CSS class */}

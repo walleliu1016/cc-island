@@ -146,6 +146,28 @@ impl JsonlWatcherManager {
 
         info!("📁 JSONL update: {} new messages for session {}", new_messages.len(), session_id);
 
+        // Populate first_prompt from JSONL if instance has none yet (handles
+        // case where Claude started before cc-island, so no live UserPromptSubmit
+        // event was captured)
+        {
+            let needs_extract = {
+                let state = app_state.read();
+                state.instances.get_instance(&session_id.to_string())
+                    .map(|i| i.first_prompt.is_none())
+                    .unwrap_or(false)
+            };
+            if needs_extract {
+                if let Some(fp) = crate::conversation_parser::ConversationParser::extract_first_user_prompt(session_id, cwd) {
+                    let mut state = app_state.write();
+                    if let Some(instance) = state.instances.get_instance_mut(&session_id.to_string()) {
+                        if instance.first_prompt.is_none() {
+                            instance.first_prompt = Some(fp);
+                        }
+                    }
+                }
+            }
+        }
+
         // Convert and push
         let chat_messages = ConversationParser::to_chat_messages(new_messages);
         let msg_count = chat_messages.len();

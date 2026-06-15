@@ -275,6 +275,19 @@ async fn handle_hook(
 
                     tracing::info!("🔄 Auto-recovered session: {} - {} (from {} event)",
                         instance.session_id, instance.project_name, hook_event);
+
+                    // Try to extract first_prompt from JSONL (existing session may have history)
+                    if let Some(cwd) = &session_cwd {
+                        if let Some(fp) = crate::conversation_parser::ConversationParser::extract_first_user_prompt(&session_id, cwd) {
+                            instance.first_prompt = Some(fp);
+                        }
+                    }
+                    if instance.first_prompt.is_none() {
+                        if let Some(fp) = crate::conversation_parser::ConversationParser::extract_first_user_prompt_search(&session_id) {
+                            instance.first_prompt = Some(fp);
+                        }
+                    }
+
                     state_guard.instances.add_instance(instance);
 
                     // Start JSONL watcher for this recovered session
@@ -602,6 +615,29 @@ async fn handle_hook(
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_millis() as u64;
+
+                        // Capture first_prompt for session disambiguation if not already set
+                        if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                            if instance.first_prompt.is_none() {
+                                let cleaned = prompt_text
+                                    .trim()
+                                    .replace('\n', " ")
+                                    .split_whitespace()
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                if !cleaned.is_empty() {
+                                    let chars: Vec<char> = cleaned.chars().collect();
+                                    let truncated = if chars.len() > 50 {
+                                        let mut s: String = chars[..50].iter().collect();
+                                        s.push('…');
+                                        s
+                                    } else {
+                                        cleaned
+                                    };
+                                    instance.first_prompt = Some(truncated);
+                                }
+                            }
+                        }
 
                         let message = ChatMessage {
                             id: uuid::Uuid::new_v4().to_string(),

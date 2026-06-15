@@ -654,6 +654,152 @@ impl ConversationParser {
         self.cache.remove(session_id);
     }
 
+    /// Extract first user prompt from a JSONL file.
+    /// Returns the first user-typed prompt (truncated to ~50 chars), filtering out
+    /// system reminders, command tags, and other non-user-typed content.
+    /// Used to disambiguate multiple Claude sessions within the same project.
+    pub fn extract_first_user_prompt(session_id: &str, cwd: &str) -> Option<String> {
+        let file_path = Self::session_file_path(session_id, cwd);
+        if !file_path.exists() {
+            return Self::extract_first_user_prompt_search(session_id);
+        }
+        Self::extract_first_user_prompt_from_file(&file_path)
+    }
+
+    /// Extract first user prompt by searching all project dirs (when cwd unknown)
+    pub fn extract_first_user_prompt_search(session_id: &str) -> Option<String> {
+        let file_path = Self::find_session_file(session_id)?;
+        Self::extract_first_user_prompt_from_file(&file_path)
+    }
+
+    fn extract_first_user_prompt_from_file(file_path: &PathBuf) -> Option<String> {
+        let file = File::open(file_path).ok()?;
+        let reader = BufReader::new(&file);
+
+        for line in reader.lines().flatten() {
+            if line.is_empty() {
+                continue;
+            }
+            let json: serde_json::Value = match serde_json::from_str(&line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // Only user messages
+            if json.get("type").and_then(|t| t.as_str()) != Some("user") {
+                continue;
+            }
+
+            // Skip meta messages
+            if json.get("isMeta").and_then(|m| m.as_bool()) == Some(true) {
+                continue;
+            }
+
+            let message = json.get("message")?;
+
+            // Try string content first
+            let content_text: Option<String> = if let Some(s) = message.get("content").and_then(|c| c.as_str()) {
+                Some(s.to_string())
+            } else if let Some(arr) = message.get("content").and_then(|c| c.as_array()) {
+                // Concatenate all text blocks
+                let mut texts: Vec<String> = vec![];
+                for block in arr {
+                    if block.get("type").and_then(|t| t.as_str()) == Some("text") {
+                        if let Some(t) = block.get("text").and_then(|t| t.as_str()) {
+                            texts.push(t.to_string());
+                        }
+                    }
+                }
+                if texts.is_empty() { None } else { Some(texts.join(" ")) }
+            } else {
+                None
+            };
+
+            let raw = match content_text {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let cleaned = Self::clean_prompt_text(&raw);
+            if cleaned.is_empty() {
+                continue;
+            }
+
+            return Some(Self::truncate_chars(&cleaned, 50));
+        }
+
+        None
+    }
+
+    /// Strip system reminders, command tags, tool-result blocks, and noisy markers
+    fn clean_prompt_text(text: &str) -> String {
+        let trimmed = text.trim();
+        // Skip if entire content is a tagged block
+        if trimmed.starts_with("<command-")
+            || trimmed.starts_with("<local-command")
+            || trimmed.starts_with("Caveat:")
+            || trimmed.starts_with("[Request interrupted by user")
+        {
+            return String::new();
+        }
+
+        let mut result = String::new();
+        let mut i = 0;
+        let bytes = trimmed.as_bytes();
+        while i < bytes.len() {
+            // Skip <system-reminder>...</system-reminder>
+            if trimmed[i..].starts_with("<system-reminder>") {
+                if let Some(end) = trimmed[i..].find("</system-reminder>") {
+                    i += end + "</system-reminder>".len();
+                    continue;
+                } else {
+                    break;
+                }
+            }
+            // Skip <command-...> single tags or paired blocks
+            if trimmed[i..].starts_with("<command-") {
+                if let Some(end) = trimmed[i..].find('>') {
+                    i += end + 1;
+                    continue;
+                }
+                break;
+            }
+            if trimmed[i..].starts_with("</command-") {
+                if let Some(end) = trimmed[i..].find('>') {
+                    i += end + 1;
+                    continue;
+                }
+                break;
+            }
+            // Skip <task-notification>...</task-notification>
+            if trimmed[i..].starts_with("<task-notification>") {
+                if let Some(end) = trimmed[i..].find("</task-notification>") {
+                    i += end + "</task-notification>".len();
+                    continue;
+                }
+                break;
+            }
+            // Append next char
+            let ch = trimmed[i..].chars().next().unwrap();
+            result.push(ch);
+            i += ch.len_utf8();
+        }
+
+        result.trim().replace('\n', " ").split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// Truncate to N chars (Unicode-aware), append … if truncated
+    fn truncate_chars(s: &str, max: usize) -> String {
+        let chars: Vec<char> = s.chars().collect();
+        if chars.len() <= max {
+            s.to_string()
+        } else {
+            let mut out: String = chars[..max].iter().collect();
+            out.push('…');
+            out
+        }
+    }
+
     /// Convert ConversationMessage to ChatMessage format for compatibility
     pub fn to_chat_messages(messages: Vec<ConversationMessage>) -> Vec<crate::chat_messages::ChatMessage> {
         let mut result = Vec::new();

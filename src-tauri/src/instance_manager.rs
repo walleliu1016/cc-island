@@ -80,6 +80,10 @@ pub struct ClaudeInstance {
     pub tool_input: Option<ToolInput>,
     pub started_at: u64,
     pub last_activity_at: u64,
+    /// First user prompt (truncated, used as a session subtitle to disambiguate
+    /// multiple Claude instances within the same project)
+    #[serde(default)]
+    pub first_prompt: Option<String>,
     // Fields for display persistence (minimum 3s display time)
     #[serde(skip)]
     pub display_status_until: Option<u64>, // Unix timestamp in ms
@@ -108,6 +112,10 @@ pub struct ClaudeInstanceDisplay {
     pub tool_input: Option<ToolInput>,
     pub started_at: u64,
     pub last_activity_at: u64,
+    /// First user prompt (truncated, used as a session subtitle to disambiguate
+    /// multiple Claude instances within the same project)
+    #[serde(default)]
+    pub first_prompt: Option<String>,
     /// Tool activity history for display
     #[serde(default)]
     pub activities: Vec<crate::activity_store::ToolActivityDetail>,
@@ -132,6 +140,7 @@ impl ClaudeInstance {
             tool_input: None,
             started_at: now,
             last_activity_at: now,
+            first_prompt: None,
             display_status_until: None,
             display_status: None,
             display_tool: None,
@@ -232,6 +241,7 @@ impl ClaudeInstance {
             tool_input: tool_input.cloned(),
             started_at: self.started_at,
             last_activity_at: self.last_activity_at,
+            first_prompt: self.first_prompt.clone(),
             activities: vec![], // Activities will be filled by lib.rs get_instances
         }
     }
