@@ -630,6 +630,26 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin"
       >
+        {/* Live ask popup - rendered from pendingPopup directly (because the
+            AskUserQuestion message is NOT added to chat_history during the
+            blocking PermissionRequest flow). Only render here if there's no
+            matching AskUserQuestion message yet, to avoid duplicate wizards. */}
+        {pendingPopup?.type === 'ask' &&
+          pendingPopup.ask_data?.questions &&
+          pendingPopup.ask_data.questions.length > 0 &&
+          !filteredMessages.some(m => m.toolName === 'AskUserQuestion') && (
+            <div className="mb-3 bg-white/5 rounded-lg overflow-hidden">
+              <QuestionWizard
+                questions={pendingPopup.ask_data.questions}
+                selectedAnswers={askAnswers}
+                onChange={setAskAnswers}
+                onSubmit={handleAskRespond}
+                onCancel={() => handleRespond('deny')}
+                readOnly={false}
+              />
+            </div>
+          )}
+
         {filteredMessages.map((msg) => {
           const askQuestions = msg.toolName === 'AskUserQuestion' ? parseAskQuestions(msg.content) : null;
 

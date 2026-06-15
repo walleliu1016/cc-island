@@ -196,16 +196,9 @@ export function SessionCard({
           {getStatusText(instance.status)}
         </div>
 
-        {/* Running duration */}
-        {!isEnded && (
-          <span className="text-white/50 text-xs">
-            {runningDuration}
-          </span>
-        )}
-
-        {/* Start time */}
-        <span className="text-white/40 text-xs">
-          {startTimeAgo}
+        {/* Running duration (for active) or start time ago (for ended) */}
+        <span className="text-white/50 text-xs">
+          {isEnded ? startTimeAgo : runningDuration}
         </span>
       </div>
 
