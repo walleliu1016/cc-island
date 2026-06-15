@@ -937,6 +937,19 @@ pub fn run() {
 
                 let window = app.get_webview_window("main").unwrap();
 
+                // On macOS, non-key transparent windows do NOT receive mouseEnter events
+                // by default. Without this, the island won't auto-expand on hover unless
+                // the user clicks it first to make it active.
+                #[cfg(target_os = "macos")]
+                {
+                    use objc::{sel, sel_impl};
+                    let ns_window = window.ns_window().expect("Failed to get NSWindow handle");
+                    unsafe {
+                        let _: () = objc::msg_send!(ns_window as *mut objc::runtime::Object, setAcceptsMouseMovedEvents: true);
+                    }
+                    tracing::info!("Set acceptsMouseMovedEvents=YES on NSWindow");
+                }
+
                 // Position window at top center, touching screen top (y=0)
                 if let Ok(monitor) = window.primary_monitor() {
                     if let Some(monitor) = monitor {
