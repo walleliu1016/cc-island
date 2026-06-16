@@ -986,11 +986,15 @@ pub fn run() {
                     }
                 });
 
-                // Periodic popup cleanup (remove resolved/auto-closed popups after 1s)
+                // Periodic popup maintenance (every 1s)
                 tokio::spawn(async move {
                     loop {
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                        SHARED_STATE.write().popups.cleanup();
+                        let mut state = SHARED_STATE.write();
+                        // Check for timeouts and auto-resolve expired popups
+                        state.popups.check_timeouts();
+                        // Remove resolved/auto-closed popups after 1s display grace
+                        state.popups.cleanup();
                     }
                 });
 

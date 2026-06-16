@@ -1,6 +1,6 @@
 [package]
 name = "cc-island"
-version = "0.3.4"
+version = "0.3.8"
 description = "Dynamic Island for Claude Code"
 authors = ["you"]
 edition = "2021"

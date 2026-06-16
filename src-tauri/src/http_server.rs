@@ -247,6 +247,16 @@ async fn handle_hook(
         {
             let mut state_guard = state.write();
 
+            // Cancel any stale pending popups for this session.
+            // When a new event arrives, the previous blocking popup (PermissionRequest
+            // or AskUserQuestion) has been resolved — either answered on the Claude side
+            // or timed out. Without this, stale "去回答" badges persist in the UI.
+            let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
+            if !cancelled.is_empty() {
+                tracing::info!("Non-blocking event '{}' cancelled {} stale popups for session {}: {:?}",
+                    hook_event, cancelled.len(), input.session_id, cancelled);
+            }
+
             // Auto-recover session if it doesn't exist (Desktop restart recovery)
             // Skip for SessionStart (creates new) and SessionEnd (would be invalid)
             if hook_event != "SessionStart" && hook_event != "SessionEnd" {
