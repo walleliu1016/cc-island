@@ -31,7 +31,7 @@ const openAnimation = { type: 'spring', stiffness: 344, damping: 25 };
 const closeAnimation = { type: 'spring', stiffness: 320, damping: 30 };
 
 function App() {
-  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups, layoutMode, setDesktopMode } = useAppStore();
+  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups, layoutMode, setDesktopMode, setHistorySessions } = useAppStore();
   const { headerDisplay, updateDisplays } = useDisplayStore();
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
@@ -151,15 +151,17 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instancesData, popupsData, sessionNotif, cloudStatusRaw] = await Promise.all([
+        const [instancesData, popupsData, sessionNotif, cloudStatusRaw, historyData] = await Promise.all([
           invoke<ClaudeInstance[]>('get_instances'),
           invoke<PopupItem[]>('get_popups'),
           invoke<SessionNotification | null>('get_session_notification'),
           invoke<string>('get_cloud_connection_status'),
+          invoke<ClaudeInstance[]>('get_history_sessions'),
         ]);
 
         setInstances(instancesData);
         setPopups(popupsData);
+        setHistorySessions(historyData);
 
         // Update session notification (will be cleared by backend after 3 seconds)
         if (sessionNotif) {
@@ -436,6 +438,8 @@ function App() {
         style={{
           transformOrigin: 'center top',
         }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {/* SVG Notch Shape Background */}
         <svg
@@ -460,8 +464,6 @@ function App() {
           className={`flex items-center flex-shrink-0 ${showExpanded ? 'px-6' : 'px-3'}`}
           style={{ height: COLLAPSED_HEIGHT }}
           onMouseDown={handleDrag}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
         >
           {/* Left column - Crab + optional indicator, fixed width */}
           <div className="flex items-center gap-1.5 w-10 flex-shrink-0">
@@ -582,9 +584,6 @@ function App() {
               exit={{ opacity: 0, maxHeight: 0 }}
               transition={{ duration: 0.25 }}
               className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
-              onMouseDown={handleDrag}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
             >
               <div className="max-h-[360px] overflow-y-auto scrollbar-thin w-full rounded-b-xl">
                 {activeInstances.length > 0 && (

@@ -275,3 +275,40 @@ pub fn find_any_claude_process() -> Option<ProcessInfo> {
 
     None
 }
+
+use crate::platform::TerminalInfo;
+
+pub fn get_available_terminals_windows() -> Vec<TerminalInfo> {
+    vec![
+        TerminalInfo {
+            bundle_id: "wt.exe".to_string(),
+            display_name: "Windows Terminal".to_string(),
+        },
+        TerminalInfo {
+            bundle_id: "cmd.exe".to_string(),
+            display_name: "Command Prompt".to_string(),
+        },
+        TerminalInfo {
+            bundle_id: "powershell.exe".to_string(),
+            display_name: "PowerShell".to_string(),
+        },
+    ]
+}
+
+pub fn launch_in_terminal_windows(terminal_bundle_id: &str, command: &str, _cwd: &str) -> Result<(), String> {
+    match terminal_bundle_id {
+        "wt.exe" => {
+            std::process::Command::new("wt.exe")
+                .args(["-w", "0", "nt", "cmd", "/c", command])
+                .spawn()
+                .map_err(|e| format!("Failed to launch: {}", e))?;
+        }
+        _ => {
+            std::process::Command::new("cmd.exe")
+                .args(["/c", "start", terminal_bundle_id, "/c", command])
+                .spawn()
+                .map_err(|e| format!("Failed to launch: {}", e))?;
+        }
+    }
+    Ok(())
+}

@@ -13,6 +13,7 @@ interface AppState {
   hasNewActivity: boolean;
   layoutMode: LayoutMode;
   showArchiveTab: boolean;
+  historySessions: ClaudeInstance[];
   setIsExpanded: (expanded: boolean) => void;
   setInstances: (instances: ClaudeInstance[]) => void;
   setPopups: (popups: PopupItem[]) => void;
@@ -21,6 +22,7 @@ interface AppState {
   setIslandMode: () => void;
   setDesktopMode: () => void;
   setShowArchiveTab: (show: boolean) => void;
+  setHistorySessions: (historySessions: ClaudeInstance[]) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -31,6 +33,7 @@ export const useAppStore = create<AppState>((set) => ({
   hasNewActivity: false,
   layoutMode: 'island',
   showArchiveTab: false,
+  historySessions: [],
   setIsExpanded: (isExpanded) => set({ isExpanded }),
   setInstances: (instances) => set({ instances }),
   setPopups: (popups) => set({ popups }),
@@ -39,4 +42,5 @@ export const useAppStore = create<AppState>((set) => ({
   setIslandMode: () => set({ layoutMode: 'island' }),
   setDesktopMode: () => set({ layoutMode: 'desktop' }),
   setShowArchiveTab: (show: boolean) => set({ showArchiveTab: show }),
+  setHistorySessions: (historySessions) => set({ historySessions }),
 }));

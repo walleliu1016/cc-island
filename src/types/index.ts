@@ -47,6 +47,7 @@ export interface ClaudeInstance {
   started_at: number;
   last_activity_at: number;
   first_prompt?: string;  // First user prompt for disambiguation
+  ended_at?: number;  // When the session ended (Unix timestamp in seconds)
   activities?: ToolActivityDetail[];  // Tool activity history for display
 }
 
@@ -173,6 +174,23 @@ export interface ChatMessage {
 }
 
 // Stats response for stats bar (DesktopMode)
+// Terminal info for restart dialog
+export interface TerminalInfo {
+  bundle_id: string;
+  display_name: string;
+}
+
+// Restart config persisted to disk
+export interface RestartPreset {
+  name: string;
+  args: string;
+}
+
+export interface RestartConfig {
+  default_args: string[];
+  saved_presets: RestartPreset[];
+}
+
 export interface StatsResponse {
   session_count: number;
   message_count: number;

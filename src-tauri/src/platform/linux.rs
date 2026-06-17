@@ -264,3 +264,58 @@ pub fn find_any_claude_process() -> Option<ProcessInfo> {
 
     None
 }
+
+use crate::platform::TerminalInfo;
+
+pub fn get_available_terminals_linux() -> Vec<TerminalInfo> {
+    let mut terminals: Vec<TerminalInfo> = Vec::new();
+
+    let known: &[(&str, &str, &str)] = &[
+        ("gnome-terminal", "GNOME Terminal", "gnome-terminal"),
+        ("konsole", "Konsole", "konsole"),
+        ("alacritty", "Alacritty", "alacritty"),
+        ("xterm", "XTerm", "xterm"),
+        ("wezterm", "WezTerm", "wezterm"),
+    ];
+
+    for &(bundle_id, display_name, binary) in known {
+        if std::process::Command::new("which")
+            .arg(binary)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            terminals.push(TerminalInfo {
+                bundle_id: bundle_id.to_string(),
+                display_name: display_name.to_string(),
+            });
+        }
+    }
+
+    if terminals.is_empty() {
+        terminals.push(TerminalInfo {
+            bundle_id: "xterm".to_string(),
+            display_name: "XTerm".to_string(),
+        });
+    }
+
+    terminals
+}
+
+pub fn launch_in_terminal_linux(terminal_bundle_id: &str, command: &str, _cwd: &str) -> Result<(), String> {
+    let args: Vec<&str> = match terminal_bundle_id {
+        "gnome-terminal" => vec!["--", "bash", "-c", command],
+        "konsole" => vec!["-e", "bash", "-c", command],
+        "alacritty" => vec!["-e", "bash", "-c", command],
+        "xterm" => vec!["-e", "bash", "-c", command],
+        "wezterm" => vec!["start", "--", "bash", "-c", command],
+        _ => vec!["-e", "bash", "-c", command],
+    };
+
+    std::process::Command::new(terminal_bundle_id)
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("Failed to launch terminal: {}", e))?;
+
+    Ok(())
+}

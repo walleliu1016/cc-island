@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=480, initial-scale=1.0">
+<title>CC-Island UI Mockup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  background: #1a1a2e;
+  display: flex; justify-content: center; padding-top: 40px;
+  color: #fff;
+}
+.island {
+  width: 480px;
+  background: #000;
+  border-radius: 0 0 24px 24px;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  height: 38px; display: flex; align-items: center; padding: 0 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.header-left { width: 40px; display: flex; align-items: center; gap: 4px; }
+.crab { font-size: 14px; }
+.header-center { flex: 1; text-align: center; font-size: 12px; color: rgba(255,255,255,0.55); }
+.header-right { width: 40px; display: flex; justify-content: flex-end; }
+.menu-dot { font-size: 16px; color: rgba(255,255,255,0.3); }
+
+/* Content */
+.content { padding: 12px 16px 16px; }
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 6px; margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;
+}
+.tab {
+  padding: 5px 14px; border-radius: 8px; font-size: 11px; cursor: pointer;
+  color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.04);
+  border: none; transition: all 0.2s;
+}
+.tab.active {
+  color: #fff; background: rgba(255,255,255,0.12);
+  font-weight: 600;
+}
+.tab .count { color: rgba(255,255,255,0.3); margin-left: 3px; }
+
+/* Session Cards */
+.card-list { display: flex; flex-direction: column; gap: 6px; }
+.card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+.card:hover { background: rgba(255,255,255,0.06); }
+.card.status-bar { border-left: 3px solid; padding-left: 8px; }
+.card.status-bar.running { border-color: #7c3aed; }
+.card.status-bar.ended { border-color: rgba(255,255,255,0.2); }
+
+.card-left { flex: 1; min-width: 0; }
+.card-name { font-size: 13px; font-weight: 500; }
+.card-prompt { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+
+.card-badge {
+  font-size: 10px; padding: 2px 8px; border-radius: 4px;
+  font-weight: 600; flex-shrink: 0;
+}
+.card-badge.running { background: rgba(124,58,237,0.2); color: #a78bfa; }
+.card-badge.idle { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); }
+.card-badge.ended { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); }
+
+.card-time { font-size: 11px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+
+.card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.btn {
+  padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600;
+  border: none; cursor: pointer; transition: all 0.15s;
+}
+.btn-chat { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+.btn-chat:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.btn-jump { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); font-size: 12px; padding: 4px 8px; }
+.btn-jump:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.btn-restart { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.btn-restart:hover { background: rgba(124,58,237,0.3); color: #c4b5fd; }
+.btn-deny { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); }
+.btn-deny:hover { background: rgba(239,68,68,0.6); color: #fff; }
+.btn-allow { background: #10b981; color: #fff; }
+.btn-allow:hover { background: #059669; }
+
+/* Idle sessions - collapsible */
+.idle-section { margin-top: 8px; }
+.idle-toggle {
+  width: 100%; padding: 6px 12px; font-size: 11px;
+  color: rgba(255,255,255,0.35); background: transparent; border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  border-radius: 8px;
+}
+.idle-toggle:hover { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6); }
+.idle-toggle .arrow { transition: transform 0.2s; font-size: 8px; }
+.idle-toggle.open .arrow { transform: rotate(180deg); }
+
+.idle-list { padding-left: 8px; margin-top: 4px; }
+.idle-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px; border-radius: 6px; font-size: 11px;
+  color: rgba(255,255,255,0.4); cursor: pointer;
+}
+.idle-row:hover { background: rgba(255,255,255,0.04); }
+.idle-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); flex-shrink: 0; }
+.idle-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  width: 380px; background: #1a1a2e;
+  border-radius: 16px; padding: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.modal-label { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+
+/* Terminal select */
+.terminal-select {
+  width: 100%; padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 13px; outline: none; margin-bottom: 16px;
+  cursor: pointer;
+}
+.terminal-select:focus { border-color: #7c3aed; }
+.terminal-select option { background: #1a1a2e; color: #fff; }
+
+/* Arg chips */
+.arg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip {
+  padding: 4px 10px; border-radius: 6px; font-size: 11px;
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6);
+  border: 1px solid rgba(255,255,255,0.08); cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.chip.selected {
+  background: rgba(124,58,237,0.2); color: #a78bfa;
+  border-color: rgba(124,58,237,0.4);
+}
+
+/* Custom args input */
+.arg-input {
+  width: 100%; padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 12px; font-family: 'SF Mono', monospace; outline: none;
+  margin-bottom: 16px;
+}
+.arg-input:focus { border-color: #7c3aed; }
+.arg-input::placeholder { color: rgba(255,255,255,0.25); }
+
+.preview-cmd {
+  padding: 8px 12px; border-radius: 6px; margin-bottom: 16px;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06);
+  font-family: 'SF Mono', monospace; font-size: 11px; color: #4ade80;
+  word-break: break-all;
+}
+
+/* Modal buttons */
+.modal-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-cancel { padding: 8px 16px; border-radius: 8px; font-size: 12px;
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); border: none; cursor: pointer; }
+.btn-cancel:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.btn-confirm { padding: 8px 16px; border-radius: 8px; font-size: 12px;
+  background: #7c3aed; color: #fff; border: none; cursor: pointer; font-weight: 600; }
+.btn-confirm:hover { background: #6d28d9; }
+
+/* State toggle for demo */
+.demo-switch {
+  position: fixed; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 200;
+}
+.demo-btn {
+  padding: 6px 14px; border-radius: 8px; font-size: 11px;
+  border: 1px solid rgba(255,255,255,0.15); cursor: pointer;
+  background: rgba(0,0,0,0.6); color: #fff;
+}
+.demo-btn.active { background: #7c3aed; border-color: #7c3aed; }
+
+/* Approval card highlight */
+.card.approval { border: 1px solid rgba(168,85,247,0.35); }
+</style>
+</head>
+<body>
+
+<div class="demo-switch">
+  <button class="demo-btn active" onclick="switchMode('island')">灵动岛模式</button>
+  <button class="demo-btn" onclick="switchMode('desktop')">桌面模式</button>
+  <button class="demo-btn" onclick="showRestart()">重启弹窗</button>
+</div>
+
+<!-- ==================== ISLAND MODE ==================== -->
+<div id="islandMode" class="island">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="crab">🦀</span>
+      <span style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.3);"></span>
+    </div>
+    <div class="header-center">CC-Island</div>
+    <div class="header-right">
+      <span class="menu-dot">☁</span>
+      <span style="margin-left:4px;font-size:14px;color:rgba(255,255,255,0.3);cursor:pointer;">⋮</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+        活动<span class="count">2</span>
+      </button>
+      <button class="tab" id="idleTab" onclick="switchTab('idle'); this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+        空闲<span class="count">2</span>
+      </button>
+      <button class="tab" id="historyTab" onclick="switchTab('history'); this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+        历史<span class="count">4</span>
+      </button>
+    </div>
+
+    <!-- Active Sessions -->
+    <div id="activeList" class="card-list">
+      <!-- Card 1: Running session -->
+      <div class="card status-bar running">
+        <div class="card-left">
+          <div class="card-name">my-project</div>
+          <div class="card-prompt">· 帮我优化这个React组件的性能...</div>
+        </div>
+        <span class="card-badge running">运行中</span>
+        <span class="card-time">3m</span>
+        <div class="card-actions">
+          <button class="btn btn-chat">💬</button>
+          <button class="btn btn-jump">⌨</button>
+        </div>
+      </div>
+
+      <!-- Card 2: Waiting for approval -->
+      <div class="card status-bar running approval">
+        <div class="card-left">
+          <div class="card-name">backend-api</div>
+          <div class="card-prompt">· 给这个函数加单元测试</div>
+        </div>
+        <span class="card-badge running">需要授权</span>
+        <span class="card-time">12m</span>
+        <div class="card-actions">
+          <button class="btn btn-deny">Deny</button>
+          <button class="btn btn-allow">Allow</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Idle Sessions -->
+    <div id="idleSection" class="idle-section">
+      <button class="idle-toggle open" onclick="this.classList.toggle('open'); document.getElementById('idleList').classList.toggle('hidden')">
+        <span>空闲会话 (2)</span>
+        <span class="arrow">▼</span>
+      </button>
+      <div id="idleList" class="idle-list">
+        <div class="idle-row">
+          <div class="idle-dot"></div>
+          <span class="idle-name">frontend-app</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.25)">12分钟前</span>
+        </div>
+        <div class="idle-row">
+          <div class="idle-dot"></div>
+          <span class="idle-name">docs-site</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.25)">35分钟前</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Sessions -->
+    <div id="historySection" class="card-list" style="display:none;">
+      <div class="card status-bar ended">
+        <div class="card-left">
+          <div class="card-name" style="color:rgba(255,255,255,0.5)">legacy-service</div>
+          <div class="card-prompt">· 重构这个模块的代码结构...</div>
+        </div>
+        <span class="card-badge ended">已结束</span>
+        <span class="card-time" style="color:rgba(255,255,255,0.2)">2小时前</span>
+        <div class="card-actions">
+          <button class="btn btn-chat">💬</button>
+          <button class="btn btn-restart" onclick="showRestart()">↻ 重启</button>
+        </div>
+      </div>
+
+      <div class="card status-bar ended">
+        <div class="card-left">
+          <div class="card-name" style="color:rgba(255,255,255,0.5)">data-pipeline</div>
+          <div class="card-prompt">· 写一个ETL脚本来处理CSV数据</div>
+        </div>
+        <span class="card-badge ended">已结束</span>
+        <span class="card-time" style="color:rgba(255,255,255,0.2)">昨天</span>
+        <div class="card-actions">
+          <button class="btn btn-chat">💬</button>
+          <button class="btn btn-restart" onclick="showRestart()">↻ 重启</button>
+        </div>
+      </div>
+
+      <div class="card status-bar ended">
+        <div class="card-left">
+          <div class="card-name" style="color:rgba(255,255,255,0.5)">mobile-app</div>
+          <div class="card-prompt">· 修复iOS端Push通知的问题</div>
+        </div>
+        <span class="card-badge ended">已结束</span>
+        <span class="card-time" style="color:rgba(255,255,255,0.2)">3天前</span>
+        <div class="card-actions">
+          <button class="btn btn-chat">💬</button>
+          <button class="btn btn-restart" onclick="showRestart()">↻ 重启</button>
+        </div>
+      </div>
+
+      <div class="card status-bar ended">
+        <div class="card-left">
+          <div class="card-name" style="color:rgba(255,255,255,0.5)">cc-island</div>
+          <div class="card-prompt">· 增加历史会话功能...</div>
+        </div>
+        <span class="card-badge ended">已结束</span>
+        <span class="card-time" style="color:rgba(255,255,255,0.2)">5天前</span>
+        <div class="card-actions">
+          <button class="btn btn-chat">💬</button>
+          <button class="btn btn-restart" onclick="showRestart()">↻ 重启</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ==================== DESKTOP MODE ==================== -->
+<div id="desktopMode" style="display:none;">
+<div style="width:480px;min-height:500px;background:#141414;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+  <!-- Title bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:rgba(40,40,40,0.95);border-bottom:1px solid rgba(255,255,255,0.06);">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#a855f7,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;">C</div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);">CC-Island</div>
+        <div style="font-size:10px;color:#4ade80;">● 8个会话</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button style="padding:5px 10px;border-radius:6px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.2);color:#4caf50;font-size:10px;cursor:pointer;">灵动岛</button>
+      <button style="padding:5px 8px;border-radius:6px;background:transparent;color:#666;border:none;font-size:12px;cursor:pointer;">⚙</button>
+      <button style="padding:5px 8px;border-radius:6px;background:transparent;color:#666;border:none;font-size:12px;cursor:pointer;">−</button>
+      <button style="padding:5px 8px;border-radius:6px;background:transparent;color:#666;border:none;font-size:12px;cursor:pointer;">✕</button>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div style="display:flex;gap:8px;padding:8px 16px;background:rgba(30,30,30,0.95);border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,0.1);">
+      <span style="font-size:11px;color:#a78bfa;">◻</span>
+      <span style="font-weight:700;font-size:12px;background:linear-gradient(135deg,#c4b5fd,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">8</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.4);">会话</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:rgba(34,197,94,0.1);">
+      <span style="font-size:11px;color:#4ade80;">✉</span>
+      <span style="font-weight:700;font-size:12px;background:linear-gradient(135deg,#6ee7b7,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">156</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.4);">消息</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:rgba(251,191,36,0.1);">
+      <span style="font-size:11px;color:#fbbf24;">✓</span>
+      <span style="font-weight:700;font-size:12px;background:linear-gradient(135deg,#fcd34d,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">42</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.4);">调用</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:rgba(96,165,250,0.1);">
+      <span style="font-size:11px;color:#60a5fa;">●</span>
+      <span style="font-weight:700;font-size:12px;background:linear-gradient(135deg,#93c5fd,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">2</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.4);">进行中</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div style="padding:12px 16px;">
+    <!-- Desktop Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button id="dtActive" onclick="switchDesktopTab('active')" style="padding:7px 16px;border-radius:8px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:rgba(255,255,255,0.12);color:#fff;">
+        活动会话 (2)
+      </button>
+      <button id="dtIdle" onclick="switchDesktopTab('idle')" style="padding:7px 16px;border-radius:8px;font-size:12px;border:none;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.45);">
+        空闲会话 (2) ▾
+      </button>
+      <button id="dtHistory" onclick="switchDesktopTab('history')" style="padding:7px 16px;border-radius:8px;font-size:12px;border:none;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.45);">
+        历史会话 (4) ▾
+      </button>
+    </div>
+
+    <!-- Desktop Active List -->
+    <div id="desktopActiveList" class="card-list">
+      <div class="card status-bar running">
+        <div class="card-left">
+          <div class="card-name">my-project</div>
+          <div class="card-prompt">· 帮我优化这个React组件的性能...</div>
+        </div>
+        <span class="card-badge running">运行中</span>
+        <span class="card-time">3m</span>
+        <div class="card-actions">
+          <button class="btn btn-chat" style="padding:5px 12px;font-size:11px;">💬 Chat</button>
+          <button class="btn btn-jump">⌨</button>
+        </div>
+      </div>
+
+      <div class="card status-bar running approval">
+        <div class="card-left">
+          <div class="card-name">backend-api</div>
+          <div class="card-prompt">· 给这个函数加单元测试</div>
+        </div>
+        <span class="card-badge running">需要授权</span>
+        <span class="card-time">12m</span>
+        <div class="card-actions">
+          <button class="btn btn-deny" style="padding:5px 14px;font-size:11px;">Deny</button>
+          <button class="btn btn-allow" style="padding:5px 14px;font-size:11px;">Allow</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop Idle List -->
+    <div id="desktopIdleList" style="display:none;">
+      <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.02);margin-bottom:4px;border-radius:0 8px 8px 0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div>
+            <span style="font-size:12px;color:rgba(255,255,255,0.5);">frontend-app</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.2);">12分钟前</span>
+          </div>
+          <span style="font-size:10px;color:rgba(255,255,255,0.25);">空闲</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.02);border-radius:0 8px 8px 0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div>
+            <span style="font-size:12px;color:rgba(255,255,255,0.5);">docs-site</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.2);">35分钟前</span>
+          </div>
+          <span style="font-size:10px;color:rgba(255,255,255,0.25);">空闲</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop History List -->
+    <div id="desktopHistoryList" style="display:none;">
+      <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);margin-bottom:4px;border-radius:0 8px 8px 0;">
+          <div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">legacy-service</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.2);">重构这个模块的代码结构... · 2h前 · 持续 45m</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:rgba(255,255,255,0.2);">已结束</span>
+            <button style="padding:4px 10px;border-radius:6px;font-size:10px;background:rgba(124,58,237,0.15);color:#a78bfa;border:none;cursor:pointer;" onclick="showRestart()">↻ 重启</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);margin-bottom:4px;border-radius:0 8px 8px 0;">
+          <div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">data-pipeline</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.2);">写一个ETL脚本... · 昨天 · 持续 2h 15m</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:rgba(255,255,255,0.2);">已结束</span>
+            <button style="padding:4px 10px;border-radius:6px;font-size:10px;background:rgba(124,58,237,0.15);color:#a78bfa;border:none;cursor:pointer;" onclick="showRestart()">↻ 重启</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);margin-bottom:4px;border-radius:0 8px 8px 0;">
+          <div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">mobile-app</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.2);">修复iOS Push问题... · 3天前 · 持续 30m</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:rgba(255,255,255,0.2);">已结束</span>
+            <button style="padding:4px 10px;border-radius:6px;font-size:10px;background:rgba(124,58,237,0.15);color:#a78bfa;border:none;cursor:pointer;" onclick="showRestart()">↻ 重启</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-left:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);border-radius:0 8px 8px 0;">
+          <div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">cc-island</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.2);">增加历史会话功能... · 5天前 · 持续 1h 10m</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:rgba(255,255,255,0.2);">已结束</span>
+            <button style="padding:4px 10px;border-radius:6px;font-size:10px;background:rgba(124,58,237,0.15);color:#a78bfa;border:none;cursor:pointer;" onclick="showRestart()">↻ 重启</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ==================== RESTART DIALOG (Shared) ==================== -->
+<div id="restartModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideRestart()">
+  <div class="modal">
+    <div class="modal-title">🔄 重启会话 — legacy-service</div>
+
+    <div class="modal-label">终端类型</div>
+    <select class="terminal-select">
+      <option>Terminal</option>
+      <option>iTerm2</option>
+      <option>Warp</option>
+      <option>Alacritty</option>
+      <option>Ghostty</option>
+      <option>VS Code Terminal</option>
+    </select>
+
+    <div class="modal-label">Claude 参数（可选）</div>
+    <div class="arg-chips">
+      <span class="chip" onclick="this.classList.toggle('selected')">--model sonnet</span>
+      <span class="chip" onclick="this.classList.toggle('selected')">--model opus</span>
+      <span class="chip" onclick="this.classList.toggle('selected')">--model haiku</span>
+      <span class="chip" onclick="this.classList.toggle('selected')">--verbose</span>
+      <span class="chip" onclick="this.classList.toggle('selected')">--debug</span>
+      <span class="chip" onclick="this.classList.toggle('selected')">--dangerously-skip-permissions</span>
+    </div>
+
+    <input class="arg-input" placeholder="自定义参数，如 --model opus --verbose" id="customArgs">
+
+    <div class="modal-label">预览命令</div>
+    <div class="preview-cmd" id="previewCmd">claude --resume abc123-def456</div>
+
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="hideRestart()">取消</button>
+      <button class="btn-confirm" onclick="hideRestart()">启动</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('idleSection').style.display = tab === 'idle' ? 'block' : 'none';
+  document.getElementById('historySection').style.display = tab === 'history' ? 'block' : 'none';
+  document.getElementById('activeList').style.display = (tab !== 'idle' && tab !== 'history') ? 'flex' : 'none';
+}
+
+function switchDesktopTab(tab) {
+  document.getElementById('desktopActiveList').style.display = tab === 'active' ? 'flex' : 'none';
+  document.getElementById('desktopIdleList').style.display = tab === 'idle' ? 'block' : 'none';
+  document.getElementById('desktopHistoryList').style.display = tab === 'history' ? 'block' : 'none';
+
+  ['dtActive','dtIdle','dtHistory'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.background = 'rgba(255,255,255,0.05)';
+    el.style.color = 'rgba(255,255,255,0.45)';
+  });
+  const activeId = { active: 'dtActive', idle: 'dtIdle', history: 'dtHistory' }[tab];
+  const el = document.getElementById(activeId);
+  el.style.background = 'rgba(255,255,255,0.12)';
+  el.style.color = '#fff';
+}
+
+function switchMode(mode) {
+  document.getElementById('islandMode').style.display = mode === 'island' ? 'block' : 'none';
+  document.getElementById('desktopMode').style.display = mode === 'desktop' ? 'block' : 'none';
+  document.querySelectorAll('.demo-btn').forEach((b,i) => {
+    b.classList.toggle('active',
+      (i === 0 && mode === 'island') || (i === 1 && mode === 'desktop'));
+  });
+}
+
+function showRestart() {
+  document.getElementById('restartModal').style.display = 'flex';
+}
+
+function hideRestart() {
+  document.getElementById('restartModal').style.display = 'none';
+}
+
+document.getElementById('customArgs').addEventListener('input', function() {
+  const chips = [...document.querySelectorAll('.chip.selected')].map(c => c.textContent.trim());
+  const custom = this.value.trim();
+  const allArgs = [...chips, custom].filter(Boolean).join(' ');
+  document.getElementById('previewCmd').textContent =
+    'claude --resume abc123-def456' + (allArgs ? ' ' + allArgs : '');
+});
+</script>
+
+</body>
+</html>

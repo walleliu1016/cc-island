@@ -579,3 +579,92 @@ pub fn find_any_claude_process() -> Option<ProcessInfo> {
     tracing::warn!("No claude process found");
     None
 }
+
+use crate::platform::TerminalInfo;
+
+const KNOWN_TERMINALS: &[(&str, &str, &str)] = &[
+    ("com.apple.Terminal", "Terminal", "Terminal.app"),
+    ("com.googlecode.iterm2", "iTerm2", "iTerm.app"),
+    ("dev.warp.Warp-Stable", "Warp", "Warp.app"),
+    ("org.alacritty", "Alacritty", "Alacritty.app"),
+    ("com.mitchellh.ghostty", "Ghostty", "Ghostty.app"),
+];
+
+pub fn get_available_terminals_macos() -> Vec<TerminalInfo> {
+    let mut terminals: Vec<TerminalInfo> = Vec::new();
+
+    let home = dirs::home_dir().unwrap_or_default();
+    let search_dirs = [
+        std::path::PathBuf::from("/Applications"),
+        home.join("Applications"),
+    ];
+
+    for &(bundle_id, display_name, app_name) in KNOWN_TERMINALS {
+        for dir in &search_dirs {
+            let app_path = dir.join(app_name);
+            if app_path.exists() {
+                terminals.push(TerminalInfo {
+                    bundle_id: bundle_id.to_string(),
+                    display_name: display_name.to_string(),
+                });
+                break;
+            }
+        }
+    }
+
+    if terminals.is_empty() {
+        terminals.push(TerminalInfo {
+            bundle_id: "com.apple.Terminal".to_string(),
+            display_name: "Terminal".to_string(),
+        });
+    }
+
+    terminals
+}
+
+pub fn launch_in_terminal_macos(terminal_bundle_id: &str, command: &str, _cwd: &str) -> Result<(), String> {
+    let escaped_command = command.replace('\\', "\\\\").replace('"', "\\\"");
+
+    let script = match terminal_bundle_id {
+        "com.apple.Terminal" => format!(
+            r#"tell application "Terminal"
+    activate
+    do script "{}"
+end tell"#,
+            escaped_command
+        ),
+        "com.googlecode.iterm2" => format!(
+            r#"tell application "iTerm2"
+    tell current window
+        create tab with default profile
+        tell current session
+            write text "{}"
+        end tell
+    end tell
+    activate
+end tell"#,
+            escaped_command
+        ),
+        _ => format!(
+            r#"tell application "Terminal"
+    activate
+    do script "{}"
+end tell"#,
+            escaped_command
+        ),
+    };
+
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()
+        .map_err(|e| format!("Failed to execute osascript: {}", e))?;
+
+    if output.status.success() {
+        tracing::info!("Launched in terminal: {}", command);
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Failed to launch terminal: {}", stderr))
+    }
+}

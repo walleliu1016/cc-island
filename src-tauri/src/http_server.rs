@@ -345,7 +345,8 @@ async fn handle_hook(
                     }
 
                     tracing::info!("New session: {} - {} (cwd: {:?})", instance.session_id, instance.project_name, instance.session_cwd);
-                    state_guard.instances.add_instance(instance);
+                    state_guard.instances.add_instance(instance.clone());
+                    state_guard.history_store.upsert(instance);
 
                     // Start JSONL watcher for this session
                     if let Some(ref mut watcher) = state_guard.jsonl_watcher {
@@ -384,7 +385,21 @@ async fn handle_hook(
                         watcher.unwatch_session(&input.session_id);
                     }
 
-                    // Remove instance directly (exit means session ended)
+                    // Save to history store before removing from active instances
+                    if let Some(mut instance) = state_guard.instances.get_instance(&input.session_id).cloned() {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+                        instance.ended_at = Some(now);
+                        instance.status = crate::instance_manager::InstanceStatus::Ended;
+                        tracing::info!("SessionEnd: moving session {} ({}) to history", input.session_id, instance.project_name);
+                        state_guard.history_store.upsert(instance);
+                    } else {
+                        tracing::warn!("SessionEnd: session {} not found in InstanceManager, skipping history upsert", input.session_id);
+                    }
+
+                    // Remove from active instances
                     state_guard.instances.remove_instance(&input.session_id);
 
                     // Clear chat history for this session

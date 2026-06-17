@@ -84,6 +84,9 @@ pub struct ClaudeInstance {
     /// multiple Claude instances within the same project)
     #[serde(default)]
     pub first_prompt: Option<String>,
+    /// When the session ended (Unix timestamp in seconds)
+    #[serde(default)]
+    pub ended_at: Option<u64>,
     // Fields for display persistence (minimum 3s display time)
     #[serde(skip)]
     pub display_status_until: Option<u64>, // Unix timestamp in ms
@@ -141,6 +144,7 @@ impl ClaudeInstance {
             started_at: now,
             last_activity_at: now,
             first_prompt: None,
+            ended_at: None,
             display_status_until: None,
             display_status: None,
             display_tool: None,
@@ -305,25 +309,6 @@ impl InstanceManager {
         self.instances.values().filter(|i| i.status == status).count()
     }
 
-    /// Mark ended instances for removal after 30 seconds
-    pub fn cleanup_ended(&mut self) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        let to_remove: Vec<SessionId> = self.instances
-            .iter()
-            .filter(|(_, i)| {
-                i.status == InstanceStatus::Ended && now - i.last_activity_at > 30
-            })
-            .map(|(k, _)| k.clone())
-            .collect();
-
-        for session_id in to_remove {
-            self.instances.remove(&session_id);
-        }
-    }
 }
 
 impl Default for InstanceManager {

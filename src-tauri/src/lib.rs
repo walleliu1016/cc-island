@@ -13,6 +13,8 @@ pub mod conversation_parser;
 pub mod jsonl_watcher;
 pub mod alias_store;
 pub mod activity_store;
+pub mod history_store;
+pub mod restart_config_store;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;
@@ -101,6 +103,7 @@ pub struct AppState {
     pub cloud_connection_status: CloudConnectionStatus,
     pub cloud_stop_signal: Option<tokio::sync::watch::Sender<bool>>,  // Stop signal for reconnect loop
     pub jsonl_watcher: Option<JsonlWatcherHandle>,  // JSONL file watcher
+    pub history_store: history_store::HistoryStore,
 }
 
 impl AppState {
@@ -117,6 +120,7 @@ impl AppState {
             cloud_connection_status: CloudConnectionStatus::Disconnected,
             cloud_stop_signal: None,
             jsonl_watcher: None,
+            history_store: history_store::HistoryStore::new(),
         }
     }
 
@@ -657,6 +661,82 @@ fn get_stats() -> StatsResponse {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn get_history_sessions() -> Vec<instance_manager::ClaudeInstance> {
+    SHARED_STATE.read().history_store.get_ended()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn remove_history_session(session_id: String) -> Result<(), String> {
+    let mut state = SHARED_STATE.write();
+    state.history_store.remove(&session_id);
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn get_available_terminals() -> Vec<platform::TerminalInfo> {
+    platform::get_available_terminals()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn restart_session(session_id: String, terminal_bundle_id: String, extra_args: String) -> Result<(), String> {
+    let cwd = {
+        let state = SHARED_STATE.read();
+        match state.history_store.get(&session_id) {
+            Some(instance) => instance.session_cwd.clone().unwrap_or_default(),
+            None => return Err("Session not found in history".to_string()),
+        }
+    };
+
+    let args = if extra_args.trim().is_empty() {
+        String::new()
+    } else {
+        format!(" {}", extra_args.trim())
+    };
+
+    let command = format!("claude --resume {}{}", session_id, args);
+
+    // Remove from history store and instance manager since it's being restarted as active
+    {
+        let mut state = SHARED_STATE.write();
+        state.history_store.remove(&session_id);
+        state.instances.remove_instance(&session_id);
+    }
+
+    tracing::info!("restart_session: cwd='{}', command='{}'", cwd, command);
+
+    if !cwd.is_empty() {
+        let command = format!("cd \"{}\" && echo \"📂 $(pwd)\" && {}", cwd, command);
+        platform::launch_in_terminal(&terminal_bundle_id, &command, &cwd)
+    } else {
+        tracing::warn!("restart_session: cwd is empty for session {}, running without cd", session_id);
+        let command = format!("echo \"⚠ cwd missing, running in $(pwd)\" && {}", command);
+        platform::launch_in_terminal(&terminal_bundle_id, &command, "")
+    }
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn get_restart_config() -> restart_config_store::RestartConfig {
+    restart_config_store::get_restart_config_snapshot()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn save_restart_preset(name: String, args: String) -> Result<(), String> {
+    restart_config_store::save_restart_preset(name, args)
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn delete_restart_preset(name: String) -> Result<(), String> {
+    restart_config_store::delete_restart_preset(name)
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     // Validate cloud mode settings
     if settings.cloud_mode {
@@ -914,7 +994,14 @@ pub fn run() {
                 set_alias,
                 get_all_aliases,
                 get_activities,
-                get_stats
+                get_stats,
+                get_history_sessions,
+                remove_history_session,
+                get_available_terminals,
+                restart_session,
+                get_restart_config,
+                save_restart_preset,
+                delete_restart_preset,
             ])
             .setup(|app| {
                 // Ensure device_name has value (use hostname if empty)

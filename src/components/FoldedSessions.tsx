@@ -34,7 +34,7 @@ export function FoldedSessions({
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full px-3 py-1.5 text-xs text-white/40 hover:text-white/60 hover:bg-white/[0.04] rounded-lg transition-colors flex items-center justify-between"
       >
-        <span>已折叠 ({instances.length})</span>
+        <span>空闲会话 ({instances.length})</span>
         <motion.span
           animate={{ rotate: isExpanded ? 180 : 0 }}
           transition={{ duration: 0.2 }}

@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../stores/appStore';
 import { ClaudeInstance, PopupItem, InstanceStatus, SessionNotification, StatsResponse } from '../types';
 import { SessionCard } from './SessionCard';
-import { ArchiveTab } from './ArchiveTab';
+import { HistorySessions } from './HistorySessions';
 
 interface CloudStatus {
   connected: boolean;
@@ -29,25 +29,24 @@ interface DesktopModeProps {
 // Fold threshold: 10 minutes (600 seconds)
 const FOLD_THRESHOLD_SECONDS = 600;
 
-// Split instances into active and archived
-function splitInstances(instances: ClaudeInstance[]): { active: ClaudeInstance[], archived: ClaudeInstance[] } {
+// Split instances into active and idle (ended sessions are no longer in instances)
+function splitInstances(instances: ClaudeInstance[]): { active: ClaudeInstance[], idle: ClaudeInstance[] } {
   const now = Math.floor(Date.now() / 1000);
 
   const active: ClaudeInstance[] = [];
-  const archived: ClaudeInstance[] = [];
+  const idle: ClaudeInstance[] = [];
 
   for (const inst of instances) {
-    const isEnded = inst.status.type === 'ended';
     const isIdleTooLong = inst.status.type === 'idle' && (now - inst.last_activity_at) >= FOLD_THRESHOLD_SECONDS;
 
-    if (isEnded || isIdleTooLong) {
-      archived.push(inst);
+    if (isIdleTooLong) {
+      idle.push(inst);
     } else {
       active.push(inst);
     }
   }
 
-  return { active, archived };
+  return { active, idle };
 }
 
 // Phase priority: lower = higher priority
@@ -61,7 +60,8 @@ function getStatusPriority(status: InstanceStatus, popup?: PopupItem): number {
 
 export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, onViewAsk, onSettings, cloudStatus, sessionNotification }: DesktopModeProps) {
   const { setIslandMode } = useAppStore();
-  const [showArchiveTab, setShowArchiveTab] = useState(false);
+  const historySessions = useAppStore(s => s.historySessions);
+  const [activeTab, setActiveTab] = useState<'active' | 'idle' | 'history'>('active');
   const [productName, setProductName] = useState<string>('');
   const [stats, setStats] = useState<StatsResponse>({ session_count: 0, message_count: 0, tool_count: 0, active_count: 0 });
 
@@ -94,15 +94,13 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
     return () => clearInterval(interval);
   }, []);
 
-  const { active, archived } = splitInstances(instances);
+  const { active, idle } = splitInstances(instances);
 
   const sortedActive = [...active].sort((a, b) => {
     const priorityA = getStatusPriority(a.status, popups.find(p => p.session_id === a.session_id));
     const priorityB = getStatusPriority(b.status, popups.find(p => p.session_id === b.session_id));
     return priorityA - priorityB;
   });
-
-  const displayed = showArchiveTab ? archived : sortedActive;
 
   const handleMinimize = async () => {
     try {
@@ -348,37 +346,81 @@ export function DesktopMode({ instances, popups, onJump, onViewChat, onRespond, 
           </div>
         )}
 
-        {/* Archive Tab */}
-        <ArchiveTab
-          showArchiveTab={showArchiveTab}
-          activeCount={active.length}
-          archivedInstances={archived}
-          onSelectTab={(tab) => setShowArchiveTab(tab === 'archive')}
-          onViewChat={onViewChat}
-        />
-
-        {/* Session cards */}
-        <div className="flex flex-col gap-2">
-          {displayed.map((instance) => (
-            <SessionCard
-              key={instance.session_id}
-              instance={instance}
-              allInstances={displayed}
-              pendingPopup={popups.find(p => p.session_id === instance.session_id)}
-              onJump={onJump}
-              onViewChat={onViewChat}
-              onRespond={onRespond}
-              onViewAsk={onViewAsk}
-              isDesktopMode={true}
-            />
+        {/* Tab buttons */}
+        <div className="flex gap-2 px-0 py-1">
+          {(['active', 'idle', 'history'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="rounded-lg font-medium transition-colors"
+              style={{
+                background: activeTab === tab ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+                color: activeTab === tab ? '#fff' : '#888',
+                padding: '8px 16px',
+                fontSize: 12,
+              }}
+            >
+              {tab === 'active' && `活动会话 (${sortedActive.length})`}
+              {tab === 'idle' && `空闲会话 (${idle.length})`}
+              {tab === 'history' && `历史会话 (${historySessions.length})`}
+            </button>
           ))}
         </div>
 
-        {/* Empty state */}
-        {displayed.length === 0 && (
-          <div className="text-center text-white/30 text-xs py-8">
-            {showArchiveTab ? '暂无归档会话' : '暂无活动会话'}
+        {/* Active tab content */}
+        {activeTab === 'active' && (
+          <div className="flex flex-col gap-2">
+            {sortedActive.map((instance) => (
+              <SessionCard
+                key={instance.session_id}
+                instance={instance}
+                allInstances={sortedActive}
+                pendingPopup={popups.find(p => p.session_id === instance.session_id)}
+                onJump={onJump}
+                onViewChat={onViewChat}
+                onRespond={onRespond}
+                onViewAsk={onViewAsk}
+                isDesktopMode={true}
+              />
+            ))}
+            {sortedActive.length === 0 && (
+              <div className="text-center text-white/30 text-xs py-8">
+                暂无活动会话
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Idle tab content */}
+        {activeTab === 'idle' && (
+          <div className="flex flex-col gap-2">
+            {idle.map((instance) => (
+              <SessionCard
+                key={instance.session_id}
+                instance={instance}
+                allInstances={idle}
+                pendingPopup={popups.find(p => p.session_id === instance.session_id)}
+                onJump={onJump}
+                onViewChat={onViewChat}
+                onRespond={onRespond}
+                onViewAsk={onViewAsk}
+                isDesktopMode={true}
+              />
+            ))}
+            {idle.length === 0 && (
+              <div className="text-center text-white/30 text-xs py-8">
+                暂无空闲会话
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* History tab content */}
+        {activeTab === 'history' && (
+          <HistorySessions
+            instances={historySessions}
+            onViewChat={onViewChat}
+          />
         )}
       </div>
     </div>
