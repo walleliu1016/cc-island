@@ -31,7 +31,7 @@ const openAnimation = { type: 'spring', stiffness: 344, damping: 25 };
 const closeAnimation = { type: 'spring', stiffness: 320, damping: 30 };
 
 function App() {
-  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups, layoutMode, setDesktopMode, setHistorySessions } = useAppStore();
+  const { instances, popups, isExpanded, setIsExpanded, setInstances, setPopups, layoutMode, setDesktopMode, setHistorySessions, historySessions } = useAppStore();
   const { headerDisplay, updateDisplays } = useDisplayStore();
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
@@ -586,7 +586,7 @@ function App() {
               className="px-5 pb-3 overflow-hidden w-full rounded-b-xl"
             >
               <div className="max-h-[360px] overflow-y-auto scrollbar-thin w-full rounded-b-xl">
-                {activeInstances.length > 0 && (
+                {(activeInstances.length > 0 || historySessions.length > 0) && (
                   <InstanceList
                     instances={activeInstances}
                     popups={popups.filter(p => p.status === 'pending')}
@@ -596,7 +596,7 @@ function App() {
                     onViewAsk={handleViewAsk}
                   />
                 )}
-                {activeInstances.length === 0 && (
+                {activeInstances.length === 0 && historySessions.length === 0 && (
                   <div className="text-white/30 text-xs text-center py-4">
                     No active sessions
                   </div>
