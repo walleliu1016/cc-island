@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.9] - 2026-06-17
+
+### Features
+
+#### 统一会话管理 & 历史 Tab
+- 三 Tab 布局：活动 / 空闲 / 历史，所有会话持久化到 `sessions.json`
+- 历史 tab 支持重启已结束的会话（`claude --resume <id>`）
+- RestartDialog：终端选择、多选下拉框选择 Claude CLI 参数、预设保存/管理
+- 空闲 tab 不再折叠，平铺展示与活动 tab 一致
+
+#### 死进程自动检测
+- 每 5 秒检查实例 PID 是否存活
+- Unix 使用 `libc::kill(pid, 0)`，Windows 使用 `OpenProcess`
+- 死进程自动标记为 Ended 并移入历史 tab
+
+### Fixes
+- 岛模式下无活动会话时隐藏分组标签 → 有历史会话即显示
+- restart_session 防御性清理：同时从 history_store 和 InstanceManager 移除
+- SessionEnd 增加 tracing 日志便于调试
+
+### Technical
+- 新增 `history_store.rs`：统一 sessions.json 持久化（upsert/get_ended/cleanup）
+- 新增 `restart_config_store.rs`：重启参数持久化配置
+- `appStore.ts` 新增 `historySessions` 状态
+- `libc` 依赖用于 Unix 进程存活检测
+
 ## [0.3.4] - 2025-05-21
 
 ### Features

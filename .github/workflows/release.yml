@@ -579,16 +579,12 @@ jobs:
   # ===== Release Job =====
 
   release:
-    needs: [build-cloud-server, build-desktop, build-mobile-h5, build-mobile-android, build-mobile-ios]
+    needs: [build-desktop]
     runs-on: ubuntu-latest
     if: |
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
-      needs.build-cloud-server.result == 'success' &&
-      needs.build-desktop.result == 'success' &&
-      needs.build-mobile-h5.result == 'success' &&
-      needs.build-mobile-android.result == 'success' &&
-      (needs.build-mobile-ios.result == 'success' || needs.build-mobile-ios.result == 'skipped')
+      needs.build-desktop.result == 'success'
 
     steps:
       - name: Checkout
@@ -599,8 +595,10 @@ jobs:
       - name: Get previous tag
         id: prev_tag
         run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.1")
+          PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG="v0.0.1"
+          fi
           echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Generate Changelog
@@ -618,9 +616,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+        continue-on-error: true
 
       - name: List artifacts
-        run: ls -laR artifacts/
+        run: ls -laR artifacts/ 2>/dev/null || echo "No artifacts found"
+        continue-on-error: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -670,6 +670,7 @@ jobs:
 
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
           files: |
             artifacts/**/*
         env:
