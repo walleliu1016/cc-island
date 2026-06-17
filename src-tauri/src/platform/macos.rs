@@ -668,3 +668,7 @@ end tell"#,
         Err(format!("Failed to launch terminal: {}", stderr))
     }
 }
+
+pub fn is_process_alive(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}

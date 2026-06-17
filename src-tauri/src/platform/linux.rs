@@ -319,3 +319,7 @@ pub fn launch_in_terminal_linux(terminal_bundle_id: &str, command: &str, _cwd: &
 
     Ok(())
 }
+
+pub fn is_process_alive(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}

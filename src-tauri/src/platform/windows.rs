@@ -312,3 +312,23 @@ pub fn launch_in_terminal_windows(terminal_bundle_id: &str, command: &str, _cwd:
     }
     Ok(())
 }
+
+pub fn is_process_alive(pid: u32) -> bool {
+    use windows::Win32::System::Threading::OpenProcess;
+    use windows::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+    use windows::Win32::Foundation::CloseHandle;
+
+    if pid == 0 {
+        return false;
+    }
+
+    unsafe {
+        match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(handle) => {
+                let _ = CloseHandle(handle);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+}

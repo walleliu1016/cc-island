@@ -33,6 +33,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::Manager;
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::time::SystemTime;
 use parking_lot::RwLock;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -299,6 +301,8 @@ fn close_window(window: tauri::Window) -> Result<(), String> {
 #[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
+    cleanup_dead_sessions();
+
     let state = SHARED_STATE.read();
     let instances = state.instances.get_all_instances_display();
     // Fill activities for each instance from ACTIVITY_STORE
@@ -309,6 +313,69 @@ fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
             ..inst
         }
     }).collect()
+}
+
+#[cfg(feature = "desktop")]
+static LAST_DEAD_CHECK: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(feature = "desktop")]
+fn cleanup_dead_sessions() {
+    let now = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let last = LAST_DEAD_CHECK.load(Ordering::Relaxed);
+    // Check at most every 5 seconds
+    if now.saturating_sub(last) < 5 {
+        return;
+    }
+    LAST_DEAD_CHECK.store(now, Ordering::Relaxed);
+
+    // Collect PIDs to check (read lock)
+    let to_check: Vec<(String, u32)> = {
+        let state = SHARED_STATE.read();
+        state.instances.get_all_instances()
+            .iter()
+            .filter_map(|inst| {
+                inst.process_info.as_ref().map(|pi| (inst.session_id.clone(), pi.pid))
+            })
+            .collect()
+    };
+
+    if to_check.is_empty() {
+        return;
+    }
+
+    // Check processes outside lock
+    let dead: Vec<String> = to_check
+        .into_iter()
+        .filter(|(_, pid)| !crate::platform::is_process_alive(*pid))
+        .map(|(sid, _)| sid)
+        .collect();
+
+    if dead.is_empty() {
+        return;
+    }
+
+    // Cleanup dead sessions (write lock)
+    let mut state = SHARED_STATE.write();
+    for session_id in &dead {
+        if let Some(mut instance) = state.instances.get_instance(session_id).cloned() {
+            let now = SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            instance.ended_at = Some(now);
+            instance.status = instance_manager::InstanceStatus::Ended;
+            tracing::info!(
+                "Auto-ending dead session: {} ({})",
+                session_id,
+                instance.project_name
+            );
+            state.history_store.upsert(instance);
+        }
+        state.instances.remove_instance(session_id);
+    }
 }
 
 #[cfg(feature = "desktop")]

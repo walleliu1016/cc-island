@@ -148,3 +148,23 @@ pub fn launch_in_terminal(terminal_bundle_id: &str, command: &str, cwd: &str) ->
         Err("Unsupported platform".to_string())
     }
 }
+
+/// Check if a process with the given PID is still running
+pub fn is_process_alive(pid: u32) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        macos::is_process_alive(pid)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux::is_process_alive(pid)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        windows::is_process_alive(pid)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        false
+    }
+}
