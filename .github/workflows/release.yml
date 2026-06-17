@@ -601,8 +601,29 @@ jobs:
           fi
           echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
 
-      - name: Generate Changelog
+      - name: Extract AI Changelog from CHANGELOG.md
         id: changelog
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VER_NUM="${VERSION#v}"
+
+          # Extract section between "## [$VER_NUM]" and the next "## ["
+          CHANGELOG_CONTENT=$(awk "/^## \\[${VER_NUM}\\]/{flag=1; next} /^## \\[/{flag=0} flag" CHANGELOG.md)
+
+          if [ -n "$CHANGELOG_CONTENT" ]; then
+            echo "Found changelog entry for v${VER_NUM}"
+            {
+              echo "CHANGELOG<<EOF"
+              echo "$CHANGELOG_CONTENT"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          else
+            echo "::warning::No CHANGELOG.md entry found for v${VER_NUM}, using commit list fallback"
+            echo "CHANGELOG=暂无 AI 总结，请查看下方详细提交" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Commit List
+        id: commit_list
         uses: mikepenz/release-changelog-builder-action@v5
         with:
           configurationFile: .github/changelog-configuration.json
@@ -627,9 +648,15 @@ jobs:
         with:
           name: ${{ inputs.product_name || 'Ease-Island' }} ${{ github.ref_name }}
           body: |
-            ## Changelog
+            ## 本次改动 (AI 总结)
 
-            ${{ steps.changelog.outputs.changelog }}
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ---
+
+            ## 详细提交
+
+            ${{ steps.commit_list.outputs.changelog }}
 
             ---
 
