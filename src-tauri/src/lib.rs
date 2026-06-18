@@ -15,6 +15,7 @@ pub mod alias_store;
 pub mod activity_store;
 pub mod history_store;
 pub mod restart_config_store;
+pub mod rpc_handler;
 
 use instance_manager::InstanceManager;
 use popup_queue::PopupQueue;

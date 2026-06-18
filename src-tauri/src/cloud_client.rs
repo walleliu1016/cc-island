@@ -267,6 +267,18 @@ impl CloudClient {
                             handle_hook_response(&app_state, &json);
                         } else if msg_type == "request_session_list" {
                             handle_request_session_list(&app_state, &device_token_recv, &json, &out_tx_for_recv);
+                        } else if msg_type == "rpc_request" {
+                            let request_id = json["request_id"].as_str().unwrap_or("");
+                            let method = json["method"].as_str().unwrap_or("");
+                            let params = &json["params"];
+                            crate::rpc_handler::handle_rpc_request(
+                                &app_state,
+                                &out_tx_for_recv,
+                                &device_token_recv,
+                                request_id,
+                                method,
+                                params,
+                            );
                         }
                     },
                     Ok(Message::Ping(data)) => {

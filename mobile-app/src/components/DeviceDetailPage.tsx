@@ -117,6 +117,7 @@ interface DeviceDetailPageProps {
   onBack: () => void
   onRespondHook: (sessionId: string, decision: string | null, answers?: string[][]) => void
   onRequestChatHistory: (sessionId: string) => void
+  onSpawnSession: (cwd: string) => Promise<Record<string, unknown>>
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void
 }
 
@@ -129,10 +130,14 @@ export function DeviceDetailPage({
   onBack,
   onRespondHook,
   onRequestChatHistory,
+  onSpawnSession,
   showToast,
 }: DeviceDetailPageProps) {
   const [chatSession, setChatSession] = useState<{ sessionId: string; projectName: string } | null>(null)
   const [dismissingPopups, setDismissingPopups] = useState<string[]>([])
+  const [showNewSession, setShowNewSession] = useState(false)
+  const [newSessionCwd, setNewSessionCwd] = useState('')
+  const [spawning, setSpawning] = useState(false)
   const dismissTimeoutRef = useRef<number | null>(null)
 
   // Cleanup timeout on unmount
@@ -174,6 +179,25 @@ export function DeviceDetailPage({
     }, 200)
   }
 
+  const handleSpawnSession = async () => {
+    const cwd = newSessionCwd.trim()
+    if (!cwd) {
+      showToast('请输入项目目录路径', 'warning')
+      return
+    }
+    setSpawning(true)
+    try {
+      const result = await onSpawnSession(cwd)
+      showToast(`会话已启动: ${result.message || cwd}`, 'success')
+      setShowNewSession(false)
+      setNewSessionCwd('')
+    } catch (err) {
+      showToast(`启动失败: ${err}`, 'error')
+    } finally {
+      setSpawning(false)
+    }
+  }
+
   // If viewing chat, show ChatView
   if (chatSession) {
     const sessionPendingHint = pendingHints.find(h => h.session_id === chatSession.sessionId)
@@ -196,13 +220,66 @@ export function DeviceDetailPage({
           <button onClick={onBack} className="text-[#a3a3a3] text-lg">←</button>
           <span className="text-[#f5f5f5] text-lg font-medium">{deviceName}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
-          <span className={`text-xs ${connected ? 'text-[#22c55e]' : 'text-[#737373]'}`}>
-            {connected ? '在线' : '离线'}
-          </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNewSession(true)}
+            disabled={!connected}
+            className={`px-3 py-1 text-xs font-medium rounded-[8px] ${
+              connected
+                ? 'text-black bg-white hover:bg-[#e5e5e5]'
+                : 'text-[#525252] bg-[#262626]'
+            }`}
+          >
+            + 新建会话
+          </button>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-[#22c55e]' : 'bg-[#737373]'}`} />
+            <span className={`text-xs ${connected ? 'text-[#22c55e]' : 'text-[#737373]'}`}>
+              {connected ? '在线' : '离线'}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* New Session Modal */}
+      {showNewSession && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => { setShowNewSession(false); setNewSessionCwd('') }}>
+          <div className="w-full max-w-md bg-[#1a1a1a] rounded-t-xl p-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[#f5f5f5] text-base font-medium mb-3">新建 Claude 会话</h3>
+            <div className="mb-4">
+              <label className="text-[#a3a3a3] text-xs mb-1 block">项目目录路径</label>
+              <input
+                type="text"
+                value={newSessionCwd}
+                onChange={e => setNewSessionCwd(e.target.value)}
+                placeholder="/home/user/project"
+                className="w-full px-3 py-2 bg-[#0f0f0f] border border-[#333] rounded-[8px] text-[#f5f5f5] text-sm placeholder:text-[#525252] focus:border-[#525252] outline-none"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSpawnSession() }}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowNewSession(false); setNewSessionCwd('') }}
+                className="flex-1 py-2 text-sm text-[#a3a3a3] bg-[#262626] rounded-[8px]"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSpawnSession}
+                disabled={spawning || !newSessionCwd.trim()}
+                className={`flex-1 py-2 text-sm font-medium rounded-[8px] ${
+                  spawning || !newSessionCwd.trim()
+                    ? 'text-[#525252] bg-[#333]'
+                    : 'text-black bg-white'
+                }`}
+              >
+                {spawning ? '启动中...' : '启动'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">

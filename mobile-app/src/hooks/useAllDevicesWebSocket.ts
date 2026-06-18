@@ -36,6 +36,13 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
   const lastPongTimeRef = useRef<number>(0)
   const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // RPC pending requests: request_id → { resolve, reject, timeout }
+  const rpcPendingRef = useRef<Map<string, {
+    resolve: (result: Record<string, unknown>) => void
+    reject: (error: string) => void
+    timeout: ReturnType<typeof setTimeout>
+  }>>(new Map())
+
   // Keep devicesRef updated
   useEffect(() => {
     devicesRef.current = devices
@@ -387,6 +394,27 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
               return { ...s, hookHints, sessions }
             })
+            break
+          }
+
+          case 'rpc_response': {
+            const requestId = msg.request_id
+            const result = msg.result
+            const error = msg.error
+            console.log('[WebSocket] rpc_response:', requestId, 'result:', result, 'error:', error)
+
+            if (!requestId) break
+
+            const pending = rpcPendingRef.current.get(requestId)
+            if (pending) {
+              clearTimeout(pending.timeout)
+              rpcPendingRef.current.delete(requestId)
+              if (error) {
+                pending.reject(error)
+              } else {
+                pending.resolve(result || {})
+              }
+            }
             break
           }
         }
@@ -799,6 +827,41 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     }
   }, [])
 
+  // Send RPC request to desktop via cloud server
+  const sendRpcRequest = useCallback((
+    deviceToken: string,
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    return new Promise((resolve, reject) => {
+      const ws = wsRef.current
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        reject('WebSocket not connected')
+        return
+      }
+
+      const requestId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+      // Set timeout (30 seconds)
+      const timeout = setTimeout(() => {
+        rpcPendingRef.current.delete(requestId)
+        reject('RPC request timeout')
+      }, 30000)
+
+      rpcPendingRef.current.set(requestId, { resolve, reject, timeout })
+
+      const msg = {
+        type: 'rpc_request',
+        request_id: requestId,
+        device_token: deviceToken,
+        method,
+        params,
+      }
+      console.log('[WebSocket] sendRpcRequest:', msg)
+      ws.send(JSON.stringify(msg))
+    })
+  }, [])
+
   // Handle page visibility change (Android WebView zombie connection fix)
   // When phone screen goes black, WebSocket may not fire onclose event,
   // but server-side connection may timeout and clear subscribers.
@@ -870,7 +933,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     }
   }, [serverUrl])  // Only depend on serverUrl, not connect
 
-  return { state, sendHookResponse, requestChatHistory, forceSubscribe }
+  return { state, sendHookResponse, requestChatHistory, forceSubscribe, sendRpcRequest }
 }
 
 // Helper: extract project name from cwd

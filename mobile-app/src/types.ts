@@ -133,6 +133,14 @@ export interface CloudMessage {
   // Popup resolved
   popup_id?: string
   source?: string  // 'desktop' or 'mobile'
+
+  // RPC
+  request_id?: string
+  method?: string
+  params?: Record<string, unknown>
+  result?: Record<string, unknown>
+  error?: string
+  mobile_conn_id?: string
 }
 
 // Chat message data

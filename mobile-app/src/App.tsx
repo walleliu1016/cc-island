@@ -49,7 +49,7 @@ function App() {
   const [view, setView] = useState<View>('devices');
 
   // WebSocket connection
-  const { state, sendHookResponse, requestChatHistory, forceSubscribe } = useAllDevicesWebSocket({
+  const { state, sendHookResponse, requestChatHistory, forceSubscribe, sendRpcRequest } = useAllDevicesWebSocket({
     devices,
     serverUrl,
   });
@@ -159,6 +159,7 @@ function App() {
           onBack={() => setView('devices')}
           onRespondHook={(sessionId, decision, answers) => sendHookResponse(activeDevice, sessionId, decision, answers)}
           onRequestChatHistory={(sessionId) => requestChatHistory(activeDevice, sessionId)}
+          onSpawnSession={(cwd) => sendRpcRequest(activeDevice, 'spawn_session', { cwd })}
           showToast={showToast}
         />
         <Toast visible={toast.visible} message={toast.message} type={toast.type} />

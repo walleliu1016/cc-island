@@ -246,4 +246,34 @@ pub enum CloudMessage {
         /// User's answers for AskUserQuestion
         answers: Option<Vec<Vec<String>>>,
     },
+
+    // ===== RPC (Mobile → Cloud → Desktop) =====
+
+    /// RPC request from mobile to desktop (e.g., spawn new session).
+    #[serde(rename = "rpc_request")]
+    RpcRequest {
+        /// Unique request ID for matching response
+        request_id: String,
+        /// Target device token
+        device_token: String,
+        /// RPC method name (e.g., "spawn_session")
+        method: String,
+        /// Method parameters (JSON)
+        params: serde_json::Value,
+    },
+
+    /// RPC response from desktop to mobile.
+    #[serde(rename = "rpc_response")]
+    RpcResponse {
+        /// Matching request ID
+        request_id: String,
+        /// Source device token
+        device_token: String,
+        /// Target mobile connection ID for direct routing
+        mobile_conn_id: Option<String>,
+        /// Success result (JSON)
+        result: Option<serde_json::Value>,
+        /// Error message if failed
+        error: Option<String>,
+    },
 }

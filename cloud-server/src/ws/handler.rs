@@ -522,6 +522,37 @@ impl MessageHandler {
                 self.send_to_mobiles_via_notify(&device_token, "popup_resolved", resolved_body).await;
             }
 
+            // Mobile -> Cloud: RPC request (forward to desktop)
+            CloudMessage::RpcRequest { request_id, device_token, method, params } => {
+                tracing::info!("RpcRequest from mobile: device={}, method={}, request_id={}",
+                    device_token, method, request_id);
+
+                let rpc_msg = CloudMessage::RpcRequest {
+                    request_id,
+                    device_token: device_token.clone(),
+                    method,
+                    params,
+                };
+                let message_body = serde_json::to_value(&rpc_msg).unwrap();
+                self.send_to_desktop_via_notify(&device_token, "rpc_request", message_body).await;
+            }
+
+            // Desktop -> Cloud: RPC response (forward to mobile)
+            CloudMessage::RpcResponse { request_id, device_token, mobile_conn_id, result, error } => {
+                tracing::info!("RpcResponse from desktop: device={}, request_id={}, success={}",
+                    device_token, request_id, error.is_none());
+
+                let rpc_msg = CloudMessage::RpcResponse {
+                    request_id,
+                    device_token: device_token.clone(),
+                    mobile_conn_id,
+                    result,
+                    error,
+                };
+                let message_body = serde_json::to_value(&rpc_msg).unwrap();
+                self.send_to_mobiles_via_notify(&device_token, "rpc_response", message_body).await;
+            }
+
             // Ping/Pong
             CloudMessage::Ping => {
                 let pong_msg = CloudMessage::Pong;
