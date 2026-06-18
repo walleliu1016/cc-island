@@ -1,37 +1,30 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 use std::sync::Arc;
+use futures_util::FutureExt;
 use parking_lot::RwLock;
-use tokio::sync::mpsc::{Sender, Receiver, channel};
-use tokio_tungstenite::{connect_async_tls_with_config, tungstenite::protocol::Message, Connector};
-use native_tls::TlsConnector;
-use futures_util::{SinkExt, StreamExt};
-use std::time::{Duration, Instant};
-use axum::body::Bytes;
+use rust_socketio::asynchronous::{Client, ClientBuilder};
+use rust_socketio::Payload;
+use serde_json::json;
 use crate::machine_id::get_machine_token;
 use crate::AppState;
 use crate::popup_queue::PopupResponse;
 
-/// Heartbeat configuration
-const PING_INTERVAL: Duration = Duration::from_secs(30);  // Send Ping every 30 seconds
-const PONG_TIMEOUT: Duration = Duration::from_secs(60);   // Reconnect if no Pong for 60 seconds
-
 /// Cloud client configuration
+#[derive(Clone)]
 pub struct CloudConfig {
     pub server_url: String,
     pub device_name: Option<String>,
 }
 
-/// Cloud client for WebSocket connection to relay server
+/// Cloud client for Socket.IO connection to relay server
 pub struct CloudClient {
     config: CloudConfig,
     device_token: String,
     hostname: Option<String>,
     app_state: Arc<RwLock<AppState>>,
-    out_tx: Option<Sender<Message>>,
+    hooks_socket: Option<Client>,
     connected: Arc<RwLock<bool>>,
-    // Heartbeat state
-    last_pong_time: Arc<RwLock<Option<Instant>>>,
 }
 
 impl CloudClient {
@@ -46,342 +39,203 @@ impl CloudClient {
             device_token,
             hostname,
             app_state,
-            out_tx: None,
+            hooks_socket: None,
             connected: Arc::new(RwLock::new(false)),
-            last_pong_time: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Get device token for display to user
     pub fn get_device_token(&self) -> String {
         self.device_token.clone()
     }
 
-    /// Get hostname for display
     pub fn get_hostname(&self) -> Option<String> {
         self.hostname.clone()
     }
 
-    /// Check if connected to cloud server
     pub fn is_connected(&self) -> bool {
         *self.connected.read()
     }
 
-    /// Get connected arc for external monitoring
     pub fn get_connected_arc(&self) -> Arc<RwLock<bool>> {
         self.connected.clone()
     }
 
-    /// Get outgoing channel for hook pushing
-    pub fn get_out_tx(&self) -> Option<Sender<Message>> {
-        self.out_tx.clone()
-    }
-
-    /// Connect to cloud server with timeout
+    /// Connect to cloud server via Socket.IO
     pub async fn connect(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let server_url = self.config.server_url.clone();
         let device_token = self.device_token.clone();
         let hostname = self.hostname.clone();
         let device_name = self.config.device_name.clone();
 
-        tracing::info!("Connecting to cloud server: {}", server_url);
+        tracing::info!("Connecting to cloud server via Socket.IO: {}", server_url);
 
-        // Create TLS connector that accepts invalid certificates (for self-signed certs)
-        let connector = if server_url.starts_with("wss://") {
-            let tls_connector = TlsConnector::builder()
-                .danger_accept_invalid_certs(true)  // Allow invalid certificates
-                .danger_accept_invalid_hostnames(true)  // Allow invalid hostnames
-                .build()
-                .expect("Failed to create TLS connector");
-
-            Some(Connector::NativeTls(tls_connector))
-        } else {
-            None  // ws:// connections don't need TLS
-        };
-
-        // Connect WebSocket with custom TLS config and 5 second timeout
-        let connect_result = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            connect_async_tls_with_config(&server_url, None, false, connector)
-        ).await;
-
-        let (ws_stream, _) = match connect_result {
-            Ok(Ok(stream)) => stream,
-            Ok(Err(e)) => return Err(format!("Connection refused: {}", e).into()),
-            Err(_) => return Err("Connection timeout after 5 seconds".into()),
-        };
-
-        let (mut ws_tx, mut ws_rx) = ws_stream.split();
-
-        // Create outgoing message channel
-        let (out_tx, mut out_rx): (Sender<Message>, Receiver<Message>) = channel(64);
-        self.out_tx = Some(out_tx.clone());
-
-        // Send device registration with hostname
-        let register_msg = serde_json::json!({
-            "type": "device_register",
+        // Connect to default namespace with auth
+        let auth_data = json!({
             "device_token": device_token,
             "hostname": hostname,
             "device_name": device_name,
         });
-        ws_tx.send(Message::text(register_msg.to_string())).await?;
 
-        // Wait for auth response - must receive one
-        match ws_rx.next().await {
-            Some(Ok(msg)) => {
-                if let Message::Text(text) = msg {
-                    let json: serde_json::Value = serde_json::from_str(&text)?;
-                    if json["type"] == "auth_success" {
-                        tracing::info!("Cloud authentication successful");
-                        *self.connected.write() = true;
+        let mut main_builder = ClientBuilder::new(&server_url)
+            .auth(auth_data)
+            .reconnect(true)
+            .reconnect_delay(1000, 5000)
+            .max_reconnect_attempts(10);
 
-                        // Send existing sessions to cloud after connection
-                        // This allows mobile to see already-running Claude instances
-                        let app_state = self.app_state.clone();
-                        let device_token = self.device_token.clone();
-                        let out_tx_clone = out_tx.clone();
-                        tokio::spawn(async move {
-                            // Need to drop read lock before acquiring write lock for parsing
-                            let instances: Vec<(String, Option<String>, String)> = {
-                                let state = app_state.read();
-                                let all_instances = state.instances.get_all_instances_display();
-                                tracing::info!("Sending {} existing sessions to cloud", all_instances.len());
-                                all_instances.into_iter().map(|i| (
-                                    i.session_id.clone(),
-                                    i.session_cwd.clone(),
-                                    i.project_name.clone(),  // project_name is String, not Option
-                                )).collect()
-                            };
-
-                            for (session_id, cwd, project_name) in instances {
-                                // Send SessionStart-like hook message for existing session
-                                let hook_body = serde_json::json!({
-                                    "hook_event_name": "SessionStart",
-                                    "session_id": session_id,
-                                    "cwd": cwd,
-                                    "project_name": project_name,
-                                });
-                                let msg = serde_json::json!({
-                                    "type": "hook_message",
-                                    "device_token": device_token,
-                                    "session_id": session_id,
-                                    "hook_type": "SessionStart",  // PascalCase for consistency
-                                    "hook_body": hook_body,
-                                });
-                                if let Err(e) = out_tx_clone.try_send(Message::text(msg.to_string())) {
-                                    tracing::warn!("Failed to send existing session hook: {}", e);
-                                }
-
-                                // Parse and push chat history for existing session
-                                if let Some(cwd_str) = cwd {
-                                    // Parse full JSONL for existing session (not incremental, since we want complete history)
-                                    // Need to access conversation_parser through app_state
-                                    let messages = {
-                                        let mut state = app_state.write();
-                                        state.conversation_parser.parse_full(&session_id, &cwd_str)
-                                    };
-                                    if !messages.is_empty() {
-                                        let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
-                                        tracing::info!("Pushing {} chat messages for existing session {}", chat_messages.len(), session_id);
-
-                                        // Convert ChatMessage to ChatMessageData format
-                                        let messages_data: Vec<serde_json::Value> = chat_messages.iter().map(|msg| {
-                                            serde_json::json!({
-                                                "id": msg.id,
-                                                "sessionId": msg.session_id,
-                                                "messageType": msg.message_type,
-                                                "content": msg.content,
-                                                "toolName": msg.tool_name,
-                                                "timestamp": msg.timestamp,
-                                            })
-                                        }).collect();
-
-                                        let chat_msg = serde_json::json!({
-                                            "type": "chat_history",
-                                            "device_token": device_token,
-                                            "session_id": session_id,
-                                            "messages": messages_data,
-                                        });
-                                        if let Err(e) = out_tx_clone.try_send(Message::text(chat_msg.to_string())) {
-                                            tracing::warn!("Failed to send chat history for {}: {}", session_id, e);
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                    } else if json["type"] == "auth_failed" {
-                        let reason = json["reason"].as_str().unwrap_or("unknown");
-                        tracing::error!("Cloud authentication failed: {}", reason);
-                        return Err(format!("Auth failed: {}", reason).into());
-                    } else {
-                        tracing::error!("Unexpected auth response: {}", json["type"]);
-                        return Err("Unexpected auth response".into());
+        // Listen for auth result
+        let connected_ref = self.connected.clone();
+        main_builder = main_builder
+            .on("auth_success", {
+                let connected = connected_ref.clone();
+                move |_: Payload, _: Client| {
+                    let connected = connected.clone();
+                    async move {
+                        tracing::info!("Socket.IO auth successful");
+                        *connected.write() = true;
                     }
-                } else {
-                    return Err("Expected text message for auth response".into());
+                    .boxed()
                 }
-            },
-            Some(Err(e)) => {
-                tracing::error!("WebSocket error during auth: {}", e);
-                return Err(format!("WebSocket error: {}", e).into());
-            },
-            None => {
-                tracing::error!("Connection closed before auth response received");
-                return Err("No auth response received".into());
-            },
-        }
-
-        // Spawn send task
-        let connected = self.connected.clone();
-        let out_tx_for_recv = out_tx.clone();
-        let send_task = async move {
-            while let Some(msg) = out_rx.recv().await {
-                if ws_tx.send(msg).await.is_err() {
-                    tracing::warn!("Send task: WebSocket send failed");
-                    *connected.write() = false;
-                    break;
+            })
+            .on("auth_error", |payload: Payload, _: Client| {
+                async move {
+                    tracing::error!("Socket.IO auth failed: {:?}", payload);
                 }
-            }
-            tracing::info!("Send task ended");
-        };
+                .boxed()
+            });
 
-        // Spawn receive task
+        let _main_socket = main_builder.connect().await?;
+
+        // Connect to /hooks namespace for hook relay
         let app_state = self.app_state.clone();
-        let connected_clone = self.connected.clone();
-        let last_pong_time = self.last_pong_time.clone();
-        let device_token_recv = self.device_token.clone();
-        let out_tx_for_recv = out_tx.clone();
-        let recv_task = async move {
-            while let Some(msg_result) = ws_rx.next().await {
-                match msg_result {
-                    Ok(Message::Text(text)) => {
-                        let json: serde_json::Value = match serde_json::from_str(&text) {
-                            Ok(v) => v,
-                            Err(e) => {
-                                tracing::warn!("Failed to parse WebSocket message as JSON: {}", e);
-                                serde_json::json!({})
+        let device_token_hooks = device_token.clone();
+
+        let hooks_socket = ClientBuilder::new(&server_url)
+            .namespace("/hooks")
+            .reconnect(true)
+            .reconnect_delay(1000, 5000)
+            .on("hook:response", {
+                let app_state = app_state.clone();
+                move |payload: Payload, _: Client| {
+                    let app_state = app_state.clone();
+                    async move {
+                        if let Payload::Text(values) = payload {
+                            if let Some(v) = values.first() {
+                                handle_hook_response(&app_state, v);
                             }
-                        };
-                        let msg_type = json["type"].as_str().unwrap_or("");
-                        if msg_type == "hook_response" {
-                            handle_hook_response(&app_state, &json);
-                        } else if msg_type == "request_session_list" {
-                            handle_request_session_list(&app_state, &device_token_recv, &json, &out_tx_for_recv);
                         }
-                    },
-                    Ok(Message::Ping(data)) => {
-                        // Respond to server Ping with Pong via out_tx channel
-                        tracing::debug!("Received Ping from server, sending Pong");
-                        if let Err(e) = out_tx_for_recv.try_send(Message::Pong(data)) {
-                            tracing::warn!("Failed to send Pong: {}", e);
-                        }
-                    },
-                    Ok(Message::Pong(_)) => {
-                        tracing::debug!("Received Pong from server, updating last_pong_time");
-                        *last_pong_time.write() = Some(Instant::now());
-                    },
-                    Ok(Message::Close(_)) => {
-                        tracing::info!("Receive task: Close frame received");
-                        *connected_clone.write() = false;
-                        break;
-                    },
-                    Err(e) => {
-                        tracing::error!("WebSocket error: {}", e);
-                        *connected_clone.write() = false;
-                        break;
-                    },
-                    _ => {}
-                }
-            }
-            tracing::info!("Receive task ended");
-        };
-
-        // Spawn heartbeat task
-        let connected_heartbeat = self.connected.clone();
-        let last_pong_time_heartbeat = self.last_pong_time.clone();
-        let heartbeat_task = async move {
-            // Initialize last pong time on connection
-            *last_pong_time_heartbeat.write() = Some(Instant::now());
-
-            let mut ping_interval = tokio::time::interval(PING_INTERVAL);
-            ping_interval.tick().await; // Skip first immediate tick
-
-            loop {
-                ping_interval.tick().await;
-
-                if !*connected_heartbeat.read() {
-                    tracing::info!("Heartbeat task: connection lost, stopping");
-                    break;
-                }
-
-                // Send Ping
-                tracing::debug!("Heartbeat: sending Ping");
-                if let Err(e) = out_tx.try_send(Message::Ping(Bytes::new())) {
-                    tracing::warn!("Heartbeat: failed to send Ping: {}", e);
-                    *connected_heartbeat.write() = false;
-                    break;
-                }
-
-                // Check Pong timeout
-                let last_pong = *last_pong_time_heartbeat.read();
-                if let Some(last_time) = last_pong {
-                    if last_time.elapsed() > PONG_TIMEOUT {
-                        tracing::warn!("Heartbeat: Pong timeout ({}s elapsed), marking disconnected",
-                            last_time.elapsed().as_secs());
-                        *connected_heartbeat.write() = false;
-                        break;
                     }
+                    .boxed()
                 }
-            }
-            tracing::info!("Heartbeat task ended");
-        };
+            })
+            .on("list:request", {
+                let app_state = app_state.clone();
+                let device_token = device_token_hooks.clone();
+                move |payload: Payload, socket: Client| {
+                    let app_state = app_state.clone();
+                    let device_token = device_token.clone();
+                    async move {
+                        if let Payload::Text(values) = payload {
+                            if let Some(v) = values.first() {
+                                handle_request_session_list(&app_state, &device_token, v, &socket);
+                            }
+                        }
+                    }
+                    .boxed()
+                }
+            })
+            .connect()
+            .await?;
 
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = send_task => { tracing::info!("select: send_task finished"); },
-                _ = recv_task => { tracing::info!("select: recv_task finished"); },
-                _ = heartbeat_task => { tracing::info!("select: heartbeat_task finished"); },
-            }
-            tracing::info!("Cloud client disconnected");
-        });
+        self.hooks_socket = Some(hooks_socket);
+        *self.connected.write() = true;
+
+        // Send existing sessions to cloud after connection
+        self.sync_existing_sessions().await;
 
         Ok(())
     }
 
-    /// Push hook message to cloud (transparent forwarding)
-    pub fn push_hook_message(&self, session_id: &str, hook_type: &str, hook_body: serde_json::Value) {
-        if !self.is_connected() {
-            return;
-        }
+    /// Sync existing Claude sessions to cloud after connection
+    async fn sync_existing_sessions(&self) {
+        let instances: Vec<(String, Option<String>, String)> = {
+            let state = self.app_state.read();
+            let all_instances = state.instances.get_all_instances_display();
+            tracing::info!("Sending {} existing sessions to cloud", all_instances.len());
+            all_instances.into_iter().map(|i| (
+                i.session_id.clone(),
+                i.session_cwd.clone(),
+                i.project_name.clone(),
+            )).collect()
+        };
 
-        if let Some(tx) = &self.out_tx {
-            let msg = serde_json::json!({
-                "type": "hook_message",
-                "device_token": self.device_token,
+        for (session_id, cwd, project_name) in instances {
+            let hook_body = json!({
+                "hook_event_name": "SessionStart",
                 "session_id": session_id,
-                "hook_type": hook_type,
-                "hook_body": hook_body,
+                "cwd": cwd,
+                "project_name": project_name,
             });
-            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
+            self.push_hook_message_inner(&session_id, "SessionStart", hook_body).await;
+
+            if let Some(cwd_str) = cwd {
+                let messages = {
+                    let mut state = self.app_state.write();
+                    state.conversation_parser.parse_full(&session_id, &cwd_str)
+                };
+                if !messages.is_empty() {
+                    let chat_messages = crate::conversation_parser::ConversationParser::to_chat_messages(messages);
+                    self.push_chat_history_inner(&session_id, &chat_messages).await;
+                }
+            }
+        }
+    }
+
+    /// Inner async hook push
+    async fn push_hook_message_inner(&self, session_id: &str, hook_type: &str, hook_body: serde_json::Value) {
+        if let Some(socket) = &self.hooks_socket {
+            let payload = json!({
+                "deviceToken": self.device_token,
+                "sessionId": session_id,
+                "hookType": hook_type,
+                "hookBody": hook_body,
+            });
+            if let Err(e) = socket.emit("hook", payload).await {
                 tracing::warn!("Failed to push hook message: {}", e);
             }
         }
     }
 
-    /// Push chat history to cloud
-    pub fn push_chat_history(&self, session_id: &str, messages: Vec<crate::chat_messages::ChatMessage>) {
-        tracing::info!("🔵 push_chat_history called: session={}, messages={}, connected={}",
-            session_id, messages.len(), self.is_connected());
-
+    /// Push hook message to cloud (called from sync hook handlers)
+    pub fn push_hook_message(&self, session_id: &str, hook_type: &str, hook_body: serde_json::Value) {
         if !self.is_connected() {
-            tracing::warn!("🔵 push_chat_history SKIPPED: not connected to cloud");
             return;
         }
 
-        if let Some(tx) = &self.out_tx {
-            // Convert ChatMessage to ChatMessageData format (camelCase for frontend)
+        let device_token = self.device_token.clone();
+        let session_id = session_id.to_string();
+        let hook_type = hook_type.to_string();
+
+        if let Some(socket) = &self.hooks_socket {
+            let socket = socket.clone();
+            let payload = json!({
+                "deviceToken": device_token,
+                "sessionId": session_id,
+                "hookType": hook_type,
+                "hookBody": hook_body,
+            });
+            tokio::spawn(async move {
+                if let Err(e) = socket.emit("hook", payload).await {
+                    tracing::warn!("Failed to push hook message: {}", e);
+                }
+            });
+        }
+    }
+
+    /// Inner async chat history push
+    async fn push_chat_history_inner(&self, session_id: &str, messages: &[crate::chat_messages::ChatMessage]) {
+        if let Some(socket) = &self.hooks_socket {
             let messages_data: Vec<serde_json::Value> = messages.iter().map(|msg| {
-                serde_json::json!({
+                json!({
                     "id": msg.id,
                     "sessionId": msg.session_id,
                     "messageType": msg.message_type,
@@ -391,44 +245,85 @@ impl CloudClient {
                 })
             }).collect();
 
-            let msg = serde_json::json!({
-                "type": "chat_history",
-                "device_token": self.device_token,
-                "session_id": session_id,
+            let payload = json!({
+                "deviceToken": self.device_token,
+                "sessionId": session_id,
                 "messages": messages_data,
             });
-            tracing::info!("🔵 push_chat_history SENDING: session={}, {} messages to cloud",
-                session_id, messages_data.len());
-            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("🔵 push_chat_history FAILED: {}", e);
-            } else {
-                tracing::info!("🔵 push_chat_history SUCCESS: sent to cloud");
+
+            if let Err(e) = socket.emit("history", payload).await {
+                tracing::warn!("Failed to push chat history: {}", e);
             }
-        } else {
-            tracing::warn!("🔵 push_chat_history SKIPPED: no out_tx channel");
         }
     }
 
-    /// Push popup resolved notification to cloud (broadcast to mobiles)
+    /// Push chat history to cloud (called from sync code)
+    pub fn push_chat_history(&self, session_id: &str, messages: Vec<crate::chat_messages::ChatMessage>) {
+        tracing::info!("push_chat_history called: session={}, messages={}, connected={}",
+            session_id, messages.len(), self.is_connected());
+
+        if !self.is_connected() {
+            tracing::warn!("push_chat_history SKIPPED: not connected to cloud");
+            return;
+        }
+
+        if let Some(socket) = &self.hooks_socket {
+            let socket = socket.clone();
+            let device_token = self.device_token.clone();
+            let session_id = session_id.to_string();
+            let messages_data: Vec<serde_json::Value> = messages.iter().map(|msg| {
+                json!({
+                    "id": msg.id,
+                    "sessionId": msg.session_id,
+                    "messageType": msg.message_type,
+                    "content": msg.content,
+                    "toolName": msg.tool_name,
+                    "timestamp": msg.timestamp,
+                })
+            }).collect();
+
+            let payload = json!({
+                "deviceToken": device_token,
+                "sessionId": session_id,
+                "messages": messages_data,
+            });
+
+            tokio::spawn(async move {
+                tracing::info!("Sending {} chat messages to cloud", messages_data.len());
+                if let Err(e) = socket.emit("history", payload).await {
+                    tracing::warn!("push_chat_history FAILED: {}", e);
+                } else {
+                    tracing::info!("push_chat_history SUCCESS: sent to cloud");
+                }
+            });
+        } else {
+            tracing::warn!("push_chat_history SKIPPED: no hooks socket");
+        }
+    }
+
+    /// Push popup resolved notification to cloud
     pub fn push_popup_resolved(&self, popup_id: &str, session_id: &str, decision: Option<&str>, answers: Option<&Vec<Vec<String>>>) {
         if !self.is_connected() {
             return;
         }
 
-        if let Some(tx) = &self.out_tx {
-            let msg = serde_json::json!({
-                "type": "popup_resolved",
-                "device_token": self.device_token,
-                "popup_id": popup_id,
-                "session_id": session_id,
+        if let Some(socket) = &self.hooks_socket {
+            let socket = socket.clone();
+            let payload = json!({
+                "deviceToken": self.device_token,
+                "popupId": popup_id,
+                "sessionId": session_id,
                 "source": "desktop",
                 "decision": decision,
                 "answers": answers,
             });
+
             tracing::info!("Pushing popup_resolved: popup={}, decision={:?}", popup_id, decision);
-            if let Err(e) = tx.try_send(Message::text(msg.to_string())) {
-                tracing::warn!("Failed to push popup_resolved: {}", e);
-            }
+            tokio::spawn(async move {
+                if let Err(e) = socket.emit("popup:resolved", payload).await {
+                    tracing::warn!("Failed to push popup_resolved: {}", e);
+                }
+            });
         }
     }
 }
@@ -440,8 +335,6 @@ fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Va
 
     tracing::info!("Received hook response from mobile: session {} -> {:?}", session_id, decision);
 
-    // Build PopupResponse and resolve via popup_queue
-    // Need to find popup_id by session_id
     let popup_id = {
         let state = app_state.read();
         state.popups.find_popup_by_session(session_id)
@@ -460,14 +353,12 @@ fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Va
             }),
         };
 
-        // Resolve the popup through popup_queue
         let resolved = {
             let mut state = app_state.write();
             state.popups.resolve(response.clone())
         };
 
         if resolved {
-            // Clear WaitingForApproval status for the instance
             let mut state = app_state.write();
             if let Some(instance) = state.instances.get_instance_mut(&session_id.to_string()) {
                 if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
@@ -485,23 +376,20 @@ fn handle_hook_response(app_state: &Arc<RwLock<AppState>>, json: &serde_json::Va
     }
 }
 
-/// Handle RequestSessionList from Cloud Server - return real-time instances
 fn handle_request_session_list(
     app_state: &Arc<RwLock<AppState>>,
     device_token: &str,
     json: &serde_json::Value,
-    out_tx: &Sender<Message>,
+    socket: &Client,
 ) {
     let mobile_conn_id = json["mobile_conn_id"].as_str().unwrap_or("");
-    tracing::info!("📱 Received RequestSessionList: device={}, mobile_conn_id={}", device_token, mobile_conn_id);
+    tracing::info!("Received RequestSessionList: device={}, mobile_conn_id={}", device_token, mobile_conn_id);
 
-    // Get real-time instances from SHARED_STATE
     let sessions: Vec<serde_json::Value> = {
         let state = app_state.read();
         let all_instances = state.instances.get_all_instances_display();
-        tracing::info!("📱 Returning {} active sessions", all_instances.len());
+        tracing::info!("Returning {} active sessions", all_instances.len());
         all_instances.into_iter().filter(|i| i.status != crate::instance_manager::InstanceStatus::Ended).map(|i| {
-            // Convert InstanceStatus to string
             let status_str = match i.status {
                 crate::instance_manager::InstanceStatus::Idle => "idle",
                 crate::instance_manager::InstanceStatus::Thinking => "thinking",
@@ -512,7 +400,7 @@ fn handle_request_session_list(
                 crate::instance_manager::InstanceStatus::Compacting => "compacting",
                 crate::instance_manager::InstanceStatus::Ended => "ended",
             };
-            serde_json::json!({
+            json!({
                 "sessionId": i.session_id,
                 "projectName": i.project_name,
                 "status": status_str,
@@ -522,17 +410,19 @@ fn handle_request_session_list(
         }).collect()
     };
 
-    // Send SessionListResponse back to Cloud Server
-    let response_msg = serde_json::json!({
-        "type": "session_list_response",
-        "device_token": device_token,
-        "mobile_conn_id": mobile_conn_id,
+    let response = json!({
+        "deviceToken": device_token,
+        "mobileConnId": mobile_conn_id,
         "sessions": sessions,
     });
 
-    if let Err(e) = out_tx.try_send(Message::text(response_msg.to_string())) {
-        tracing::warn!("Failed to send SessionListResponse: {}", e);
-    } else {
-        tracing::info!("📱 Sent SessionListResponse with {} sessions", sessions.len());
-    }
+    let socket = socket.clone();
+    let sessions_len = sessions.len();
+    tokio::spawn(async move {
+        if let Err(e) = socket.emit("list:response", response).await {
+            tracing::warn!("Failed to send SessionListResponse: {}", e);
+        } else {
+            tracing::info!("Sent SessionListResponse with {} sessions", sessions_len);
+        }
+    });
 }

@@ -6,4 +6,4 @@ pub mod messages;
 pub mod ws;
 pub mod http;
 
-pub use messages::{CloudMessage, DeviceInfo, HookType, ChatMessageData, MessageType};
+pub use messages::{DeviceInfo, HookType, ChatMessageData};

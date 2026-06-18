@@ -6,7 +6,6 @@ use axum::{
     Json, Router,
 };
 use crate::db::repository::Repository;
-use crate::ws::router::ConnectionRouter;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,24 +18,24 @@ pub struct SessionInfoResponse {
 }
 
 /// Create HTTP router for API endpoints
-pub fn create_http_router(repo: Repository, router: ConnectionRouter) -> Router {
+pub fn create_http_router(repo: Repository) -> Router {
     Router::new()
         .route("/api/devices", get(get_devices))
         .route("/api/sessions/:device_token", get(get_sessions))
         .route("/api/debug/sessions", get(get_all_sessions))
-        .with_state((repo, router))
+        .with_state(repo)
 }
 
 /// Get all online devices
 async fn get_devices(
-    axum::extract::State((_repo, router)): axum::extract::State<(Repository, ConnectionRouter)>,
+    axum::extract::State(repo): axum::extract::State<Repository>,
 ) -> Json<Vec<crate::messages::DeviceInfo>> {
-    Json(router.get_online_devices_info())
+    Json(repo.get_online_devices().await.unwrap_or_default())
 }
 
 /// Get sessions for a device
 async fn get_sessions(
-    axum::extract::State((repo, _router)): axum::extract::State<(Repository, ConnectionRouter)>,
+    axum::extract::State(repo): axum::extract::State<Repository>,
     Path(device_token): Path<String>,
 ) -> Json<Vec<SessionInfoResponse>> {
     match repo.get_active_sessions(&[device_token]).await {
@@ -56,9 +55,8 @@ async fn get_sessions(
 
 /// Get all sessions (debug)
 async fn get_all_sessions(
-    axum::extract::State((repo, _router)): axum::extract::State<(Repository, ConnectionRouter)>,
+    axum::extract::State(repo): axum::extract::State<Repository>,
 ) -> Json<Vec<SessionInfoResponse>> {
-    // Get all sessions from online devices
     let devices = repo.get_online_devices().await.unwrap_or_default();
     let device_tokens: Vec<String> = devices.iter().map(|d| d.token.clone()).collect();
 

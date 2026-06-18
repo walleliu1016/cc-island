@@ -1,69 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-// --- 保留原有数据类型（不变） ---
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum MessageType {
-    User,
-    Assistant,
-    ToolCall,
-    ToolResult,
-    Thinking,
-    Interrupted,
-}
+// Re-export base types from messages.rs
+pub use crate::messages::{ChatMessageData, DeviceInfo, ClaudeSession, HookType};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatMessageData {
-    pub id: String,
-    pub session_id: String,
-    pub message_type: MessageType,
-    pub content: String,
-    pub tool_name: Option<String>,
-    pub timestamp: u64,
-}
+// --- Socket.IO event payloads ---
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceInfo {
-    pub token: String,
-    pub hostname: Option<String>,
-    pub registered_at: Option<String>,
-    pub online: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ClaudeSession {
-    pub session_id: String,
-    pub project_name: String,
-    pub status: String,
-    pub current_tool: Option<String>,
-    pub created_at: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum HookType {
-    SessionStart,
-    SessionEnd,
-    PreToolUse,
-    PostToolUse,
-    PostToolUseFailure,
-    PermissionRequest,
-    Elicitation,
-    Notification,
-    Stop,
-    UserPromptSubmit,
-    PreCompact,
-    PostCompact,
-    SubagentStart,
-    SubagentStop,
-    StatusUpdate,
-}
-
-// --- Socket.IO 事件 payload ---
-
-/// /hooks namespace events
+/// Hook relay payloads (Desktop → Server → Mobile)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookPayload {
@@ -93,7 +35,7 @@ pub struct PopupResolvedPayload {
     pub answers: Option<Vec<Vec<String>>>,
 }
 
-/// /chat namespace events
+/// Chat history payloads (Desktop → Server → Mobile, or DB → Mobile)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatHistoryPayload {
@@ -110,7 +52,7 @@ pub struct RequestChatHistoryPayload {
     pub limit: Option<u32>,
 }
 
-/// /sessions namespace events
+/// Session list payloads (Mobile → Desktop → Mobile)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestSessionListPayload {
@@ -126,7 +68,7 @@ pub struct SessionListResponsePayload {
     pub sessions: Vec<ClaudeSession>,
 }
 
-/// /devices namespace events
+/// Device presence payloads (Desktop auth → room broadcast → Mobile)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceOnlinePayload {

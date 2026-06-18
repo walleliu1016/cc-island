@@ -812,8 +812,8 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
         }
         // Validate URL format
         if let Some(ref url) = settings.cloud_server_url {
-            if !url.starts_with("ws://") && !url.starts_with("wss://") {
-                return Err("云服务器地址必须以 ws:// 或 wss:// 开头".to_string());
+            if !url.starts_with("ws://") && !url.starts_with("wss://") && !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err("云服务器地址必须以 ws://、wss://、http:// 或 https:// 开头".to_string());
             }
         }
     }

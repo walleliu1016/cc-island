@@ -68,8 +68,8 @@ export function SettingsPage({
 
   const handleSave = () => {
     setError(null)
-    if (url.trim() && !url.startsWith('ws://') && !url.startsWith('wss://')) {
-      setError('地址必须以 ws:// 或 wss:// 开头')
+    if (url.trim() && !url.startsWith('ws://') && !url.startsWith('wss://') && !url.startsWith('http://') && !url.startsWith('https://')) {
+      setError('地址必须以 ws://、wss://、http:// 或 https:// 开头')
       return
     }
     onSaveServer(url.trim())
@@ -113,7 +113,7 @@ export function SettingsPage({
             type="text"
             value={url}
             onChange={e => setUrl(e.target.value)}
-            placeholder="wss://cloud.example.com:17528"
+            placeholder="http://cloud.example.com:17528"
             className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#262626] rounded-[12px] text-[#f5f5f5] text-[14px]"
           />
           <div className="flex items-center gap-2 mt-2">

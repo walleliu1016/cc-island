@@ -1,14 +1,8 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CloudMessage, DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
-
-// Connection timeout in milliseconds
-const CONNECTION_TIMEOUT = 10000
-
-// Heartbeat configuration
-const PING_INTERVAL = 30000  // Send Ping every 30 seconds
-const PONG_TIMEOUT = 60000   // If no Pong for 60 seconds, reconnect
+import { io, Socket } from 'socket.io-client'
+import { DeviceInfo, ClaudeSession, HookHint, ChatMessageData, AskQuestion, HookType } from '../types'
 
 interface UseAllDevicesWebSocketOptions {
   devices: string[]
@@ -20,23 +14,17 @@ interface WsState {
   serverConnecting: boolean
   connectionError: string | null
   onlineDevices: DeviceInfo[]
-  sessions: Record<string, ClaudeSession[]>  // keyed by device_token
-  hookHints: Record<string, HookHint[]>      // keyed by device_token
-  chatMessages: Record<string, ChatMessageData[]>  // keyed by session_id
+  sessions: Record<string, ClaudeSession[]>
+  hookHints: Record<string, HookHint[]>
+  chatMessages: Record<string, ChatMessageData[]>
 }
 
 export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebSocketOptions) {
-  const wsRef = useRef<WebSocket | null>(null)
+  const mainSocketRef = useRef<Socket | null>(null)
+  const hooksSocketRef = useRef<Socket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const devicesRef = useRef<string[]>(devices)
 
-  // Heartbeat refs
-  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const lastPongTimeRef = useRef<number>(0)
-  const pongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Keep devicesRef updated
   useEffect(() => {
     devicesRef.current = devices
   }, [devices])
@@ -51,64 +39,25 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
     chatMessages: {},
   })
 
-  // Start heartbeat mechanism (called after auth_success)
-  const startHeartbeat = useCallback(() => {
-    console.log('[WebSocket] Starting heartbeat mechanism')
-
-    // Clear existing timers
-    stopHeartbeat()
-
-    // Initialize last pong time
-    lastPongTimeRef.current = Date.now()
-
-    // Send Ping every PING_INTERVAL
-    pingIntervalRef.current = setInterval(() => {
-      const ws = wsRef.current
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('[WebSocket] Sending Ping')
-        ws.send(JSON.stringify({ type: 'ping' }))
-
-        // Set timeout to detect missing Pong
-        if (!pongTimeoutRef.current) {
-          pongTimeoutRef.current = setTimeout(() => {
-            const elapsed = Date.now() - lastPongTimeRef.current
-            if (elapsed > PONG_TIMEOUT) {
-              console.log('[WebSocket] Pong timeout! No response for', elapsed, 'ms, reconnecting')
-              // Force reconnect - close ws and let onclose handler trigger reconnect
-              stopHeartbeat()
-              if (wsRef.current) {
-                wsRef.current.close()
-              }
-            }
-          }, PONG_TIMEOUT)
-        }
-      }
-    }, PING_INTERVAL)
-  }, [])
-
-  // Stop heartbeat mechanism
-  const stopHeartbeat = useCallback(() => {
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current)
-      pingIntervalRef.current = null
+  const disconnectAll = useCallback(() => {
+    if (mainSocketRef.current) {
+      mainSocketRef.current.disconnect()
+      mainSocketRef.current = null
     }
-    if (pongTimeoutRef.current) {
-      clearTimeout(pongTimeoutRef.current)
-      pongTimeoutRef.current = null
+    if (hooksSocketRef.current) {
+      hooksSocketRef.current.disconnect()
+      hooksSocketRef.current = null
     }
-    lastPongTimeRef.current = 0
   }, [])
 
   const connect = useCallback(() => {
-    console.log('[WebSocket] connect() called, serverUrl:', serverUrl, 'devices:', devices.length)
+    console.log('[SocketIO] connect() called, serverUrl:', serverUrl, 'devices:', devices.length)
 
     if (!serverUrl) {
-      console.log('[WebSocket] No server URL, skipping connection')
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-      setState({
+      console.log('[SocketIO] No server URL, skipping')
+      disconnectAll()
+      setState(s => ({
+        ...s,
         serverConnected: false,
         serverConnecting: false,
         connectionError: '请输入服务器地址',
@@ -116,328 +65,181 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
-      })
+      }))
       return
     }
 
-    // Validate URL format before creating WebSocket
+    // Don't reconnect if already connected
+    if (mainSocketRef.current?.connected) {
+      console.log('[SocketIO] Already connected, skipping')
+      return
+    }
+
+    disconnectAll()
+
     const trimmedUrl = serverUrl.trim()
-    if (!trimmedUrl.startsWith('ws://') && !trimmedUrl.startsWith('wss://')) {
-      console.log('[WebSocket] Invalid URL format:', trimmedUrl)
-      setState({
-        serverConnected: false,
-        serverConnecting: false,
-        connectionError: '地址必须以 ws:// 或 wss:// 开头',
-        onlineDevices: [],
-        sessions: {},
-        hookHints: {},
-        chatMessages: {},
-      })
-      return
-    }
-
-    // Try to parse URL to validate host and port
-    try {
-      const urlParts = trimmedUrl.replace('ws://', 'http://').replace('wss://', 'https://')
-      new URL(urlParts)  // This will throw if URL is invalid
-    } catch (e) {
-      console.log('[WebSocket] URL parse error:', e)
-      setState({
-        serverConnected: false,
-        serverConnecting: false,
-        connectionError: '服务器地址格式无效',
-        onlineDevices: [],
-        sessions: {},
-        hookHints: {},
-        chatMessages: {},
-      })
-      return
-    }
-
-    // Don't create new connection if already connected or connecting
-    if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        console.log('[WebSocket] Already connected, skipping')
-        return
-      }
-      if (wsRef.current.readyState === WebSocket.CONNECTING) {
-        console.log('[WebSocket] Already connecting, skipping')
-        return
-      }
-      // Close old connection that's closing or closed
-      console.log('[WebSocket] Closing old connection')
-      wsRef.current.close()
-    }
-
-    console.log('[WebSocket] Creating new WebSocket to:', trimmedUrl)
+    console.log('[SocketIO] Creating Socket.IO connection to:', trimmedUrl)
     setState(s => ({ ...s, serverConnecting: true, serverConnected: false, connectionError: null }))
 
-    // Set connection timeout
-    connectionTimeoutRef.current = setTimeout(() => {
-      if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
-        console.log('[WebSocket] Connection timeout, closing')
-        try {
-          wsRef.current.close()
-        } catch (e) {
-          console.warn('[WebSocket] Error closing on timeout:', e)
+    try {
+      const currentDevices = devicesRef.current
+
+      // Connect to default namespace with auth
+      const mainSocket = io(trimmedUrl, {
+        auth: {
+          device_tokens: currentDevices,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 10,
+        timeout: 10000,
+      })
+
+      mainSocketRef.current = mainSocket
+
+      mainSocket.on('connect', () => {
+        console.log('[SocketIO] Connected, sid:', mainSocket.id)
+      })
+
+      mainSocket.on('auth_success', (data: { device_id: string; subscriptions?: string[] }) => {
+        console.log('[SocketIO] Auth success:', data)
+        setState(s => ({
+          ...s,
+          serverConnected: true,
+          serverConnecting: false,
+        }))
+      })
+
+      mainSocket.on('list', (data: { devices: DeviceInfo[] }) => {
+        console.log('[SocketIO] Device list received:', data.devices?.length)
+        if (data.devices) {
+          setState(s => ({ ...s, onlineDevices: data.devices }))
         }
+      })
+
+      mainSocket.on('auth_error', (data: { reason: string }) => {
+        console.error('[SocketIO] Auth failed:', data.reason)
         setState(s => ({
           ...s,
           serverConnected: false,
           serverConnecting: false,
-          connectionError: '连接超时，请检查服务器地址是否正确',
+          connectionError: '认证失败，请检查设备 Token',
         }))
-      }
-    }, CONNECTION_TIMEOUT)
+        mainSocket.disconnect()
+      })
 
-    try {
-      const ws = new WebSocket(trimmedUrl)
-      wsRef.current = ws
+      mainSocket.on('connect_error', (err: Error) => {
+        console.error('[SocketIO] Connect error:', err.message)
+        setState(s => ({
+          ...s,
+          serverConnected: false,
+          serverConnecting: false,
+          connectionError: `连接失败: ${err.message}`,
+        }))
+      })
 
-      ws.onopen = () => {
-        console.log('[WebSocket] Connection opened')
-        // Clear connection timeout
-        if (connectionTimeoutRef.current) {
-          clearTimeout(connectionTimeoutRef.current)
-          connectionTimeoutRef.current = null
-        }
-        const currentDevices = devicesRef.current
-        console.log('[WebSocket] Current devices from ref:', currentDevices)
+      mainSocket.on('disconnect', (reason: string) => {
+        console.log('[SocketIO] Disconnected:', reason)
+        setState(s => ({
+          ...s,
+          serverConnected: false,
+          serverConnecting: false,
+        }))
+      })
 
-        const authMsg = {
-          type: 'mobile_auth',
-          device_tokens: currentDevices,
-        }
-        console.log('[WebSocket] Sending mobile_auth message:', JSON.stringify(authMsg))
-        ws.send(JSON.stringify(authMsg))
-      }
+      // Connect to /hooks namespace for hook events
+      const hooksSocket = io(`${trimmedUrl}/hooks`, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 10000,
+      })
 
-    ws.onmessage = (e) => {
-      console.log('[WebSocket] Message received:', e.data)
-      try {
-        const msg = JSON.parse(e.data) as CloudMessage
-        console.log('[WebSocket] Parsed message type:', msg.type)
+      hooksSocketRef.current = hooksSocket
 
-        switch (msg.type) {
-          case 'auth_success':
-            console.log('[WebSocket] Auth success!')
-            setState(s => ({
+      hooksSocket.on('connect', () => {
+        console.log('[SocketIO] /hooks connected')
+      })
+
+      hooksSocket.on('hook', (msg: {
+        deviceToken: string
+        sessionId: string
+        hookType: string
+        hookBody: Record<string, unknown>
+      }) => {
+        handleHookMessage(msg)
+      })
+
+      hooksSocket.on('hook:response', (msg: {
+        deviceToken: string
+        sessionId: string
+        decision?: string
+        answers?: string[][]
+      }) => {
+        console.log('[SocketIO] hook:response received:', msg)
+        // Hook responses are handled by desktop, mobile receives them as popup_resolved
+      })
+
+      hooksSocket.on('popup:resolved', (msg: {
+        deviceToken: string
+        popupId: string
+        sessionId: string
+        source: string
+        decision?: string
+        answers?: string[][]
+      }) => {
+        handlePopupResolved(msg)
+      })
+
+      hooksSocket.on('history', (msg: {
+        deviceToken: string
+        sessionId: string
+        messages: ChatMessageData[]
+      }) => {
+        const sessionId = msg.sessionId
+        const newMessages = msg.messages
+        console.log('[SocketIO] Chat history received:', sessionId, newMessages?.length, 'messages')
+        if (sessionId && newMessages && newMessages.length > 0) {
+          setState(s => {
+            const existing = s.chatMessages[sessionId] || []
+            return {
               ...s,
-              serverConnected: true,
-              serverConnecting: false,
-            }))
-            // Start heartbeat after auth success
-            startHeartbeat()
-            break
-
-          case 'auth_failed':
-            console.log('[WebSocket] Auth failed:', msg)
-            setState(s => ({
-              ...s,
-              serverConnected: false,
-              serverConnecting: false,
-              connectionError: '认证失败，请检查设备 Token',
-            }))
-            ws.close()
-            break
-
-          case 'pong':
-            // Received Pong response, update last pong time
-            console.log('[WebSocket] Pong received')
-            lastPongTimeRef.current = Date.now()
-            // Clear pong timeout (if waiting)
-            if (pongTimeoutRef.current) {
-              clearTimeout(pongTimeoutRef.current)
-              pongTimeoutRef.current = null
+              chatMessages: {
+                ...s.chatMessages,
+                [sessionId]: [...existing, ...newMessages],
+              },
             }
-            break
-
-          case 'device_list': {
-            // Server sends list of online devices
-            const onlineDevices = msg.devices || []
-            setState(s => ({
-              ...s,
-              onlineDevices,
-            }))
-            break
-          }
-
-          case 'session_list': {
-            // Server sends active sessions for a device
-            // MERGE with existing sessions to preserve real-time state from hook_message
-            const deviceToken = msg.device_token
-            const serverSessions = msg.sessions || []
-            if (!deviceToken) break
-            console.log('[WebSocket] session_list received:', deviceToken, 'sessions:', serverSessions.map(s => ({ id: s.sessionId, name: s.projectName, status: s.status, tool: s.currentTool })))
-
-            setState(s => {
-              const existingSessions = s.sessions[deviceToken] || []
-
-              // Merge: use existing session's real-time state if available, otherwise use server data
-              const mergedSessions = serverSessions.map(serverSession => {
-                const existing = existingSessions.find(e => e.sessionId === serverSession.sessionId)
-                // Prefer existing real-time state (from hook_message) over server state (from DB)
-                // Only use server data for new sessions or if existing has no status
-                if (existing && existing.status !== 'idle') {
-                  return existing
-                }
-                return serverSession
-              })
-
-              return {
-                ...s,
-                sessions: {
-                  ...s.sessions,
-                  [deviceToken]: mergedSessions,
-                },
-              }
-            })
-            break
-          }
-
-          case 'device_online': {
-            // A device came online
-            const device = msg.device
-            if (device) {
-              setState(s => ({
-                ...s,
-                onlineDevices: [...s.onlineDevices.filter(d => d.token !== device.token), device],
-              }))
-            }
-            break
-          }
-
-          case 'device_offline': {
-            // A device went offline
-            const offlineToken = msg.device_token
-            if (!offlineToken) break
-            setState(s => {
-              // Remove device from online list
-              const onlineDevices = s.onlineDevices.filter(d => d.token !== offlineToken)
-              // Remove sessions/hookHints for this device
-              const sessions = { ...s.sessions }
-              delete sessions[offlineToken]
-              const hookHints = { ...s.hookHints }
-              delete hookHints[offlineToken]
-              return { ...s, onlineDevices, sessions, hookHints }
-            })
-            break
-          }
-
-          case 'hook_message': {
-            // Transparent hook forwarding
-            handleHookMessage(msg)
-            break
-          }
-
-          case 'chat_history': {
-            const sessionId = msg.session_id
-            const newMessages = msg.messages
-            console.log('[WebSocket] chat_history received:', sessionId, newMessages?.length, 'messages')
-            if (sessionId && newMessages && newMessages.length > 0) {
-              setState(s => {
-                // Simply append new messages (no dedupe, no sort)
-                const existing = s.chatMessages[sessionId] || []
-                return {
-                  ...s,
-                  chatMessages: {
-                    ...s.chatMessages,
-                    [sessionId]: [...existing, ...newMessages],
-                  },
-                }
-              })
-            }
-            break
-          }
-
-          case 'popup_resolved': {
-            // Popup resolved by another client (desktop or another mobile)
-            const deviceToken = msg.device_token
-            const sessionId = msg.session_id  // Use session_id directly
-            const source = msg.source
-            const decision = msg.decision
-            const answers = msg.answers
-            console.log('[WebSocket] popup_resolved:', sessionId, 'by', source, 'decision:', decision)
-
-            if (!deviceToken || !sessionId) break
-
-            setState(s => {
-              // Remove the hook hint for this session
-              const hookHints = { ...s.hookHints }
-              const deviceHints = hookHints[deviceToken] || []
-              const removedHint = deviceHints.find(h => h.session_id === sessionId && h.urgent)
-              hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId || !h.urgent)
-
-              // Update session status to idle (matching desktop behavior)
-              const sessions = { ...s.sessions }
-              const deviceSessions = sessions[deviceToken] || []
-              sessions[deviceToken] = deviceSessions.map(sess =>
-                sess.sessionId === sessionId
-                  ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
-                  : sess
-              )
-
-              // Log toast info for UI to display
-              if (removedHint && source) {
-                const toastMessage = buildPopupResolvedToast(source, decision, answers)
-                console.log('[WebSocket] Toast notification:', toastMessage)
-                // Note: Actual toast display should be handled by UI component
-                // This hook just clears the popup state
-              }
-
-              return { ...s, hookHints, sessions }
-            })
-            break
-          }
+          })
         }
-      } catch (err) {
-        console.warn('Failed to parse cloud message:', err)
-      }
-    }
+      })
 
-    ws.onclose = (event) => {
-      console.log('[WebSocket] Connection closed, code:', event.code, 'reason:', event.reason)
-      // Clear connection timeout
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-        connectionTimeoutRef.current = null
-      }
-      // Stop heartbeat on disconnect
-      stopHeartbeat()
-      const errorMessage = event.code === 1006 ? '连接被拒绝或服务器不可达' :
-                           event.code === 1000 ? '连接已关闭' : `连接断开 (${event.code})`
-      setState(s => ({
-        ...s,
-        serverConnected: false,
-        serverConnecting: false,
-        connectionError: s.serverConnecting ? errorMessage : null,
-      }))
+      hooksSocket.on('list:request', (msg: {
+        deviceToken: string
+        mobileConnId: string
+      }) => {
+        console.log('[SocketIO] list:request received:', msg)
+        // Desktop handles this via cloud_client, mobile doesn't respond
+      })
 
-      if (serverUrl) {
-        console.log('[WebSocket] Will reconnect in 5 seconds...')
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect()
-        }, 5000)
-      }
-    }
-
-    ws.onerror = () => {
-      console.log('[WebSocket] Error')
-      setState(s => ({
-        ...s,
-        serverConnected: false,
-        serverConnecting: false,
-        connectionError: '连接失败，请检查服务器地址',
-      }))
-    }
+      hooksSocket.on('list:response', (msg: {
+        deviceToken: string
+        sessions: ClaudeSession[]
+      }) => {
+        console.log('[SocketIO] Session list received:', msg.sessions?.length, 'sessions')
+        if (msg.deviceToken && msg.sessions) {
+          setState(s => ({
+            ...s,
+            sessions: {
+              ...s.sessions,
+              [msg.deviceToken]: msg.sessions,
+            },
+          }))
+        }
+      })
 
     } catch (e) {
-      console.error('[WebSocket] Failed to create WebSocket:', e)
-      // Clear connection timeout
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-        connectionTimeoutRef.current = null
-      }
+      console.error('[SocketIO] Failed to create connection:', e)
       setState(s => ({
         ...s,
         serverConnected: false,
@@ -445,43 +247,38 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         connectionError: '无法连接，请检查服务器地址格式',
       }))
     }
+  }, [serverUrl, disconnectAll])
 
-  }, [serverUrl])
-
-  // Handle hook_message
-  const handleHookMessage = useCallback((msg: CloudMessage) => {
-    const deviceToken = msg.device_token
-    const sessionId = msg.session_id
-    const hookType = msg.hook_type
-    const hookBody = msg.hook_body
+  // Hook message handler
+  const handleHookMessage = useCallback((msg: {
+    deviceToken: string
+    sessionId: string
+    hookType: string
+    hookBody: Record<string, unknown>
+  }) => {
+    const deviceToken = msg.deviceToken
+    const sessionId = msg.sessionId
+    const hookType = msg.hookType
+    const hookBody = msg.hookBody
 
     if (!deviceToken || !sessionId || !hookType || !hookBody) return
 
-    console.log('[WebSocket] HookMessage:', hookType, 'for device:', deviceToken, 'session:', sessionId)
-    console.log('[WebSocket] HookMessage body:', JSON.stringify(hookBody).slice(0, 200))
+    console.log('[SocketIO] Hook:', hookType, 'device:', deviceToken, 'session:', sessionId)
 
     setState(s => {
       const sessions = { ...s.sessions }
       const hookHints = { ...s.hookHints }
-
-      // Get or create device sessions list
       let deviceSessions = sessions[deviceToken] || []
-
-      // Log current state before update
-      const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
-      console.log('[WebSocket] HookMessage current session status:', currentSession?.status, 'current urgent hints:', hookHints[deviceToken]?.filter(h => h.urgent))
 
       switch (hookType) {
         case 'SessionStart': {
-          // Create new session
-          const projectName = hookBody.project_name || extractProjectName(hookBody.cwd) || '未知项目'
+          const projectName = (hookBody.project_name as string) || extractProjectName(hookBody.cwd as string) || '未知项目'
           const newSession: ClaudeSession = {
             sessionId: sessionId,
             projectName: projectName,
             status: 'idle',
             createdAt: Date.now(),
           }
-          // Remove any existing session with same ID
           deviceSessions = deviceSessions.filter(s => s.sessionId !== sessionId)
           deviceSessions.push(newSession)
           sessions[deviceToken] = deviceSessions
@@ -489,34 +286,25 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'SessionEnd': {
-          // Mark session as ended
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'ended' } : s
           )
           sessions[deviceToken] = deviceSessions
-          // Clear hook hints for this session
           const deviceHints = hookHints[deviceToken] || []
           hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId)
           break
         }
 
         case 'PreToolUse': {
-          // Update session to working (matching desktop: unconditional)
-          const toolName = hookBody.tool_name || '工具'
-          const toolInput = hookBody.tool_input ? {
-            command: hookBody.tool_input.command as string,
-            file_path: hookBody.tool_input.file_path as string,
-            action: (hookBody.tool_input.description || hookBody.tool_input.action) as string,
-            details: hookBody.tool_input.details as string,
-          } : undefined
-          console.log('[WebSocket] PreToolUse: session', sessionId, 'tool', toolName, 'toolInput:', toolInput)
-
+          const toolName = (hookBody.tool_name as string) || '工具'
+          const toolInput = hookBody.tool_input as Record<string, string> | undefined
           deviceSessions = deviceSessions.map(s =>
-            s.sessionId === sessionId ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() } : s
+            s.sessionId === sessionId
+              ? { ...s, status: 'working', currentTool: toolName, toolInput, workingTimestamp: Date.now() }
+              : s
           )
           sessions[deviceToken] = deviceSessions
 
-          // Add hook hint (but don't clear urgent hints - they should stay until resolved)
           const hint: HookHint = {
             session_id: sessionId,
             hook_type: hookType as HookType,
@@ -526,19 +314,15 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
-          // Only clear non-urgent hints for this session, keep urgent hints intact
           hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || h.urgent), hint]
           break
         }
 
         case 'PostToolUse': {
-          // Update session to waiting (matching desktop: unconditional)
-          // Respect minimum display time for working state (2s like desktop)
           deviceSessions = deviceSessions.map(s => {
             if (s.sessionId === sessionId) {
               const workingDuration = s.workingTimestamp ? Date.now() - s.workingTimestamp : 0
               if (workingDuration < 2000 && s.status === 'working') {
-                // Schedule update to 'waiting' after remaining time
                 const remainingTime = 2000 - workingDuration
                 setTimeout(() => {
                   setState(prevState => {
@@ -550,10 +334,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
                     )
                     return {
                       ...prevState,
-                      sessions: {
-                        ...prevState.sessions,
-                        [deviceToken]: updatedSessions,
-                      },
+                      sessions: { ...prevState.sessions, [deviceToken]: updatedSessions },
                     }
                   })
                 }, remainingTime)
@@ -568,14 +349,11 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PermissionRequest': {
-          // Check if it's AskUserQuestion
-          const toolName = hookBody.tool_name || hookBody.permission_data?.tool_name || '权限请求'
+          const toolName = (hookBody.tool_name as string) || (hookBody.permission_data as Record<string, string>)?.tool_name || '权限请求'
           const isAskUserQuestion = toolName === 'AskUserQuestion'
-
-          // Add urgent hook hint
-          const action = hookBody.permission_data?.action || hookBody.tool_input?.description as string
+          const action = (hookBody.permission_data as Record<string, string>)?.action
           const questions = isAskUserQuestion
-            ? (hookBody.tool_input?.questions || hookBody.questions || []) as AskQuestion[]
+            ? ((hookBody.tool_input as Record<string, unknown>)?.questions || hookBody.questions) as AskQuestion[]
             : undefined
 
           const hint: HookHint = {
@@ -589,7 +367,6 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           }
           const deviceHints = hookHints[deviceToken] || []
           hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || !h.urgent), hint]
-          // Update session status
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'waitingForApproval', currentTool: toolName } : s
           )
@@ -598,21 +375,18 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Notification': {
-          // Check if it's an ask (blocking)
-          const notificationData = hookBody.notification_data
+          const notificationData = hookBody.notification_data as Record<string, unknown> | undefined
           if (notificationData?.type === 'ask' || hookBody.questions) {
-            // Add urgent hook hint for ask
-            const questions = notificationData?.questions || hookBody.questions || []
+            const questions = (notificationData?.questions || hookBody.questions) as AskQuestion[]
             const hint: HookHint = {
               session_id: sessionId,
               hook_type: hookType as HookType,
               urgent: true,
-              questions: questions as AskQuestion[],
+              questions,
               timestamp: Date.now(),
             }
             const deviceHints = hookHints[deviceToken] || []
             hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || !h.urgent), hint]
-            // Update session status
             deviceSessions = deviceSessions.map(s =>
               s.sessionId === sessionId ? { ...s, status: 'waitingForApproval' } : s
             )
@@ -622,19 +396,14 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Stop': {
-          // Update session to idle (matching desktop: unconditional)
-          console.log('[WebSocket] Stop hook: setting session', sessionId, 'to idle')
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'idle', currentTool: undefined } : s
           )
           sessions[deviceToken] = deviceSessions
-          console.log('[WebSocket] Stop hook: session status after update:', deviceSessions.find(s => s.sessionId === sessionId)?.status)
           break
         }
 
         case 'UserPromptSubmit': {
-          // Update session to thinking (matching desktop: unconditional)
-          console.log('[WebSocket] UserPromptSubmit hook: setting session', sessionId, 'to thinking')
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'thinking', currentTool: undefined } : s
           )
@@ -643,18 +412,16 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'Elicitation': {
-          // Add urgent hook hint for AskUserQuestion
-          const questions = hookBody.questions || []
+          const questions = (hookBody.questions || []) as AskQuestion[]
           const hint: HookHint = {
             session_id: sessionId,
             hook_type: hookType as HookType,
             urgent: true,
-            questions: questions as AskQuestion[],
+            questions,
             timestamp: Date.now(),
           }
           const deviceHints = hookHints[deviceToken] || []
           hookHints[deviceToken] = [...deviceHints.filter(h => h.session_id !== sessionId || !h.urgent), hint]
-          // Update session status
           deviceSessions = deviceSessions.map(s =>
             s.sessionId === sessionId ? { ...s, status: 'waitingForApproval' } : s
           )
@@ -663,7 +430,6 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostToolUseFailure': {
-          // Update session to error, but don't override waitingForApproval
           const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
           if (currentSession?.status !== 'waitingForApproval') {
             deviceSessions = deviceSessions.map(s =>
@@ -675,7 +441,6 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PreCompact': {
-          // Update session to compacting, but don't override waitingForApproval
           const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
           if (currentSession?.status !== 'waitingForApproval') {
             deviceSessions = deviceSessions.map(s =>
@@ -687,7 +452,6 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         }
 
         case 'PostCompact': {
-          // Update session to idle, but don't override waitingForApproval
           const currentSession = deviceSessions.find(s => s.sessionId === sessionId)
           if (currentSession?.status !== 'waitingForApproval') {
             deviceSessions = deviceSessions.map(s =>
@@ -698,56 +462,84 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
           break
         }
 
-        case 'SubagentStart': {
-          // Just update activity (no status change)
+        case 'SubagentStart':
+        case 'SubagentStop':
+        case 'StatusUpdate':
           break
-        }
-
-        case 'SubagentStop': {
-          // Just update activity (no status change)
-          break
-        }
       }
 
       return { ...s, sessions, hookHints }
     })
   }, [])
 
-  // Send hook response (for blocking hooks)
-  const sendHookResponse = useCallback((deviceToken: string, sessionId: string, decision: string | null, answers?: string[][]) => {
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn('Cannot send hook response: not connected')
-      return
-    }
+  // Popup resolved handler
+  const handlePopupResolved = useCallback((msg: {
+    deviceToken: string
+    popupId: string
+    sessionId: string
+    source: string
+    decision?: string
+    answers?: string[][]
+  }) => {
+    const deviceToken = msg.deviceToken
+    const sessionId = msg.sessionId
+    const source = msg.source
+    const decision = msg.decision
+    const answers = msg.answers
 
-    console.log('[WebSocket] sendHookResponse: session', sessionId, 'decision', decision)
+    console.log('[SocketIO] popup_resolved:', sessionId, 'by', source)
 
-    ws.send(JSON.stringify({
-      type: 'hook_response',
-      device_token: deviceToken,
-      session_id: sessionId,
-      decision,
-      answers,
-    }))
+    if (!deviceToken || !sessionId) return
 
-    // Clear hook hint and set session to idle (ready for next hook like Stop/PostToolUse/UserPromptSubmit)
     setState(s => {
       const hookHints = { ...s.hookHints }
       const deviceHints = hookHints[deviceToken] || []
-      hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId)
+      hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId || !h.urgent)
 
-      // Change status to idle - subsequent hooks will update naturally
       const sessions = { ...s.sessions }
       const deviceSessions = sessions[deviceToken] || []
-      const prevStatus = deviceSessions.find(sess => sess.sessionId === sessionId)?.status
       sessions[deviceToken] = deviceSessions.map(sess =>
         sess.sessionId === sessionId
           ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
           : sess
       )
 
-      console.log('[WebSocket] sendHookResponse: prevStatus', prevStatus, '-> idle')
+      const toastMessage = buildPopupResolvedToast(source, decision, answers)
+      console.log('[SocketIO] Toast:', toastMessage)
+
+      return { ...s, hookHints, sessions }
+    })
+  }, [])
+
+  // Send hook response
+  const sendHookResponse = useCallback((deviceToken: string, sessionId: string, decision: string | null, answers?: string[][]) => {
+    const socket = hooksSocketRef.current
+    if (!socket?.connected) {
+      console.warn('[SocketIO] Cannot send hook response: not connected')
+      return
+    }
+
+    console.log('[SocketIO] Sending hook:response:', sessionId, decision)
+
+    socket.emit('hook:response', {
+      deviceToken,
+      sessionId,
+      decision,
+      answers,
+    })
+
+    setState(s => {
+      const hookHints = { ...s.hookHints }
+      const deviceHints = hookHints[deviceToken] || []
+      hookHints[deviceToken] = deviceHints.filter(h => h.session_id !== sessionId)
+
+      const sessions = { ...s.sessions }
+      const deviceSessions = sessions[deviceToken] || []
+      sessions[deviceToken] = deviceSessions.map(sess =>
+        sess.sessionId === sessionId
+          ? { ...sess, status: 'idle', currentTool: undefined, workingTimestamp: undefined }
+          : sess
+      )
 
       return { ...s, hookHints, sessions }
     })
@@ -755,81 +547,49 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
 
   // Request chat history
   const requestChatHistory = useCallback((deviceToken: string, sessionId: string, limit?: number) => {
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn('Cannot request chat history: not connected')
+    const socket = hooksSocketRef.current
+    if (!socket?.connected) {
+      console.warn('[SocketIO] Cannot request chat history: not connected')
       return
     }
 
-    const msg: { type: string; device_token: string; session_id: string; limit?: number } = {
-      type: 'request_chat_history',
-      device_token: deviceToken,
-      session_id: sessionId,
-    }
-    if (limit !== undefined) {
-      msg.limit = limit
-    }
-    ws.send(JSON.stringify(msg))
+    socket.emit('history:request', {
+      deviceToken,
+      sessionId,
+      limit,
+    })
   }, [])
 
-  // Send mobile_auth when devices change (if connected)
-  useEffect(() => {
-    const ws = wsRef.current
-    console.log('[WebSocket] Devices changed effect triggered, devices:', devices)
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      const authMsg = {
-        type: 'mobile_auth',
-        device_tokens: devices,
-      }
-      console.log('[WebSocket] Sending mobile_auth update:', JSON.stringify(authMsg))
-      ws.send(JSON.stringify(authMsg))
-    }
-  }, [devices])
-
-  // Force send subscription (for when devices array hasn't changed)
+  // Force re-subscribe
   const forceSubscribe = useCallback(() => {
-    const ws = wsRef.current
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      const authMsg = {
-        type: 'mobile_auth',
-        device_tokens: devicesRef.current,
-      }
-      console.log('[WebSocket] Force sending mobile_auth:', JSON.stringify(authMsg))
-      ws.send(JSON.stringify(authMsg))
+    const socket = hooksSocketRef.current
+    if (socket?.connected) {
+      console.log('[SocketIO] Force re-subscribing')
+      socket.emit('list:request', {
+        deviceToken: devicesRef.current[0] || '',
+        mobileConnId: socket.id || '',
+      })
     }
   }, [])
 
-  // Handle page visibility change (Android WebView zombie connection fix)
-  // When phone screen goes black, WebSocket may not fire onclose event,
-  // but server-side connection may timeout and clear subscribers.
-  // On page wake, we need to force reconnect to restore message receiving.
+  // Page visibility handling (Android WebView zombie connection fix)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[WebSocket] Page became visible, forcing reconnect')
-        // Always close and reconnect on page wake
-        // This is more reliable than checking readyState (zombie connection may show OPEN)
-        if (wsRef.current) {
-          console.log('[WebSocket] Closing existing WebSocket (readyState:', wsRef.current.readyState, ')')
-          wsRef.current.close()
-          wsRef.current = null
-        }
-        // Trigger new connection
+        console.log('[SocketIO] Page visible, reconnecting')
+        disconnectAll()
         connect()
       }
     }
-
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [connect])
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [connect, disconnectAll])
 
-  // Connect/disconnect based on server URL
+  // Connect/disconnect based on serverUrl
   useEffect(() => {
-    // Only connect if there's a server URL
     if (!serverUrl) {
-      setState({
+      setState(s => ({
+        ...s,
         serverConnected: false,
         serverConnecting: false,
         connectionError: '请输入服务器地址',
@@ -837,7 +597,7 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
         sessions: {},
         hookHints: {},
         chatMessages: {},
-      })
+      }))
       return
     }
 
@@ -846,50 +606,37 @@ export function useAllDevicesWebSocket({ devices, serverUrl }: UseAllDevicesWebS
       reconnectTimeoutRef.current = null
     }
 
-    // Don't reconnect if already connected
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log('[WebSocket] Already connected, skipping connect()')
+    if (mainSocketRef.current?.connected) {
       return
     }
 
-    console.log('[WebSocket] Initial connect for server:', serverUrl)
+    console.log('[SocketIO] Initial connect to:', serverUrl)
     connect()
 
     return () => {
-      console.log('[WebSocket] Cleanup: closing connection')
-      stopHeartbeat()
+      console.log('[SocketIO] Cleanup')
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-      }
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
+      disconnectAll()
     }
-  }, [serverUrl])  // Only depend on serverUrl, not connect
+  }, [serverUrl])
 
   return { state, sendHookResponse, requestChatHistory, forceSubscribe }
 }
 
-// Helper: extract project name from cwd
 function extractProjectName(cwd?: string): string | undefined {
   if (!cwd) return undefined
   const parts = cwd.split('/')
   return parts[parts.length - 1] || undefined
 }
 
-// Helper: build toast message for popup resolved
 function buildPopupResolvedToast(source: string, decision?: string, answers?: string[][]): string {
   const sourceLabel = source === 'desktop' ? 'Desktop' : '手机端'
-
   if (answers && answers.length > 0) {
-    // AskUserQuestion - format answers
     const answerStr = answers.map(a => a.join('; ')).join('; ')
     return `已由 ${sourceLabel} 处理（${answerStr}）`
   } else if (decision) {
-    // Permission - format decision
     const decisionLabel = decision === 'allow' ? '允许' : '拒绝'
     return `已由 ${sourceLabel} 处理（${decisionLabel}）`
   } else {

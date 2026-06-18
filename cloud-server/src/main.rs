@@ -10,10 +10,6 @@ use tokio_util::sync::CancellationToken;
 use config::{Config, LogRotation};
 use db::pool::create_pool;
 use db::repository::Repository;
-use db::pending_message::PendingMessageRepo;
-use ws::router::ConnectionRouter;
-use ws::server::run_server;
-use ws::notify_listener::NotifyListener;
 
 /// Initialize logging with file output.
 fn init_logging(config: &Config) {
@@ -36,7 +32,7 @@ fn init_logging(config: &Config) {
 
     tracing_subscriber::fmt()
         .with_writer(file_appender)
-        .with_ansi(false)  // Disable colors for file output
+        .with_ansi(false)
         .with_env_filter(env_filter)
         .init();
 }
@@ -61,51 +57,25 @@ async fn main() -> anyhow::Result<()> {
 
     // Create shared components
     let repo = Repository::new(pool.clone());
-    let pending_repo = PendingMessageRepo::new(pool.clone());
-    let router = ConnectionRouter::new();
+
+    // Build Socket.IO server with PostgreSQL adapter
+    let (socketio_layer, _io) = ws::server::build_socketio_server(pool.clone(), repo.clone()).await?;
+    tracing::info!("Socket.IO server built");
+
+    // Create HTTP router for API endpoints
+    let http_router = http::create_http_router(repo.clone());
 
     // Create shutdown token
     let shutdown = CancellationToken::new();
 
-    // Spawn HTTP server for API endpoints
-    let http_router = http::create_http_router(repo.clone(), router.clone());
-    let http_port = config.http_port;
-    tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", http_port)).await.unwrap();
-        tracing::info!("HTTP API server listening on {}", http_port);
-        axum::serve(listener, http_router).await.unwrap();
-    });
-
-    // Start NotifyListener for cross-instance message routing
-    let notify_listener = NotifyListener::new(pool.clone(), router.clone());
-    let notify_shutdown = shutdown.clone();
-    tokio::spawn(async move {
-        if let Err(e) = notify_listener.run(notify_shutdown).await {
-            tracing::error!("NotifyListener error: {}", e);
-        }
-    });
-    tracing::info!("NotifyListener started");
-
-    // Start stale cleanup task (runs every minute, cleans pending messages and stale sessions)
-    let cleanup_pending_repo = PendingMessageRepo::new(pool.clone());
-    let cleanup_session_repo = Repository::new(pool.clone());
+    // Start stale session cleanup task (runs every minute)
+    let cleanup_repo = Repository::new(pool.clone());
     let cleanup_shutdown = shutdown.clone();
     tokio::spawn(async move {
         loop {
             tokio::select! {
                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {
-                    // Cleanup stale pending messages (> 5 minutes)
-                    match cleanup_pending_repo.delete_stale(5.0).await {
-                        Ok(count) if count > 0 => {
-                            tracing::debug!("Cleaned up {} stale pending messages", count);
-                        }
-                        Err(e) => {
-                            tracing::error!("Pending message cleanup error: {}", e);
-                        }
-                        _ => {}
-                    }
-                    // Cleanup stale sessions (> 30 minutes, not ended)
-                    match cleanup_session_repo.cleanup_stale_sessions(30.0).await {
+                    match cleanup_repo.cleanup_stale_sessions(30.0).await {
                         Ok(count) if count > 0 => {
                             tracing::info!("Cleaned up {} stale sessions (marked as ended)", count);
                         }
@@ -122,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
-    tracing::info!("Stale cleanup task started (pending messages + sessions)");
+    tracing::info!("Stale session cleanup task started");
 
     // Handle Ctrl+C for graceful shutdown
     let shutdown_clone = shutdown.clone();
@@ -134,8 +104,20 @@ async fn main() -> anyhow::Result<()> {
         shutdown_clone.cancel();
     });
 
-    // Run WebSocket server
-    run_server(config.ws_port, router, repo, pending_repo, shutdown).await?;
+    // CORS layer — allow any origin for development
+    let cors_layer = tower_http::cors::CorsLayer::permissive();
+
+    // Merge HTTP API routes with Socket.IO layer
+    // CORS must be outermost so it processes preflight and adds headers to all responses
+    let app = axum::Router::new()
+        .merge(http_router)
+        .layer(socketio_layer)
+        .layer(cors_layer);
+
+    // Bind and serve
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", config.ws_port)).await?;
+    tracing::info!("Server listening on port {} (HTTP API + Socket.IO)", config.ws_port);
+    axum::serve(listener, app).await?;
 
     tracing::info!("Server shutdown complete");
     Ok(())
