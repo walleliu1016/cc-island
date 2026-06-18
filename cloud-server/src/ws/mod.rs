@@ -6,3 +6,4 @@ pub mod router;
 pub mod handler;
 pub mod notify_listener;
 pub mod events;
+pub mod auth;
