@@ -27,33 +27,36 @@
     </clipPath>
   </defs>
 
-  <!-- 圆角紫色背景 -->
-  <rect width="1024" height="1024" rx="225" ry="225" fill="url(#purpleBg)"/>
+  <!-- 内容内缩 17%（~8.5% 透明边距），与 Finder 等 Dock 图标视觉权重一致 -->
+  <g transform="translate(87.04, 87.04) scale(0.83)">
+    <!-- 圆角紫色背景 -->
+    <rect width="1024" height="1024" rx="225" ry="225" fill="url(#purpleBg)"/>
 
-  <g clip-path="url(#roundedClip)">
-    <!-- 顶部高光层 -->
-    <rect width="1024" height="540" rx="225" ry="225" fill="url(#topGloss)"/>
+    <g clip-path="url(#roundedClip)">
+      <!-- 顶部高光层 -->
+      <rect width="1024" height="540" rx="225" ry="225" fill="url(#topGloss)"/>
 
-    <!-- 像素螃蟹（缩放并居中：crab 66x52 → 660x520，居中在 512,512） -->
-    <g transform="translate(182, 252) scale(10)" filter="url(#crabGlow)">
-      <!-- 左触角 -->
-      <rect x="0" y="13" width="6" height="13" fill="#ffffff"/>
-      <!-- 右触角 -->
-      <rect x="60" y="13" width="6" height="13" fill="#ffffff"/>
+      <!-- 像素螃蟹（缩放并居中：crab 66x52 → 660x520，居中在 512,512） -->
+      <g transform="translate(182, 252) scale(10)" filter="url(#crabGlow)">
+        <!-- 左触角 -->
+        <rect x="0" y="13" width="6" height="13" fill="#ffffff"/>
+        <!-- 右触角 -->
+        <rect x="60" y="13" width="6" height="13" fill="#ffffff"/>
 
-      <!-- 四条腿 -->
-      <rect x="6"  y="39" width="6" height="13" fill="#ffffff"/>
-      <rect x="18" y="39" width="6" height="13" fill="#ffffff"/>
-      <rect x="42" y="39" width="6" height="13" fill="#ffffff"/>
-      <rect x="54" y="39" width="6" height="13" fill="#ffffff"/>
+        <!-- 四条腿 -->
+        <rect x="6"  y="39" width="6" height="13" fill="#ffffff"/>
+        <rect x="18" y="39" width="6" height="13" fill="#ffffff"/>
+        <rect x="42" y="39" width="6" height="13" fill="#ffffff"/>
+        <rect x="54" y="39" width="6" height="13" fill="#ffffff"/>
 
-      <!-- 主体 -->
-      <rect x="6" y="0" width="54" height="39" fill="#ffffff"/>
+        <!-- 主体 -->
+        <rect x="6" y="0" width="54" height="39" fill="#ffffff"/>
 
-      <!-- 左眼 -->
-      <rect x="12" y="13" width="6" height="6.5" fill="#1a0a3a"/>
-      <!-- 右眼 -->
-      <rect x="48" y="13" width="6" height="6.5" fill="#1a0a3a"/>
+        <!-- 左眼 -->
+        <rect x="12" y="13" width="6" height="6.5" fill="#1a0a3a"/>
+        <!-- 右眼 -->
+        <rect x="48" y="13" width="6" height="6.5" fill="#1a0a3a"/>
+      </g>
     </g>
   </g>
 </svg>

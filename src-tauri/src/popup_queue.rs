@@ -193,33 +193,16 @@ impl PopupQueue {
         false
     }
 
-    /// Check for timeouts and auto-resolve
+    /// Check for timeouts. No longer auto-denies — popups are resolved by:
+    /// 1. User action on CC-Island → respond_popup
+    /// 2. New hook event → cancel_session_popups (user acted on Claude side)
+    /// 3. SessionEnd → cancel_session_popups
+    /// Stale waiting contexts (no sender alive) are cleaned up here.
     pub fn check_timeouts(&mut self) -> Vec<String> {
-        let now = std::time::Instant::now();
-        let timed_out: Vec<String> = self.waiting
-            .iter()
-            .filter(|(_, w)| now >= w.timeout)
-            .map(|(id, _)| id.clone())
-            .collect();
-
-        for id in &timed_out {
-            if let Some(waiting) = self.waiting.remove(id) {
-                // Auto-deny permission, empty answer for ask
-                let auto_response = PopupResponse {
-                    popup_id: id.clone(),
-                    decision: Some("deny".to_string()),
-                    answer: None,
-                    answers: None,
-                };
-                let _ = waiting.responder.send(auto_response);
-
-                if let Some(popup) = self.get_mut(id) {
-                    popup.status = PopupStatus::AutoClose;
-                }
-            }
-        }
-
-        timed_out
+        // Per user requirement, we no longer auto-deny on timeout.
+        // Popups stay until explicitly resolved by one of the three paths above.
+        // This ensures "需要授权" persists until the user actually takes action.
+        Vec::new()
     }
 
     /// Cleanup resolved/auto-closed popups
@@ -250,16 +233,12 @@ impl PopupQueue {
             .collect();
 
         for id in &cancelled_ids {
-            // Send deny response to waiting hooks
-            if let Some(waiting) = self.waiting.remove(id) {
-                let auto_response = PopupResponse {
-                    popup_id: id.clone(),
-                    decision: Some("deny".to_string()),
-                    answer: None,
-                    answers: None,
-                };
-                let _ = waiting.responder.send(auto_response);
-            }
+            // Drop the sender without sending a response.
+            // The old HTTP handler will wake up with RecvError and return timeout output,
+            // but by that point Claude Code has already moved on (new event arrived),
+            // so the response goes nowhere. We must NOT send "deny" here —
+            // the user never denied the permission; it was simply superseded.
+            self.waiting.remove(id);
 
             // Update popup status
             if let Some(popup) = self.get_mut(id) {

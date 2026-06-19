@@ -132,6 +132,48 @@ async fn handle_hook(
         (hook_event == "Notification" && input.notification_data.as_ref().map(|n| n.is_ask()).unwrap_or(false));
 
     if is_blocking {
+        // If this session already has a pending popup, auto-allow this new
+        // PermissionRequest instead of creating a duplicate. The first popup
+        // already represents "this session needs review". Concurrent tool calls
+        // within the same interaction turn should not cancel each other.
+        // The popup will be cleaned up when UserPromptSubmit (new turn) arrives.
+        let is_ask = hook_event == "Elicitation"
+            || (hook_event == "PermissionRequest" && input.tool_name.as_deref() == Some("AskUserQuestion"));
+        if !is_ask && hook_event == "PermissionRequest" {
+            let has_pending = {
+                let state_guard = state.read();
+                state_guard.popups.find_popup_by_session(&input.session_id).is_some()
+            };
+            if has_pending {
+                tracing::info!(
+                    "Session {} already has a pending popup, auto-allowing new PermissionRequest",
+                    input.session_id
+                );
+                return Ok(Json(HookOutput {
+                    continue_exec: true,
+                    decision: None,
+                    reason: None,
+                    system_message: None,
+                    suppress_output: None,
+                    hook_specific_output: Some(HookSpecificOutput {
+                        hook_event_name: "PermissionRequest".to_string(),
+                        additional_context: None,
+                        permission_decision: None,
+                        permission_decision_reason: None,
+                        updated_input: None,
+                        action: None,
+                        decision: Some(DecisionOutput {
+                            behavior: "allow".to_string(),
+                            updated_input: None,
+                            message: None,
+                            interrupt: None,
+                        }),
+                        content: None,
+                    }),
+                }));
+            }
+        }
+
         // Create popup and wait for user response
         let popup_id = uuid::Uuid::new_v4().to_string();
 
@@ -142,8 +184,11 @@ async fn handle_hook(
         let (questions_for_conversion, hook_event_name, elicitation_questions, tool_name, tool_input, _popup_for_cloud) = {
             let mut state_guard = state.write();
 
-            // Cancel any old pending popups for this session (prevent duplicate popups)
-            state_guard.popups.cancel_session_popups(&input.session_id);
+            // Cancel any old pending popups for this session (only for ask/elicitations
+            // which replace old ones; regular PermissionRequests are handled above)
+            if is_ask {
+                state_guard.popups.cancel_session_popups(&input.session_id);
+            }
 
             // Create popup item
             let popup = create_popup_from_hook(&popup_id, &input);
@@ -247,25 +292,24 @@ async fn handle_hook(
         {
             let mut state_guard = state.write();
 
-            // Cancel any stale pending popups for this session.
-            // When a new event arrives, the previous blocking popup (PermissionRequest
-            // or AskUserQuestion) has been resolved — either answered on the Claude side
-            // or timed out. Without this, stale "去回答" badges persist in the UI.
-            let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
-            if !cancelled.is_empty() {
-                tracing::info!("Non-blocking event '{}' cancelled {} stale popups for session {}: {:?}",
-                    hook_event, cancelled.len(), input.session_id, cancelled);
+            // Only cancel pending popups on UserPromptSubmit — this signals a new
+            // conversation turn. Events within the same turn (PreToolUse, PostToolUse,
+            // Stop, etc.) are part of the same interaction and should not cancel the
+            // popup. The popup represents "this session needs review", not "this specific
+            // tool call needs review".
+            if hook_event == "UserPromptSubmit" {
+                let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
+                if !cancelled.is_empty() {
+                    tracing::info!("UserPromptSubmit cancelled {} stale popups for session {}: {:?}",
+                        cancelled.len(), input.session_id, cancelled);
 
-                // Also clear WaitingForApproval status — the popup is gone, so the
-                // instance should not stay in "需要授权" state. This handles the case
-                // where the user confirmed/denied the permission directly in the
-                // Claude Code terminal, leaving the popup stale.
-                if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
-                    if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
-                        tracing::info!("Clearing stale WaitingForApproval for session {} after popup cancellation", input.session_id);
-                        instance.set_status(crate::instance_manager::InstanceStatus::Idle);
-                        instance.current_tool = None;
-                        instance.tool_input = None;
+                    if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                        if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                            tracing::info!("Clearing stale WaitingForApproval for session {} after UserPromptSubmit", input.session_id);
+                            instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                            instance.current_tool = None;
+                            instance.tool_input = None;
+                        }
                     }
                 }
             }

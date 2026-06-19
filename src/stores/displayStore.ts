@@ -204,17 +204,33 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     };
 
     // Priority: waitingForApproval > processing > waitingForInput > idle
+    let pendingApprovalCount = 0;
+    let firstApprovalDisplay: DisplayItem | null = null;
+
     for (const [, display] of newInstanceDisplays) {
-      if (display.phase === 'waitingForApproval') {
-        // Only show if there's actually a pending popup for this session
-        if (sessionsWithPendingPopup.has(display.sessionId)) {
-          const toolText = display.text && display.text !== 'Permission' ? `: ${display.text.split(':')[0]}` : '';
-          headerDisplay = { text: `需要授权${toolText}`, phase: 'waitingForApproval', sessionId: display.sessionId };
-          break; // Highest priority
+      if (display.phase === 'waitingForApproval' && sessionsWithPendingPopup.has(display.sessionId)) {
+        pendingApprovalCount++;
+        if (!firstApprovalDisplay) {
+          firstApprovalDisplay = display;
         }
       }
-      if (display.phase === 'processing' && headerDisplay.phase !== 'waitingForApproval') {
-        headerDisplay = { text: display.text, phase: 'processing', sessionId: display.sessionId };
+    }
+
+    if (firstApprovalDisplay) {
+      const toolText = firstApprovalDisplay.text && firstApprovalDisplay.text !== 'Permission'
+        ? `: ${firstApprovalDisplay.text.split(':')[0]}`
+        : '';
+      const countSuffix = pendingApprovalCount > 1 ? ` (${pendingApprovalCount})` : '';
+      headerDisplay = {
+        text: `需要授权${countSuffix}${toolText}`,
+        phase: 'waitingForApproval',
+        sessionId: firstApprovalDisplay.sessionId
+      };
+    } else {
+      for (const [, display] of newInstanceDisplays) {
+        if (display.phase === 'processing') {
+          headerDisplay = { text: display.text, phase: 'processing', sessionId: display.sessionId };
+        }
       }
     }
 

@@ -398,6 +398,9 @@ fn cleanup_dead_sessions() {
     // Cleanup dead sessions (write lock)
     let mut state = SHARED_STATE.write();
     for session_id in &dead {
+        // Cancel any pending popups for dead sessions
+        state.popups.cancel_session_popups(session_id);
+
         if let Some(mut instance) = state.instances.get_instance(session_id).cloned() {
             let now = SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
