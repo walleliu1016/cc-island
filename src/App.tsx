@@ -194,7 +194,7 @@ function App() {
         setCloudStatus({ connected: isConnected, connecting: isConnecting, failed: isFailed, failedReason });
 
         // Update display states with minimum display time
-        updateDisplays(instancesData);
+        updateDisplays(instancesData, popupsData);
       } catch (e) {
         console.error('Failed to fetch data:', e);
       }

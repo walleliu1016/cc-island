@@ -177,6 +177,44 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
     Arc::new(RwLock::new(AppState::new()))
 });
 
+/// Clear WaitingForApproval status for instances whose popups have been
+/// resolved or timed out. This prevents the header from getting stuck on
+/// "需要授权" when the user confirmed/denied the permission directly in
+/// the Claude Code terminal, or when the popup was cancelled by a
+/// subsequent event.
+fn clear_stale_approval_status(state: &mut AppState) {
+    // Collect session IDs that still have pending popups
+    let pending_session_ids: std::collections::HashSet<String> = state
+        .popups
+        .get_all()
+        .iter()
+        .filter(|p| p.status == popup_queue::PopupStatus::Pending)
+        .map(|p| p.session_id.clone())
+        .collect();
+
+    // Find instances stuck in WaitingForApproval without a corresponding pending popup
+    let stale_sessions: Vec<String> = state
+        .instances
+        .get_all_instances()
+        .iter()
+        .filter(|i| matches!(i.status, instance_manager::InstanceStatus::WaitingForApproval(_)))
+        .filter(|i| !pending_session_ids.contains(&i.session_id))
+        .map(|i| i.session_id.clone())
+        .collect();
+
+    for session_id in stale_sessions {
+        if let Some(instance) = state.instances.get_instance_mut(&session_id) {
+            tracing::info!(
+                "Clearing stale WaitingForApproval for session {} (popup already resolved)",
+                session_id
+            );
+            instance.set_status(instance_manager::InstanceStatus::Idle);
+            instance.current_tool = None;
+            instance.tool_input = None;
+        }
+    }
+}
+
 /// SQLite activity store for tool history persistence
 pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
     match activity_store::ActivityStore::new() {
@@ -1149,6 +1187,11 @@ pub fn run() {
                         state.popups.check_timeouts();
                         // Remove resolved/auto-closed popups after 1s display grace
                         state.popups.cleanup();
+                        // Clear WaitingForApproval status for instances whose popups
+                        // have been resolved (by timeout, cancel, or user action in
+                        // Claude Code terminal). Without this, the header would keep
+                        // showing "需要授权" even after the popup is gone.
+                        clear_stale_approval_status(&mut state);
                     }
                 });
 

@@ -255,6 +255,19 @@ async fn handle_hook(
             if !cancelled.is_empty() {
                 tracing::info!("Non-blocking event '{}' cancelled {} stale popups for session {}: {:?}",
                     hook_event, cancelled.len(), input.session_id, cancelled);
+
+                // Also clear WaitingForApproval status — the popup is gone, so the
+                // instance should not stay in "需要授权" state. This handles the case
+                // where the user confirmed/denied the permission directly in the
+                // Claude Code terminal, leaving the popup stale.
+                if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                    if matches!(instance.status, crate::instance_manager::InstanceStatus::WaitingForApproval(_)) {
+                        tracing::info!("Clearing stale WaitingForApproval for session {} after popup cancellation", input.session_id);
+                        instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                        instance.current_tool = None;
+                        instance.tool_input = None;
+                    }
+                }
             }
 
             // Auto-recover session if it doesn't exist (Desktop restart recovery)

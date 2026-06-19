@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { create } from 'zustand';
-import { ClaudeInstance } from '../types';
+import { ClaudeInstance, PopupItem } from '../types';
 
 // Display item in queue
 interface DisplayItem {
@@ -24,7 +24,7 @@ interface DisplayState {
   instanceDisplays: Map<string, DisplayItem>;
 
   // Update display based on current instances
-  updateDisplays: (instances: ClaudeInstance[]) => void;
+  updateDisplays: (instances: ClaudeInstance[], popups: PopupItem[]) => void;
 
   // Get display for specific instance
   getInstanceDisplay: (sessionId: string) => { text: string | null; phase: 'processing' | 'waitingForApproval' | 'waitingForInput' | 'idle' };
@@ -105,10 +105,15 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   },
   instanceDisplays: new Map(),
 
-  updateDisplays: (instances: ClaudeInstance[]) => {
+  updateDisplays: (instances: ClaudeInstance[], popups: PopupItem[]) => {
     const now = Date.now();
     const state = get();
     const newInstanceDisplays = new Map(state.instanceDisplays);
+
+    // Build set of session IDs that have pending popups
+    const sessionsWithPendingPopup = new Set(
+      popups.filter(p => p.status === 'pending').map(p => p.session_id)
+    );
 
     // Process each instance
     for (const instance of instances) {
@@ -121,6 +126,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       if (!currentDisplay) {
         // New display
         if (newInfo.phase !== 'idle' && newInfo.phase !== 'waitingForInput') {
+          // Don't show waitingForApproval if no pending popup exists for this session
+          if (newInfo.phase === 'waitingForApproval' && !sessionsWithPendingPopup.has(instance.session_id)) {
+            continue;
+          }
           newInstanceDisplays.set(instance.session_id, {
             sessionId: instance.session_id,
             text: newInfo.text,
@@ -141,7 +150,39 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
               // Clear display for idle states
               newInstanceDisplays.delete(instance.session_id);
             } else {
-              // Update to new display
+              // Don't switch to waitingForApproval if no pending popup
+              if (newInfo.phase === 'waitingForApproval' && !sessionsWithPendingPopup.has(instance.session_id)) {
+                newInstanceDisplays.delete(instance.session_id);
+              } else {
+                // Update to new display
+                newInstanceDisplays.set(instance.session_id, {
+                  sessionId: instance.session_id,
+                  text: newInfo.text,
+                  phase: newInfo.phase,
+                  startTime: now,
+                  minDuration: MIN_DISPLAY_TIME,
+                });
+              }
+            }
+          }
+          // If currentDisplay is waitingForApproval but no pending popup, force clear
+          if (currentDisplay.phase === 'waitingForApproval' && !sessionsWithPendingPopup.has(instance.session_id)) {
+            newInstanceDisplays.delete(instance.session_id);
+          }
+        } else {
+          // Can't change yet (min display time not reached)
+          // But if current is waitingForApproval with no popup, force clear immediately
+          if (currentDisplay.phase === 'waitingForApproval' && !sessionsWithPendingPopup.has(instance.session_id)) {
+            newInstanceDisplays.delete(instance.session_id);
+          } else if (newInfo.phase === 'idle' || newInfo.phase === 'waitingForInput') {
+            // Continue showing current display until min time is reached
+            // (do nothing - keep currentDisplay)
+          } else if (newInfo.phase !== currentDisplay.phase || newInfo.text !== currentDisplay.text) {
+            // New activity - update to new state (different activity)
+            // But don't switch to waitingForApproval if no pending popup
+            if (newInfo.phase === 'waitingForApproval' && !sessionsWithPendingPopup.has(instance.session_id)) {
+              newInstanceDisplays.delete(instance.session_id);
+            } else {
               newInstanceDisplays.set(instance.session_id, {
                 sessionId: instance.session_id,
                 text: newInfo.text,
@@ -150,22 +191,6 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
                 minDuration: MIN_DISPLAY_TIME,
               });
             }
-          }
-        } else {
-          // Can't change yet (min display time not reached)
-          // Keep current display even if underlying state changed to idle
-          if (newInfo.phase === 'idle' || newInfo.phase === 'waitingForInput') {
-            // Continue showing current display until min time is reached
-            // (do nothing - keep currentDisplay)
-          } else if (newInfo.phase !== currentDisplay.phase || newInfo.text !== currentDisplay.text) {
-            // New activity - update to new state (different activity)
-            newInstanceDisplays.set(instance.session_id, {
-              sessionId: instance.session_id,
-              text: newInfo.text,
-              phase: newInfo.phase,
-              startTime: now,
-              minDuration: MIN_DISPLAY_TIME,
-            });
           }
         }
       }
@@ -181,10 +206,12 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     // Priority: waitingForApproval > processing > waitingForInput > idle
     for (const [, display] of newInstanceDisplays) {
       if (display.phase === 'waitingForApproval') {
-        // Show "需要授权" with tool name if available
-        const toolText = display.text && display.text !== 'Permission' ? `: ${display.text.split(':')[0]}` : '';
-        headerDisplay = { text: `需要授权${toolText}`, phase: 'waitingForApproval', sessionId: display.sessionId };
-        break; // Highest priority
+        // Only show if there's actually a pending popup for this session
+        if (sessionsWithPendingPopup.has(display.sessionId)) {
+          const toolText = display.text && display.text !== 'Permission' ? `: ${display.text.split(':')[0]}` : '';
+          headerDisplay = { text: `需要授权${toolText}`, phase: 'waitingForApproval', sessionId: display.sessionId };
+          break; // Highest priority
+        }
       }
       if (display.phase === 'processing' && headerDisplay.phase !== 'waitingForApproval') {
         headerDisplay = { text: display.text, phase: 'processing', sessionId: display.sessionId };
