@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Features
+
+#### 双窗口统一架构
+- 灵动岛窗口 + 桌面窗口同时运行，共享 Rust 后端状态，各自独立轮询
+- 灵动岛（main）：始终可见，顶部悬浮条，折叠/展开，快速处理权限弹窗
+- 桌面窗（desktop）：侧边栏会话管理 + 聊天 + 活动时间线，隐藏式关闭（不销毁）
+- 窗口间通过 Tauri event 同步状态（`popup-resolved`、`desktop-window-state`）
+
+#### 桌面窗口完整功能
+- 侧边栏：三 Tab（活动/空闲/历史）、搜索、键盘导航（↑↓ Enter Esc）
+- 会话操作：置顶、通知角标、相对时间、悬停操作按钮
+- 聊天 + 命令历史时间线（Layout C：左聊天右活动列表）
+- 权限请求浮层：半透明遮罩 + 300s 倒计时 + Allow/Deny 按钮
+- 活动项 hover 弹窗：自适应方向（右/左），显示详情 + 执行耗时
+- 最大/最小/关闭窗口控件，最大化图标切换
+- 云连接状态指示器
+
 ### Fixes
 
 #### PermissionRequest 竞态条件自动拒绝
@@ -13,6 +30,16 @@ All notable changes to this project will be documented in this file.
 - 弹窗生命周期事件增加 tracing 诊断日志
 
 ### Technical
+- `lib.rs`：新增 `desktop_window_open` 状态字段、4 个窗口命令（`get_window_label`/`open_desktop_window`/`close_desktop_window`/`get_desktop_window_state`）
+- `activity_store.rs`：新增 `duration_ms` 列，`update_activity_result` 自动计算耗时
+- `DesktopLayout.tsx`：新建 ~850 行桌面窗口完整布局（侧边栏 + 聊天 + 时间线 + 权限浮层）
+- `IslandLayout.tsx`：从 App.tsx 提取灵动岛 UI
+- `App.tsx`：简化为窗口标签路由（`waitForLabel` → IslandLayout / DesktopLayout）
+- `appStore.ts`：移除 `LayoutMode`，新增 `windowLabel`/`isDesktopWindowOpen` 状态
+- `capabilities/default.json`：双窗口权限（minimize/maximize/show/hide/event）
+- `vite.config.ts`：排除 `.claude/` 目录防止 inotify ENOSPC
+- 删除死代码 `DesktopMode.tsx`
+- 新增设计参考文件 `preview-desktop-ui.html`、`preview-dual-window.html`
 - `popup_queue.rs`：新增 `created_at: Instant` 字段、模块级 `CANCEL_GRACE_PERIOD` 常量
 - `http_server.rs`：阻塞弹窗创建/解析/超时路径增加日志
 
