@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixes
+
+#### PermissionRequest 竞态条件自动拒绝
+- PreToolUse（非阻塞）和 PermissionRequest（阻塞）并发到达时，`cancel_session_popups` 在非阻塞 handler 中取消了刚创建的权限弹窗
+- 新增 10 秒宽限期（`CANCEL_GRACE_PERIOD`），跳过最近创建的弹窗，防止误取消
+- `WaitingContext` 新增 `created_at` 字段用于精确计算弹窗年龄
+- 弹窗生命周期事件增加 tracing 诊断日志
+
+### Technical
+- `popup_queue.rs`：新增 `created_at: Instant` 字段、模块级 `CANCEL_GRACE_PERIOD` 常量
+- `http_server.rs`：阻塞弹窗创建/解析/超时路径增加日志
+
+### Documentation
+- WebSocket → Socket.IO 迁移设计文档（`docs/superpowers/plans/2026-06-18-websocket-to-socketio.md`）
+
 ## [0.3.9] - 2026-06-17
 
 ### Features
