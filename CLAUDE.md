@@ -39,7 +39,7 @@ pnpm exec tsc --noEmit
 
 ## Architecture Overview
 
-CC-Island is a Tauri 2.x desktop app that monitors multiple Claude Code terminal instances via HTTP hooks, with optional cloud relay for mobile remote access.
+CC-Island is a Tauri 2.x desktop app with a **dual-window architecture**: a lightweight always-on-top "Dynamic Island" window and a full-featured desktop window. Both windows run simultaneously, share the Rust backend state, and synchronize via Tauri events.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Zustand + Framer Motion + Tailwind CSS
@@ -61,15 +61,19 @@ Desktop → WebSocket → Cloud Server → PostgreSQL → NOTIFY → Other Insta
 | Layer | File | Purpose |
 |-------|------|---------|
 | HTTP API | `src-tauri/src/http_server.rs` | Receives Claude Code hooks, handles blocking (PermissionRequest/Ask) and non-blocking events |
-| State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) shared between HTTP server and Tauri commands |
+| State | `src-tauri/src/lib.rs` | Global `SHARED_STATE` (Arc<RwLock<AppState>>) with `desktop_window_open` field. Window commands: `open_desktop_window`, `close_desktop_window`, `get_window_label`, `get_desktop_window_state` |
+| Activity Store | `src-tauri/src/activity_store.rs` | SQLite store for tool activities with `duration_ms` auto-calculated on PostToolUse |
 | Popup Queue | `src-tauri/src/popup_queue.rs` | Manages pending popups with oneshot channels for blocking responses |
 | Instance Manager | `src-tauri/src/instance_manager.rs` | Tracks Claude session lifecycle (SessionStart → SessionEnd) |
 | Chat History | `src-tauri/src/chat_messages.rs` | Stores per-session message history (user, assistant, tool calls) |
 | Platform Jump | `src-tauri/src/platform/macos.rs` | AppleScript to activate terminal window |
-| Frontend State | `src/stores/appStore.ts` | Zustand store for instances, popups, activities |
-| UI | `src/App.tsx` | Click to expand, three-column header layout |
+| Frontend State | `src/stores/appStore.ts` | Zustand store: `windowLabel`, `isDesktopWindowOpen`, instances, popups, activities |
+| App Router | `src/App.tsx` | Window label routing: `get_window_label()` → IslandLayout or DesktopLayout |
+| Island Layout | `src/components/IslandLayout.tsx` | Dynamic Island window: notch shape, expand/collapse, inline permissions, 100ms polling |
+| Desktop Layout | `src/components/DesktopLayout.tsx` | Desktop window: sidebar sessions (pin/search/kb-nav), ChatView + activity timeline, permission card overlay |
 | Instance List | `src/components/InstanceList.tsx` | Displays instances with inline Allow/Deny buttons |
 | Chat View | `src/components/ChatView.tsx` | Shows message history with code blocks |
+| Welcome View | `src/components/WelcomeView.tsx` | Desktop welcome page with stats cards |
 | Settings | `src/components/Settings.tsx` | Tabbed interface for Hooks and General settings |
 | Status Icons | `src/components/StatusIcons.tsx` | Pixel-style icons (crab, spinner, indicators) |
 | Notch Shape | `src/components/NotchShape.tsx` | SVG path generator for Dynamic Island shape |
@@ -126,7 +130,14 @@ Response: `{answers: [["React"]]}` (array per question).
 
 ## UI Interaction Patterns
 
-**Click to Expand:**
+**Dual-Window Architecture:**
+- Island window (label `main`): always-on-top, transparent, frameless, 300x38 collapsed / 480x400 expanded
+- Desktop window (label `desktop`): normal window, 960x640 default, min 640x480, with titlebar and window controls
+- Island opens desktop via `invoke('open_desktop_window')`, desktop closes (hides) via `invoke('close_desktop_window')`
+- Both windows listen to `popup-resolved` and `desktop-window-state` events for cross-window sync
+- Closing island quits entire app; closing desktop only hides it (preserves state)
+
+**Island Window:**
 - Click the island header to toggle expanded state
 - Click outside window or press ESC to collapse
 - Settings/ChatView back buttons return to instance list (keep expanded)
@@ -165,11 +176,34 @@ Response: `{answers: [["React"]]}` (array per question).
 
 ## Window Properties
 
-Tauri window config in `src-tauri/tauri.conf.json`: always on top, transparent, frameless, 44px capsule height.
+- **Island (main)**: always on top, transparent, frameless, 300x38 collapsed / 480x400 expanded, skip taskbar
+- **Desktop (desktop)**: normal window, 960x640 default, min 640x480, show in taskbar, with titlebar (drag + min/max/close)
+- Window config in `src-tauri/tauri.conf.json` + `src-tauri/src/lib.rs` (`open_desktop_window`)
+- Capability permissions in `src-tauri/capabilities/default.json` (`windows: ["main", "desktop"]`)
+
+## Desktop Window Layout
+
+```
+┌── TitleBar (drag) [CrabIcon Logo Title | ☁ Status | ⚙ Settings | ◉ Island | — □ ✕] ──┐
+├─ Sidebar (260px) ──────────┬── Main Content ─────────────────────────────────────────┤
+│  Tabs: 活动 | 空闲 | 历史    │  Welcome View / ChatView + Activity Timeline (200px)     │
+│  Search input (Ctrl+F)      │  PermissionCard overlay (centered, blurred backdrop)     │
+│  Session list (group-hover) │                                                         │
+│  - Pin, notif badge, time   │                                                         │
+│  - Hover actions (pin/jump/ │                                                         │
+│    restart/close)           │                                                         │
+│  - Keyboard nav (↑↓ Enter) │                                                         │
+├─────────────────────────────┴─────────────────────────────────────────────────────────┤
+│  Stats bar: Sessions / Messages / Tools / Active                                       │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Frontend Polling
 
-Frontend polls every 100ms via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`, `get_session_notification`). Tool activities have 2-second display window to catch fast executions.
+- **Island window**: 100ms polling (real-time for permission popups)
+- **Desktop window**: 500ms polling (less frequent, for session list and chat updates)
+- Both poll via Tauri IPC commands (`get_instances`, `get_popups`, `get_recent_activities`, `get_session_notification`)
+- Tool activities have 2-second display window to catch fast executions
 
 ## Product Name Customization
 

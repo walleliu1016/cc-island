@@ -41,14 +41,21 @@
 
 ### 界面特点
 
-- **灵动岛设计** - 类似 iOS 灵动岛的弧形胶囊 UI
-- **点击展开** - 点击灵动岛展开实例列表
+- **双窗口架构** - 灵动岛 + 桌面窗口同时运行，共享状态，独立轮询
+- **灵动岛设计** - 类似 iOS 灵动岛的弧形胶囊 UI，始终置顶
+- **桌面窗口** - 完整侧边栏布局，会话管理 + 聊天 + 命令历史时间线
+- **点击展开** - 点击灵动岛展开实例列表，点击桌面按钮打开桌面窗口
 - **自动展开** - 收到权限请求时自动展开
+- **隐藏式关闭** - 桌面窗口关闭即隐藏（不销毁），重新打开恢复状态
 - **像素风格图标** - Claude 螃蟹图标和动态符号 Spinner
 - **流畅动画** - iOS 风格的弹性动画效果
 - **Tab 设置页** - Hooks 配置和通用设置通过 Tab 切换
 - **内联权限** - 在实例行内直接显示 Allow/Deny 按钮
+- **权限浮层** - 桌面窗口 300s 倒计时 + Allow/Deny 按钮
 - **聊天视图** - 点击查看实例的完整消息历史（支持 Markdown 渲染）
+- **命令时间线** - 右侧面板显示工具执行历史，hover 查看详情和耗时
+- **键盘导航** - ↑↓ Enter Esc 快速操作会话
+- **会话置顶** - 重要会话固定到列表顶部
 - **可定制产品名** - 展开空闲状态显示可配置的产品名称
 - **Cloud 连接状态** - 显示与云服务器的连接状态
 
@@ -111,6 +118,38 @@
                         │ [Device A,  │                                  │ [Device A]  │
                         │  Device B]  │                                  │             │
                         └─────────────┘                                  └─────────────┘
+```
+
+### 双窗口流程
+
+```
+┌──────────────────────────────────────┐
+│            Island Window (main)       │
+│  always-on-top, 300x38 / 480x400     │
+│  ┌─────────────────────────────────┐ │
+│  │ Notch shape → expand/collapse   │ │
+│  │ Instance list + inline actions  │ │
+│  │ Permission popups (Allow/Deny)  │ │
+│  └────────┬────────────────────────┘ │
+│           │ open_desktop_window()     │
+└───────────┼──────────────────────────┘
+            │
+┌───────────┴──────────────────────────┐
+│          Desktop Window (desktop)    │
+│  960x640, min 640x480, taskbar       │
+│  ┌──────────────────────────────────┐│
+│  │ Titlebar (drag + min/max/close)  ││
+│  ├─ Sidebar ──┬── Main ────────────┤│
+│  │ Tabs       │ ChatView + Timeline││
+│  │ Search     │ PermissionCard     ││
+│  │ Keyboard   │ (300s countdown)   ││
+│  └────────────┴────────────────────┘│
+└──────────────────────────────────────┘
+         │
+         │ Tauri events (popup-resolved, desktop-window-state)
+         │
+         ▼
+    Shared Rust State (SHARED_STATE)
 ```
 
 ### 多实例架构
@@ -438,8 +477,12 @@ cargo build --release
 cc-island/
 ├── src/                    # React 前端（桌面）
 │   ├── components/         # UI 组件
+│   │   ├── IslandLayout.tsx   # 灵动岛窗口布局
+│   │   ├── DesktopLayout.tsx  # 桌面窗口布局（侧边栏+聊天+时间线）
+│   │   ├── WelcomeView.tsx    # 桌面欢迎页
+│   │   └── ...
 │   ├── stores/             # Zustand 状态管理
-│   └── App.tsx             # 主应用
+│   └── App.tsx             # 窗口标签路由（get_window_label → Layout）
 │
 ├── src-tauri/              # Rust 后端
 │   └── src/
@@ -548,6 +591,7 @@ Mobile 支持订阅多个 Desktop 设备：
 
 ### 已完成
 
+- ✅ **双窗口统一架构** - 灵动岛 + 桌面窗口同时运行，共享状态，独立轮询
 - ✅ **Popup Resolved 同步** - Desktop UI 点击后实时通知 Mobile，避免 Mobile 停留在等待页面
 - ✅ **多实例 Cloud Server** - PostgreSQL LISTEN/NOTIFY 跨实例消息路由，高可用架构
 - ✅ **Cloud Relay** - 云服务器远程监控和权限审批
