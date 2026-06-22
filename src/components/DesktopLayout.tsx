@@ -5,12 +5,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useAppStore } from '../stores/appStore';
-import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification, StatsResponse, ToolActivityDetail } from '../types';
+import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification, ToolActivityDetail } from '../types';
 import { ChatView } from './ChatView';
 import { SettingsModal, HooksSetupModal } from './Settings';
 import { getPhasePriority } from './SessionCard';
 import { WelcomeView } from './WelcomeView';
-import { RestartDialog } from './RestartDialog';
 import { ClaudeCrabIcon } from './StatusIcons';
 
 const SIDEBAR_WIDTH = 260;
@@ -66,16 +65,16 @@ export function DesktopLayout() {
   const [instances, setInstances] = useState<ClaudeInstance[]>([]);
   const [popups, setPopups] = useState<PopupItem[]>([]);
   const [productName, setProductName] = useState<string>('');
-  const [stats, setStats] = useState<StatsResponse>({ session_count: 0, message_count: 0, tool_count: 0, active_count: 0 });
+  const [hostname, setHostname] = useState<string>('');
   const [cloudStatus, setCloudStatus] = useState<{ connected: boolean; connecting: boolean; failed: boolean; failedReason: string }>({ connected: false, connecting: false, failed: false, failedReason: '' });
   const [sessionNotification, setSessionNotification] = useState<SessionNotification | null>(null);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
+  const [models, setModels] = useState<string[]>([]);
 
   const [mainView, setMainView] = useState<MainView>('welcome');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'idle' | 'history'>('active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [restartTarget, setRestartTarget] = useState<ClaudeInstance | null>(null);
   const [pinnedSessions, setPinnedSessions] = useState<Set<string>>(new Set());
   const [isMaximized, setIsMaximized] = useState(false);
   const [kbNavIndex, setKbNavIndex] = useState(-1);
@@ -101,18 +100,16 @@ export function DesktopLayout() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [instancesData, popupsData, sessionNotif, cloudStatusRaw, historyData, statsData] = await Promise.all([
+        const [instancesData, popupsData, sessionNotif, cloudStatusRaw, historyData] = await Promise.all([
           invoke<ClaudeInstance[]>('get_instances'),
           invoke<PopupItem[]>('get_popups'),
           invoke<SessionNotification | null>('get_session_notification'),
           invoke<string>('get_cloud_connection_status'),
           invoke<ClaudeInstance[]>('get_history_sessions'),
-          invoke<StatsResponse>('get_stats'),
         ]);
         setInstances(instancesData);
         setPopups(popupsData);
         setHistorySessions(historyData);
-        setStats(statsData);
         if (sessionNotif) setSessionNotification(sessionNotif);
 
         let isConnected = false, isConnecting = false, isFailed = false, failedReason = '';
@@ -133,6 +130,16 @@ export function DesktopLayout() {
   // Product name
   useEffect(() => {
     invoke<string>('get_product_name').then(setProductName).catch(() => setProductName('CC-Island'));
+  }, []);
+
+  // Hostname
+  useEffect(() => {
+    invoke<string>('get_hostname').then(setHostname).catch(() => setHostname('unknown'));
+  }, []);
+
+  // Fetch available models
+  useEffect(() => {
+    invoke<string[]>('get_available_models').then(setModels).catch(() => setModels(['sonnet', 'opus', 'haiku']));
   }, []);
 
   // Listen for desktop-window-state
@@ -218,8 +225,17 @@ export function DesktopLayout() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mainView, kbNavIndex, selectedSessionId, permDismissed]);
 
-  const handleDrag = async (e: React.MouseEvent) => {
+  const lastTitleBarClickRef = useRef(0);
+
+  const handleTitleBarMouseDown = async (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    const now = Date.now();
+    const isDoubleClick = now - lastTitleBarClickRef.current < 400;
+    lastTitleBarClickRef.current = now;
+    if (isDoubleClick) {
+      getCurrentWindow().toggleMaximize();
+      return;
+    }
     try { await invoke('start_drag'); } catch (err) { console.error(err); }
   };
 
@@ -314,35 +330,31 @@ export function DesktopLayout() {
       <div
         className="flex items-center px-3.5 select-none flex-shrink-0"
         style={{ height: 42, background: 'rgba(28,28,30,0.98)', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: 'default' }}
-        onMouseDown={handleDrag}
+        onMouseDown={handleTitleBarMouseDown}
       >
-        {/* Crab icon + Logo + Title */}
-        <div className="flex items-center mr-2">
-          <ClaudeCrabIcon size={12} color="#ef4444" animateLegs={cloudStatus.connected} />
+        {/* Left: Hostname + Cloud status */}
+        <div className="flex items-center gap-2.5" style={{ flex: 1 }}>
+          <span className="text-sm font-semibold text-[#f1f5f9]">{hostname || '...'}</span>
+          <div
+            className={`w-1.5 h-1.5 rounded-full ${
+              cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
+              cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : 'bg-white/20'
+            }`}
+          />
+          <span className="text-[10px]" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : '#64748b' }}>
+            {cloudStatus.connected ? '已连接' : cloudStatus.connecting ? '连接中...' : '未连接'}
+          </span>
         </div>
-        <div
-          className="flex items-center justify-center font-bold text-white mr-2.5"
-          style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', fontSize: 13 }}
-        >
-          {(productName || 'C').charAt(0).toUpperCase()}
+
+        {/* Center: Crab icon */}
+        <div className="flex items-center justify-center" style={{ width: 40 }}>
+          <ClaudeCrabIcon size={14} color="#ef4444" animateLegs={cloudStatus.connected} />
         </div>
-        <span className="text-sm font-semibold text-[#f1f5f9] mr-2.5">{productName || 'CC-Island'}</span>
 
-        {/* Cloud status */}
-        <div
-          className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-            cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
-            cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : 'bg-white/20'
-          }`}
-        />
-        <span className="text-[10px] mr-2" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : '#64748b' }}>
-          {cloudStatus.connected ? '已连接' : cloudStatus.connecting ? '连接中...' : '未连接'}
-        </span>
-
-        <div style={{ flex: 1 }} />
-
-        {/* Island button */}
+        {/* Right: Action buttons + Window controls */}
+        <div className="flex items-center gap-1.5" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <button
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={handleOpenIsland}
           className="h-7 px-2.5 rounded-md text-xs flex items-center gap-1.5 transition-colors mr-1.5"
           style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}
@@ -354,6 +366,7 @@ export function DesktopLayout() {
 
         {/* Cloud toggle */}
         <button
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={async () => { try { await invoke('toggle_cloud_connection'); } catch (e) { /* noop */ } }}
           className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs mr-1"
           title="切换云连接"
@@ -363,7 +376,7 @@ export function DesktopLayout() {
 
         {/* Settings */}
         <button
-          onClick={() => { setSelectedSessionId(null); setMainView('settings'); }}
+          onMouseDown={(e) => { e.stopPropagation(); setSelectedSessionId(null); setMainView('settings'); }}
           className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs mr-1"
           title="设置"
         >
@@ -399,6 +412,7 @@ export function DesktopLayout() {
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
         </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -538,7 +552,6 @@ export function DesktopLayout() {
                     onClick={() => { setSelectedSessionId(instance.session_id); setMainView('chat'); setKbNavIndex(-1); }}
                     onJump={handleJump}
                     onTogglePin={() => togglePin(instance.session_id)}
-                    onRestart={() => setRestartTarget(instance)}
                     onClose={() => {}}
                   />
                 ))
@@ -560,7 +573,6 @@ export function DesktopLayout() {
                     onClick={() => { setSelectedSessionId(instance.session_id); setMainView('chat'); setKbNavIndex(-1); }}
                     onJump={handleJump}
                     onTogglePin={() => togglePin(instance.session_id)}
-                    onRestart={() => setRestartTarget(instance)}
                     onClose={() => {}}
                   />
                 ))
@@ -582,7 +594,6 @@ export function DesktopLayout() {
                     onClick={() => { setSelectedSessionId(instance.session_id); setMainView('chat'); setKbNavIndex(-1); }}
                     onJump={handleJump}
                     onTogglePin={() => togglePin(instance.session_id)}
-                    onRestart={() => setRestartTarget(instance)}
                     onClose={() => {}}
                   />
                 ))
@@ -608,10 +619,16 @@ export function DesktopLayout() {
         <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#0d0d14' }}>
           {mainView === 'welcome' && (
             <WelcomeView
-              stats={stats}
               productName={productName}
+              models={models}
+              historySessions={historySessions}
               onSelectSession={handleViewChat}
-              onOpenSettings={() => setMainView('settings')}
+              onSessionCreated={async () => {
+                try {
+                  const historyData = await invoke<ClaudeInstance[]>('get_history_sessions');
+                  setHistorySessions(historyData);
+                } catch (e) { console.error(e); }
+              }}
             />
           )}
 
@@ -633,11 +650,11 @@ export function DesktopLayout() {
                       popup={selectedPopup}
                       projectName={selectedInstance.project_name}
                       onAllow={async () => {
-                        try { await invoke('respond_permission', { popupId: selectedPopup.id, decision: 'allow' }); } catch (e) { console.error(e); }
+                        try { await invoke('respond_popup', { popupId: selectedPopup.id, decision: 'allow', answer: null, answers: null }); } catch (e) { console.error(e); }
                         setPermDismissed(prev => new Set(prev).add(selectedSessionId));
                       }}
                       onDeny={async () => {
-                        try { await invoke('respond_permission', { popupId: selectedPopup.id, decision: 'deny' }); } catch (e) { console.error(e); }
+                        try { await invoke('respond_popup', { popupId: selectedPopup.id, decision: 'deny', answer: null, answers: null }); } catch (e) { console.error(e); }
                         setPermDismissed(prev => new Set(prev).add(selectedSessionId));
                       }}
                       onDismiss={() => setPermDismissed(prev => new Set(prev).add(selectedSessionId))}
@@ -668,8 +685,8 @@ export function DesktopLayout() {
                 </button>
                 <span className="text-sm font-semibold text-[#f1f5f9]">设置</span>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <SettingsModal isOpen={true} onClose={() => setMainView('welcome')} onSettingsChange={() => {
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <SettingsModal isOpen={true} onClose={() => setMainView('welcome')} className="flex-1 min-h-0" hideHeader onSettingsChange={() => {
                   invoke<HooksCheckResult>('check_claude_hooks').then(setHooksCheckResult).catch(console.error);
                 }} />
               </div>
@@ -689,23 +706,14 @@ export function DesktopLayout() {
                 </button>
                 <span className="text-sm font-semibold text-[#f1f5f9]">Hooks 配置</span>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <HooksSetupModal result={hooksCheckResult} onComplete={() => setMainView('welcome')} />
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <HooksSetupModal result={hooksCheckResult} onComplete={() => setMainView('welcome')} className="flex-1 min-h-0" hideHeader />
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Restart dialog */}
-      {restartTarget && (
-        <RestartDialog
-          sessionId={restartTarget.session_id}
-          projectName={restartTarget.project_name}
-          firstPrompt={restartTarget.first_prompt}
-          onClose={() => setRestartTarget(null)}
-        />
-      )}
     </div>
   );
 }
@@ -1046,7 +1054,7 @@ function PermissionCard({
 
 // Compact sidebar session item matching preview-desktop-ui.html design
 function SidebarSessionItem({
-  instance, isSelected, isKbActive, isPinned, pendingPopup, onClick, onJump, onTogglePin, onRestart, onClose,
+  instance, isSelected, isKbActive, isPinned, pendingPopup, onClick, onJump, onTogglePin, onClose,
 }: {
   instance: ClaudeInstance;
   isSelected: boolean;
@@ -1056,7 +1064,6 @@ function SidebarSessionItem({
   onClick: () => void;
   onJump: (sessionId: string) => void;
   onTogglePin: () => void;
-  onRestart: () => void;
   onClose: () => void;
 }) {
   const getStatusDot = () => {
@@ -1124,6 +1131,11 @@ function SidebarSessionItem({
           <span className="text-xs font-medium truncate" style={{ color: isSelected ? '#f1f5f9' : '#94a3b8' }}>
             {instance.project_name || 'Unknown'}
           </span>
+          {instance.first_prompt && (
+            <span className="text-[10px] text-white/30 truncate hidden sm:inline" title={instance.first_prompt}>
+              · {instance.first_prompt}
+            </span>
+          )}
           {notifyCount > 0 && (
             <span
               className="flex-shrink-0 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1"
@@ -1160,17 +1172,6 @@ function SidebarSessionItem({
             </svg>
           </button>
         )}
-        <button
-          onClick={e => { e.stopPropagation(); onRestart(); }}
-          className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-green-400 hover:bg-green-500/20 transition-colors"
-          title="重启"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-            <path d="M2 6a4 4 0 0 1 7.46-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M10 6a4 4 0 0 1-7.46 2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M9.5 2v2h-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
         <button
           onClick={e => { e.stopPropagation(); onClose(); }}
           className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-red-500/20 transition-colors"

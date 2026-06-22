@@ -20,6 +20,7 @@ desktop = [
     "tauri",
     "tauri-plugin-shell",
     "tauri-plugin-single-instance",
+    "tauri-plugin-dialog",
     "dep:cocoa",
     "dep:objc",
     "dep:winreg",
@@ -36,6 +37,7 @@ tauri-build = { version = "2", optional = true , features = [] }
 tauri = { version = "2", features = ["macos-private-api", "tray-icon"], optional = true }
 tauri-plugin-shell = { version = "2", optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
 
 # Core dependencies (always required for both modes)
 serde = { version = "1", features = ["derive"] }

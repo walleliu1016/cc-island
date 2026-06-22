@@ -39,9 +39,11 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSettingsChange?: () => void;
+  className?: string;
+  hideHeader?: boolean;
 }
 
-export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hideHeader }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'hooks' | 'general' | 'remote'>('hooks');
   const [hooksResult, setHooksResult] = useState<HooksCheckResult | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
@@ -186,14 +188,28 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
     setSaving(false);
   };
 
-  if (!isOpen || !settings || !hooksResult) return null;
+  if (!isOpen) return null;
 
-  const requiredCount = hooksResult.hooks.filter(h => h.required).length;
-  const configuredCount = hooksResult.hooks.filter(h => h.configured).length;
+  const isLoading = !settings || !hooksResult;
+
+  const requiredCount = hooksResult?.hooks.filter(h => h.required).length ?? 0;
+  const configuredCount = hooksResult?.hooks.filter(h => h.configured).length ?? 0;
 
   return (
-    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
-      {/* Top Navigation Bar with Save Button */}
+    <div className={`flex flex-col ${className || 'h-full'} bg-[#0f0f23] w-full rounded-b-xl`}>
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-white/40">
+            <svg className="animate-spin w-6 h-6" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+            </svg>
+            <span className="text-xs">加载设置中...</span>
+          </div>
+        </div>
+      ) : (
+      <>
+      {/* Top Navigation Bar with Save Button - hidden in desktop (has its own header) */}
+      {!hideHeader && (
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center">
           <button
@@ -220,6 +236,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           {saving ? '保存中...' : '保存'}
         </button>
       </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex border-b border-white/10">
@@ -253,6 +270,15 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
         >
           远程访问
         </button>
+        {hideHeader && (
+          <button
+            onClick={(e) => { e.stopPropagation(); saveAll(); }}
+            disabled={saving}
+            className="px-3 py-1.5 my-0.5 mr-1 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-xs font-medium"
+          >
+            {saving ? '保存中...' : '保存'}
+          </button>
+        )}
       </div>
 
       {/* Content Area */}
@@ -657,6 +683,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
           </motion.div>
         )}
       </AnimatePresence>
+      </>)}
     </div>
   );
 }
@@ -665,9 +692,11 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange }: SettingsMod
 interface HooksSetupModalProps {
   result: HooksCheckResult;
   onComplete: () => void;
+  className?: string;
+  hideHeader?: boolean;
 }
 
-export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
+export function HooksSetupModal({ result, onComplete, className, hideHeader }: HooksSetupModalProps) {
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [showRequired, setShowRequired] = useState(false);
@@ -718,11 +747,13 @@ export function HooksSetupModal({ result, onComplete }: HooksSetupModalProps) {
   const optionalHooks = result.hooks.filter(h => !h.required);
 
   return (
-    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
-      {/* Top Navigation Bar */}
+    <div className={`flex flex-col ${className || 'h-full'} bg-[#0f0f23] w-full rounded-b-xl`}>
+      {/* Top Navigation Bar - hidden in desktop (has its own header) */}
+      {!hideHeader && (
       <div className="flex items-center px-3 py-2 border-b border-white/10">
         <span className="text-sm font-medium text-white/80">配置 Claude Code Hooks</span>
       </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-3 py-2">
         <p className="text-white/70 text-sm mb-4">

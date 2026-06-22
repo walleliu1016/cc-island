@@ -354,7 +354,7 @@ fn open_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
     // Create new desktop window
     let window = WebviewWindowBuilder::new(&app, "desktop", WebviewUrl::App("index.html".into()))
         .title("CC-Island Desktop")
-        .inner_size(960.0, 640.0)
+        .inner_size(1100.0, 720.0)
         .min_inner_size(640.0, 480.0)
         .resizable(true)
         .decorations(false)
@@ -364,10 +364,6 @@ fn open_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
         .visible(true)
         .build()
         .map_err(|e| e.to_string())?;
-
-    // Open devtools in debug mode
-    #[cfg(debug_assertions)]
-    window.open_devtools();
 
     // Clone app handle for event handler
     let app_clone = app.clone();
@@ -756,6 +752,12 @@ fn get_product_name(app: tauri::AppHandle) -> String {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn get_hostname() -> String {
+    machine_id::get_hostname()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn get_device_token() -> String {
     machine_id::get_machine_token()
 }
@@ -985,6 +987,88 @@ fn update_settings(settings: config::AppSettings) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "desktop")]
+#[tauri::command]
+async fn get_available_models() -> Vec<String> {
+    // Try Anthropic Models API via reqwest
+    let api_key = std::env::var("ANTHROPIC_API_KEY").ok();
+    let base_url = std::env::var("ANTHROPIC_BASE_URL")
+        .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+
+    if let Some(key) = api_key {
+        let url = format!("{}/v1/models", base_url);
+        if let Ok(resp) = reqwest::Client::new()
+            .get(&url)
+            .header("x-api-key", &key)
+            .header("anthropic-version", "2023-06-01")
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+        {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(models) = json["data"].as_array() {
+                    let ids: Vec<String> = models
+                        .iter()
+                        .filter_map(|m| m["id"].as_str().map(String::from))
+                        .collect();
+                    if !ids.is_empty() {
+                        return ids;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback
+    vec![
+        "sonnet".to_string(),
+        "opus".to_string(),
+        "haiku".to_string(),
+    ]
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn spawn_claude(
+    project_path: String,
+    prompt: Option<String>,
+    model: Option<String>,
+    flags: Option<Vec<String>>,
+    permission_mode: Option<String>,
+) -> Result<String, String> {
+    use std::process::{Command, Stdio};
+
+    let mut cmd = Command::new("claude");
+    cmd.current_dir(&project_path);
+
+    if let Some(ref m) = model {
+        cmd.arg("--model").arg(m);
+    }
+
+    for flag in flags.unwrap_or_default() {
+        cmd.arg(flag);
+    }
+
+    if let Some(ref mode) = permission_mode {
+        cmd.arg("--permission-mode").arg(mode);
+    }
+
+    if let Some(ref p) = prompt {
+        if !p.is_empty() {
+            cmd.arg("-p").arg(p);
+        }
+    }
+
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    match cmd.spawn() {
+        Ok(_child) => Ok("Session started".to_string()),
+        Err(e) => Err(format!("Failed to start Claude: {}", e)),
+    }
+}
+
 /// Start cloud client with automatic reconnect
 /// Returns stop signal sender
 fn start_cloud_with_reconnect(server_url: String, device_name: Option<String>) -> tokio::sync::watch::Sender<bool> {
@@ -1147,6 +1231,7 @@ pub fn run() {
     rt.block_on(async {
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
+            .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
                 // When second instance tries to start, focus both existing windows
                 let _ = app.get_webview_window("main").map(|w| {
@@ -1186,6 +1271,7 @@ pub fn run() {
                 get_settings,
                 update_settings,
                 get_product_name,
+                get_hostname,
                 get_device_token,
                 get_cloud_connection_status,
                 generate_device_qrcode,
@@ -1195,6 +1281,8 @@ pub fn run() {
                 get_activities,
                 get_stats,
                 get_history_sessions,
+                get_available_models,
+                spawn_claude,
                 remove_history_session,
                 get_available_terminals,
                 restart_session,
