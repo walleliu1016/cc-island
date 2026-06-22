@@ -607,23 +607,25 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
-      {/* Top Navigation Bar */}
-      <div className="flex items-center px-3 py-2 border-b border-white/10">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose?.();
-          }}
-          className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
-          </svg>
-        </button>
-        <span className="ml-2 text-sm font-medium text-white/80 truncate">
-          {projectName}
-        </span>
-      </div>
+      {/* Top Navigation Bar - only shown when onClose provided (Island mode) */}
+      {onClose && (
+        <div className="flex items-center px-3 py-2 border-b border-white/10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
+            </svg>
+          </button>
+          <span className="ml-2 text-sm font-medium text-white/80 truncate">
+            {projectName}
+          </span>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div

@@ -562,7 +562,6 @@ export function DesktopLayout() {
                     <ChatWithTimeline
                       instance={selectedInstance}
                       sessionId={selectedSessionId}
-                      onBack={() => { setSelectedSessionId(null); setMainView('welcome'); }}
                       onJump={handleJump}
                       onDismissPerm={() => setPermDismissed(prev => new Set(prev).add(selectedSessionId))}
                     />
@@ -587,7 +586,6 @@ export function DesktopLayout() {
                 <ChatWithTimeline
                   instance={selectedInstance}
                   sessionId={selectedSessionId}
-                  onBack={() => { setSelectedSessionId(null); setMainView('welcome'); }}
                   onJump={handleJump}
                   onDismissPerm={() => setPermDismissed(prev => new Set(prev).add(selectedSessionId))}
                 />
@@ -654,13 +652,11 @@ export function DesktopLayout() {
 function ChatWithTimeline({
   instance,
   sessionId,
-  onBack,
   onJump,
   onDismissPerm,
 }: {
   instance: ClaudeInstance;
   sessionId: string;
-  onBack: () => void;
   onJump: (sessionId: string) => void;
   onDismissPerm: () => void;
 }) {
@@ -675,13 +671,8 @@ function ChatWithTimeline({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Chat header */}
+      {/* Chat header - project name + status + actions */}
       <div className="flex items-center px-3.5 gap-2.5 flex-shrink-0" style={{ height: 46, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={onBack} className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
-          </svg>
-        </button>
         <span className="text-sm font-semibold text-[#f1f5f9]">{instance.project_name || 'Chat'}</span>
         <span
           className="text-[11px] px-2 py-0.5 rounded-full"
@@ -723,7 +714,6 @@ function ChatWithTimeline({
           <ChatView
             sessionId={sessionId}
             projectName={instance.project_name || 'Unknown'}
-            onClose={onBack}
           />
         </div>
 
