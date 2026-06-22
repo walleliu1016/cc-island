@@ -9,7 +9,6 @@ import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification, Stats
 import { ChatView } from './ChatView';
 import { SettingsModal, HooksSetupModal } from './Settings';
 import { getPhasePriority } from './SessionCard';
-import { HistorySessions } from './HistorySessions';
 import { WelcomeView } from './WelcomeView';
 import { RestartDialog } from './RestartDialog';
 import { ClaudeCrabIcon } from './StatusIcons';
@@ -81,6 +80,7 @@ export function DesktopLayout() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [kbNavIndex, setKbNavIndex] = useState(-1);
   const [permDismissed, setPermDismissed] = useState<Set<string>>(new Set());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Check hooks on startup
   useEffect(() => {
@@ -404,6 +404,40 @@ export function DesktopLayout() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
+        {sidebarCollapsed ? (
+          <div
+            className="flex flex-col items-center py-2.5 gap-2 flex-shrink-0 select-none"
+            style={{ width: 36, background: 'rgba(22,22,26,0.98)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+              title="展开侧边栏"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <path d="M5 3l5 4-5 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => { setActiveTab('active'); setSidebarCollapsed(false); }}
+              className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
+              style={{ color: activeTab === 'active' ? '#8b5cf6' : '#64748b' }}
+              title="活跃"
+            >{sortedActive.length}</button>
+            <button
+              onClick={() => { setActiveTab('idle'); setSidebarCollapsed(false); }}
+              className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
+              style={{ color: activeTab === 'idle' ? '#8b5cf6' : '#64748b' }}
+              title="空闲"
+            >{idle.length}</button>
+            <button
+              onClick={() => { setActiveTab('history'); setSidebarCollapsed(false); }}
+              className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
+              style={{ color: activeTab === 'history' ? '#8b5cf6' : '#64748b' }}
+              title="历史"
+            >{historySessions.length}</button>
+          </div>
+        ) : (
         <div
           className="flex flex-col flex-shrink-0"
           style={{ width: SIDEBAR_WIDTH, background: 'rgba(22,22,26,0.98)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
@@ -435,6 +469,15 @@ export function DesktopLayout() {
                 </button>
               );
             })}
+            <button
+              onClick={() => setSidebarCollapsed(true)}
+              className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors flex-shrink-0"
+              title="收起侧边栏"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M7.5 3l-4 3 4 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
 
           {/* Search */}
@@ -525,7 +568,25 @@ export function DesktopLayout() {
             )}
 
             {activeTab === 'history' && (
-              <HistorySessions instances={filteredHistory} onViewChat={handleViewChat} />
+              filteredHistory.length === 0 ? (
+                <div className="text-white/30 text-xs text-center py-8">{searchQuery ? '无匹配会话' : '暂无历史会话'}</div>
+              ) : (
+                filteredHistory.map((instance, idx) => (
+                  <SidebarSessionItem
+                    key={instance.session_id}
+                    instance={instance}
+                    isSelected={selectedSessionId === instance.session_id}
+                    isKbActive={kbNavIndex === idx}
+                    isPinned={pinnedSessions.has(instance.session_id)}
+                    pendingPopup={pendingPopups.find(p => p.session_id === instance.session_id)}
+                    onClick={() => { setSelectedSessionId(instance.session_id); setMainView('chat'); setKbNavIndex(-1); }}
+                    onJump={handleJump}
+                    onTogglePin={() => togglePin(instance.session_id)}
+                    onRestart={() => setRestartTarget(instance)}
+                    onClose={() => {}}
+                  />
+                ))
+              )
             )}
           </div>
 
@@ -541,6 +602,7 @@ export function DesktopLayout() {
             <span className="text-[10px] text-white/20 ml-auto">v0.3.9</span>
           </div>
         </div>
+        )}
 
         {/* Main Area */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#0d0d14' }}>
@@ -661,6 +723,7 @@ function ChatWithTimeline({
   onDismissPerm: () => void;
 }) {
   const activities = instance.activities || [];
+  const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const st = instance.status.type;
   const stText: Record<string, string> = {
     working: '工作中', thinking: '思考中', compacting: '思考中',
@@ -719,17 +782,44 @@ function ChatWithTimeline({
 
         {/* Right activity timeline */}
         {activities.length > 0 && (
-          <div
-            className="flex-shrink-0 overflow-y-auto border-l border-white/5"
-            style={{ width: 200, background: 'rgba(0,0,0,0.12)', scrollbarWidth: 'thin' }}
-          >
-            <div className="text-[10px] text-[#64748b] font-semibold uppercase tracking-wider px-3 py-2.5 flex items-center gap-1.5">
-              📋 命令历史
+          timelineCollapsed ? (
+            <div
+              className="flex-shrink-0 flex flex-col items-center pt-2.5 border-l border-white/5 select-none"
+              style={{ width: 30, background: 'rgba(0,0,0,0.12)' }}
+            >
+              <button
+                onClick={() => setTimelineCollapsed(false)}
+                className="w-6 h-6 rounded flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors"
+                title="展开命令历史"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <span className="text-[9px] text-white/20 mt-2" style={{ writingMode: 'vertical-rl' }}>历史</span>
             </div>
-            {activities.map((act, idx) => (
-              <ActivityTimelineItem key={act.id || idx} activity={act} />
-            ))}
-          </div>
+          ) : (
+            <div
+              className="flex-shrink-0 overflow-y-auto border-l border-white/5"
+              style={{ width: 200, background: 'rgba(0,0,0,0.12)', scrollbarWidth: 'thin' }}
+            >
+              <div className="text-[10px] text-[#64748b] font-semibold uppercase tracking-wider px-3 py-2.5 flex items-center gap-1.5">
+                📋 命令历史
+                <button
+                  onClick={() => setTimelineCollapsed(true)}
+                  className="ml-auto w-5 h-5 rounded flex items-center justify-center text-white/20 hover:text-white/50 hover:bg-white/10 transition-colors"
+                  title="收起命令历史"
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                    <path d="M6.5 2l-3 3 3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              {activities.map((act, idx) => (
+                <ActivityTimelineItem key={act.id || idx} activity={act} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
@@ -1041,8 +1131,8 @@ function SidebarSessionItem({
             >{notifyCount > 99 ? '99+' : notifyCount}</span>
           )}
         </div>
-        <div className="text-[10px] mt-0.5 flex items-center gap-1.5">
-          {metaText && <span style={{ color: metaColor, fontSize: 10 }}>{metaText}</span>}
+        <div className="text-[10px] mt-0.5 flex items-center gap-1.5" style={{ minHeight: 15 }}>
+          {metaText ? <span style={{ color: metaColor, fontSize: 10 }}>{metaText}</span> : <span>&nbsp;</span>}
         </div>
       </div>
 
@@ -1059,30 +1149,28 @@ function SidebarSessionItem({
           title={isPinned ? '取消置顶' : '置顶'}
         >📌</button>
         {!isEnded && (
-          <>
-            <button
-              onClick={e => { e.stopPropagation(); onJump(instance.session_id); }}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-blue-400 hover:bg-blue-500/20 transition-colors"
-              title="跳转终端"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                <rect x="1" y="2" width="10" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M3 4l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); onRestart(); }}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-green-400 hover:bg-green-500/20 transition-colors"
-              title="重启"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                <path d="M2 6a4 4 0 0 1 7.46-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                <path d="M10 6a4 4 0 0 1-7.46 2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                <path d="M9.5 2v2h-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </>
+          <button
+            onClick={e => { e.stopPropagation(); onJump(instance.session_id); }}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-blue-400 hover:bg-blue-500/20 transition-colors"
+            title="跳转终端"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+              <rect x="1" y="2" width="10" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M3 4l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         )}
+        <button
+          onClick={e => { e.stopPropagation(); onRestart(); }}
+          className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-green-400 hover:bg-green-500/20 transition-colors"
+          title="重启"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <path d="M2 6a4 4 0 0 1 7.46-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            <path d="M10 6a4 4 0 0 1-7.46 2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            <path d="M9.5 2v2h-2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         <button
           onClick={e => { e.stopPropagation(); onClose(); }}
           className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-red-500/20 transition-colors"
