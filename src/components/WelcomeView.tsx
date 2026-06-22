@@ -28,7 +28,7 @@ interface WelcomeViewProps {
   onSessionCreated: () => void;
 }
 
-function CreateSessionModal({
+export function CreateSessionModal({
   models, onClose, onCreated,
 }: {
   models: string[];
@@ -140,25 +140,35 @@ function CreateSessionModal({
         <div className="flex gap-3 mb-3">
           <div className="flex-1">
             <label className="block text-xs text-[#94a3b8] mb-1.5">模型</label>
-            <select value={model} onChange={e => setModel(e.target.value)}
-              className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
-            >
-              {models.map(m => (
-                <option key={m} value={m} style={{ background: '#1a1a2e', color: '#f1f5f9' }}>{m}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select value={model} onChange={e => setModel(e.target.value)}
+                className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer appearance-none"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
+              >
+                {models.map(m => (
+                  <option key={m} value={m} style={{ background: '#1a1a26', color: '#f1f5f9' }}>{m}</option>
+                ))}
+              </select>
+              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
+                <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </div>
           </div>
           <div className="flex-1">
             <label className="block text-xs text-[#94a3b8] mb-1.5">权限模式</label>
-            <select value={permissionMode} onChange={e => setPermissionMode(e.target.value)}
-              className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
-            >
-              {PERMISSION_MODES.map(m => (
-                <option key={m.value} value={m.value} style={{ background: '#1a1a2e', color: '#f1f5f9' }}>{m.label}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select value={permissionMode} onChange={e => setPermissionMode(e.target.value)}
+                className="w-full px-3 py-2 rounded-md text-sm outline-none cursor-pointer appearance-none"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#f1f5f9' }}
+              >
+                {PERMISSION_MODES.map(m => (
+                  <option key={m.value} value={m.value} style={{ background: '#1a1a26', color: '#f1f5f9' }}>{m.label}</option>
+                ))}
+              </select>
+              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
+                <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </div>
           </div>
         </div>
 

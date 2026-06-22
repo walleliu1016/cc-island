@@ -9,7 +9,7 @@ import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification, ToolA
 import { ChatView } from './ChatView';
 import { SettingsModal, HooksSetupModal } from './Settings';
 import { getPhasePriority } from './SessionCard';
-import { WelcomeView } from './WelcomeView';
+import { WelcomeView, CreateSessionModal } from './WelcomeView';
 import { ClaudeCrabIcon } from './StatusIcons';
 
 const SIDEBAR_WIDTH = 260;
@@ -78,6 +78,7 @@ export function DesktopLayout() {
   const [pinnedSessions, setPinnedSessions] = useState<Set<string>>(new Set());
   const [isMaximized, setIsMaximized] = useState(false);
   const [kbNavIndex, setKbNavIndex] = useState(-1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [permDismissed, setPermDismissed] = useState<Set<string>>(new Set());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -372,6 +373,26 @@ export function DesktopLayout() {
           title="切换云连接"
         >
           ☁
+        </button>
+
+        {/* New Session */}
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setShowCreateModal(true)}
+          className="h-7 px-3 rounded-md transition-all text-xs font-semibold mr-1.5 flex items-center gap-1.5"
+          style={{
+            background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)',
+            color: '#f1f5f9',
+            boxShadow: '0 2px 8px rgba(124,58,237,0.3)',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.45)')}
+          onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(124,58,237,0.3)')}
+          title="新建会话"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+          </svg>
+          新建
         </button>
 
         {/* Settings */}
@@ -714,6 +735,12 @@ export function DesktopLayout() {
         </div>
       </div>
 
+      {showCreateModal && (
+        <CreateSessionModal models={models} onClose={() => setShowCreateModal(false)} onCreated={() => {
+          invoke<ClaudeInstance[]>('get_history_sessions').then(setHistorySessions).catch(() => {});
+        }} />
+      )}
+
     </div>
   );
 }
@@ -830,6 +857,68 @@ function ChatWithTimeline({
           )
         )}
       </div>
+
+      {/* Stdin input bar — only for active sessions */}
+      {!instance.status.type.includes('ended') && (
+        <StdinInputBar cwd={instance.session_cwd || ''} projectName={instance.project_name} />
+      )}
+    </div>
+  );
+}
+
+function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string }) {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sent' | 'error'>('idle');
+
+  const send = async () => {
+    if (!text.trim() || !cwd) return;
+    setSending(true);
+    try {
+      await invoke('send_claude_input', { cwd, text: text + '\n' });
+      setText('');
+      setStatus('sent');
+      setTimeout(() => setStatus('idle'), 1200);
+    } catch {
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 2000);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!cwd) return null;
+
+  return (
+    <div
+      className="flex items-center gap-2 px-3.5 py-2 flex-shrink-0"
+      style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}
+    >
+      <span className="text-[10px] text-[#64748b] flex-shrink-0">stdin → {projectName}</span>
+      <input
+        type="text" value={text} onChange={e => setText(e.target.value)}
+        placeholder="输入内容发送到 Claude..."
+        className="flex-1 px-3 py-1.5 rounded-md text-xs outline-none"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: '#f1f5f9',
+        }}
+        onKeyDown={e => { if (e.key === 'Enter') send(); }}
+      />
+      <button
+        onClick={send}
+        disabled={sending || !text.trim()}
+        className="px-3 py-1.5 rounded-md text-xs font-medium transition-all flex-shrink-0"
+        style={{
+          background: status === 'sent' ? 'rgba(16,185,129,0.15)' : status === 'error' ? 'rgba(239,68,68,0.15)' : 'linear-gradient(135deg, #7c3aed, #8b5cf6)',
+          color: status === 'sent' ? '#10b981' : status === 'error' ? '#ef4444' : '#f1f5f9',
+          opacity: sending || !text.trim() ? 0.4 : 1,
+          cursor: sending || !text.trim() ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {status === 'sent' ? '已发送' : status === 'error' ? '失败' : sending ? '...' : '发送'}
+      </button>
     </div>
   );
 }

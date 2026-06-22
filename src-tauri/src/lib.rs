@@ -185,6 +185,15 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
     Arc::new(RwLock::new(AppState::new()))
 });
 
+/// Handle for sending stdin input to a spawned Claude process
+struct ClaudeSessionHandle {
+    stdin_tx: tokio::sync::mpsc::UnboundedSender<String>,
+}
+
+/// Active Claude sessions with stdin bridges (keyed by cwd)
+static CLAUDE_SESSIONS: Lazy<std::sync::Mutex<HashMap<String, ClaudeSessionHandle>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
 /// SQLite activity store for tool history persistence
 pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
     match activity_store::ActivityStore::new() {
@@ -1029,14 +1038,14 @@ async fn get_available_models() -> Vec<String> {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
-fn spawn_claude(
+async fn spawn_claude(
     project_path: String,
     prompt: Option<String>,
     model: Option<String>,
     flags: Option<Vec<String>>,
     permission_mode: Option<String>,
-) -> Result<String, String> {
-    use std::process::{Command, Stdio};
+) -> Result<(), String> {
+    use tokio::process::Command;
 
     let mut cmd = Command::new("claude");
     cmd.current_dir(&project_path);
@@ -1059,13 +1068,56 @@ fn spawn_claude(
         }
     }
 
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
 
-    match cmd.spawn() {
-        Ok(_child) => Ok("Session started".to_string()),
-        Err(e) => Err(format!("Failed to start Claude: {}", e)),
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to start Claude: {}", e))?;
+    let child_stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    let cwd = project_path.clone();
+    CLAUDE_SESSIONS.lock().unwrap().insert(
+        cwd.clone(),
+        ClaudeSessionHandle { stdin_tx: tx },
+    );
+
+    tokio::spawn(async move {
+        let mut stdin = child_stdin;
+        loop {
+            tokio::select! {
+                text = rx.recv() => {
+                    match text {
+                        Some(t) => {
+                            use tokio::io::AsyncWriteExt;
+                            if stdin.write_all(t.as_bytes()).await.is_err() {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                status = child.wait() => {
+                    tracing::debug!("Claude session at {} exited: {:?}", cwd, status.ok());
+                    break;
+                }
+            }
+        }
+        CLAUDE_SESSIONS.lock().unwrap().remove(&cwd);
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn send_claude_input(cwd: String, text: String) -> Result<(), String> {
+    let map = CLAUDE_SESSIONS.lock().unwrap();
+    match map.get(&cwd) {
+        Some(handle) => {
+            handle.stdin_tx.send(text).map_err(|e| format!("Failed to send input: {}", e))
+        }
+        None => Err(format!("No active Claude session in {}", cwd)),
     }
 }
 
@@ -1283,6 +1335,7 @@ pub fn run() {
                 get_history_sessions,
                 get_available_models,
                 spawn_claude,
+                send_claude_input,
                 remove_history_session,
                 get_available_terminals,
                 restart_session,
