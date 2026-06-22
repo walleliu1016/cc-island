@@ -15,6 +15,7 @@ pub struct ToolActivityDetail {
     pub timestamp: u64,
     pub status: String,
     pub result: Option<String>,
+    pub duration_ms: Option<i64>,
 }
 
 /// SQLite store for tool activities
@@ -59,6 +60,9 @@ impl ActivityStore {
             [],
         )?;
 
+        // Migration: add duration_ms column if not exists
+        let _ = conn.execute("ALTER TABLE tool_activities ADD COLUMN duration_ms INTEGER", []);
+
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -92,12 +96,16 @@ impl ActivityStore {
         Ok(conn.last_insert_rowid())
     }
 
-    /// Update activity result (for PostToolUse)
+    /// Update activity result (for PostToolUse), also calculates duration from stored timestamp
     pub fn update_activity_result(&self, id: i64, status: &str, result: &str) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
         conn.execute(
-            "UPDATE tool_activities SET status = ?1, result = ?2 WHERE id = ?3",
-            [status, result, &id.to_string()],
+            "UPDATE tool_activities SET status = ?1, result = ?2, duration_ms = ?3 - (timestamp * 1000) WHERE id = ?4",
+            [status, result, &now_ms.to_string(), &id.to_string()],
         )?;
         Ok(())
     }
@@ -106,7 +114,7 @@ impl ActivityStore {
     pub fn get_activities(&self, session_id: &str, limit: i64) -> SqliteResult<Vec<ToolActivityDetail>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, session_id, tool_name, content, timestamp, status, result
+            "SELECT id, session_id, tool_name, content, timestamp, status, result, duration_ms
              FROM tool_activities
              WHERE session_id = ?1
              ORDER BY timestamp DESC
@@ -122,6 +130,7 @@ impl ActivityStore {
                 timestamp: row.get(4)?,
                 status: row.get(5)?,
                 result: row.get(6)?,
+                duration_ms: row.get(7)?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;

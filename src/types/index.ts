@@ -151,6 +151,7 @@ export interface ToolActivityDetail {
   timestamp: number;
   status: 'success' | 'error' | 'running';
   result?: string;
+  duration_ms?: number;
 }
 
 // Session notification (start/end)

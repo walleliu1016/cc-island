@@ -3,15 +3,14 @@
 import { create } from 'zustand';
 import { ClaudeInstance, PopupItem, ToolActivity } from '../types';
 
-export type LayoutMode = 'island' | 'desktop';
-
 interface AppState {
   instances: ClaudeInstance[];
   popups: PopupItem[];
   recentActivities: ToolActivity[];
   isExpanded: boolean;
   hasNewActivity: boolean;
-  layoutMode: LayoutMode;
+  windowLabel: string;
+  isDesktopWindowOpen: boolean;
   showArchiveTab: boolean;
   historySessions: ClaudeInstance[];
   setIsExpanded: (expanded: boolean) => void;
@@ -19,8 +18,8 @@ interface AppState {
   setPopups: (popups: PopupItem[]) => void;
   setRecentActivities: (activities: ToolActivity[]) => void;
   setHasNewActivity: (hasNew: boolean) => void;
-  setIslandMode: () => void;
-  setDesktopMode: () => void;
+  setWindowLabel: (label: string) => void;
+  setDesktopWindowOpen: (open: boolean) => void;
   setShowArchiveTab: (show: boolean) => void;
   setHistorySessions: (historySessions: ClaudeInstance[]) => void;
 }
@@ -31,7 +30,8 @@ export const useAppStore = create<AppState>((set) => ({
   recentActivities: [],
   isExpanded: false,
   hasNewActivity: false,
-  layoutMode: 'island',
+  windowLabel: '',
+  isDesktopWindowOpen: false,
   showArchiveTab: false,
   historySessions: [],
   setIsExpanded: (isExpanded) => set({ isExpanded }),
@@ -39,8 +39,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPopups: (popups) => set({ popups }),
   setRecentActivities: (recentActivities) => set({ recentActivities }),
   setHasNewActivity: (hasNewActivity) => set({ hasNewActivity }),
-  setIslandMode: () => set({ layoutMode: 'island' }),
-  setDesktopMode: () => set({ layoutMode: 'desktop' }),
+  setWindowLabel: (windowLabel) => set({ windowLabel }),
+  setDesktopWindowOpen: (isDesktopWindowOpen) => set({ isDesktopWindowOpen }),
   setShowArchiveTab: (show: boolean) => set({ showArchiveTab: show }),
   setHistorySessions: (historySessions) => set({ historySessions }),
 }));

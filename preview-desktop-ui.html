@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ease-Island Desktop Preview</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-body: #0a0a0f;
+    --bg-titlebar: rgba(28,28,30,0.98);
+    --bg-sidebar: rgba(22,22,26,0.98);
+    --bg-main: #0d0d14;
+    --bg-card: rgba(255,255,255,0.04);
+    --bg-hover: rgba(255,255,255,0.06);
+    --bg-active: rgba(124,58,237,0.12);
+    --border: rgba(255,255,255,0.06);
+    --border-light: rgba(255,255,255,0.04);
+    --text: #f1f5f9;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --purple: #7c3aed;
+    --purple-l: #8b5cf6;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --blue: #60a5fa;
+    --cyan: #22d3ee;
+    --orange: #f97316;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #1a1a2e;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 16px;
+  }
+
+  .window {
+    width: 1000px; height: 700px;
+    background: var(--bg-body);
+    border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 0 80px rgba(124,58,237,0.12), 0 0 0 1px rgba(255,255,255,0.06);
+    resize: both; min-width: 760px; min-height: 500px;
+    position: relative;
+  }
+
+  /* ---- Title Bar ---- */
+  .tb {
+    height: 42px; min-height: 42px;
+    background: var(--bg-titlebar);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 14px;
+    user-select: none; cursor: default;
+  }
+  .tb-logo {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: white; margin-right: 10px;
+    transition: transform 0.2s;
+  }
+  .tb-logo:hover { transform: scale(1.1); }
+  .tb-title { font-size: 13px; font-weight: 600; color: var(--text); margin-right: 10px; }
+  .tb-gap { flex: 1; }
+
+  /* cloud status in titlebar */
+  .cloud-dot {
+    width: 7px; height: 7px; border-radius: 50%; margin-right: 8px;
+  }
+  .cloud-dot.connected { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+  .cloud-dot.disconnected { background: var(--text-3); }
+  .cloud-dot.connecting { background: var(--yellow); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .tb-btn {
+    height: 28px; padding: 0 10px; border: none; background: transparent;
+    color: var(--text-2); border-radius: 6px; cursor: pointer;
+    font-size: 12px; display: flex; align-items: center; gap: 5px;
+    transition: all 0.15s;
+  }
+  .tb-btn:hover { background: var(--bg-hover); color: var(--text); }
+  .tb-btn.island { background: rgba(16,185,129,0.1); color: var(--green); margin-right: 6px; }
+  .tb-btn.island:hover { background: rgba(16,185,129,0.18); }
+  .tb-btn.warn:hover { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  /* ---- Crab icon ---- */
+  .crab-wrap {
+    display: flex; align-items: center; margin-right: 8px;
+  }
+  .crab {
+    width: 20px; height: 18px; position: relative;
+  }
+  .crab-body { width:14px; height:10px; background:var(--red); border-radius:4px 4px 6px 6px; margin:4px auto 0; position:relative; }
+  .crab-eye-l, .crab-eye-r {
+    width:3px; height:3px; background:white; border-radius:50%; position:absolute; top:2px;
+  }
+  .crab-eye-l { left:2px; } .crab-eye-r { right:2px; }
+  .crab-leg {
+    position: absolute; width: 2px; height: 6px; background: var(--red); border-radius: 1px;
+    bottom: 0; transform-origin: top center;
+  }
+  .crab-leg.l1 { left:0; animation: legWag 0.6s infinite; }
+  .crab-leg.l2 { left:3px; animation: legWag 0.6s infinite 0.15s; }
+  .crab-leg.r1 { right:0; animation: legWag 0.6s infinite 0.3s; }
+  .crab-leg.r2 { right:3px; animation: legWag 0.6s infinite 0.45s; }
+  @keyframes legWag { 0%,100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
+
+  /* ---- Body ---- */
+  .body { flex: 1; display: flex; overflow: hidden; }
+
+  /* ---- Sidebar ---- */
+  .sb {
+    width: 252px; min-width: 252px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+  }
+  .sb-tabs {
+    display: flex; padding: 10px 8px 0; gap: 3px;
+  }
+  .sb-tab {
+    flex: 1; height: 30px; border: none; background: transparent;
+    color: var(--text-3); border-radius: 7px;
+    cursor: pointer; font-size: 11px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    transition: all 0.15s;
+  }
+  .sb-tab:hover { color: var(--text-2); background: rgba(255,255,255,0.03); }
+  .sb-tab.on {
+    color: var(--text); background: rgba(255,255,255,0.06);
+    box-shadow: inset 0 -2px 0 var(--purple); border-radius: 7px 7px 0 0;
+  }
+  .badge {
+    font-size: 10px; padding: 1px 5px; border-radius: 9px;
+    background: rgba(255,255,255,0.08); color: var(--text-3); font-weight: 600;
+  }
+  .sb-tab.on .badge { background: rgba(124,58,237,0.2); color: var(--purple-l); }
+
+  .sb-search {
+    margin: 6px 8px; position: relative;
+  }
+  .sb-search input {
+    width: 100%; padding: 6px 10px 6px 28px; border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03);
+    color: var(--text); font-size: 11px; outline: none; transition: all 0.15s;
+  }
+  .sb-search input:focus { border-color: rgba(124,58,237,0.4); background: rgba(255,255,255,0.05); }
+  .sb-search input::placeholder { color: var(--text-3); }
+  .sb-search-icon {
+    position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: var(--text-3); pointer-events: none;
+  }
+  .kbd-hint {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 9px; color: var(--text-3); background: rgba(255,255,255,0.05);
+    padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .sb-list {
+    flex: 1; overflow-y: auto; padding: 4px 6px;
+  }
+  .sb-list::-webkit-scrollbar { width: 4px; }
+  .sb-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+  .si {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 8px; border-radius: 7px;
+    cursor: pointer; transition: all 0.12s;
+    border-left: 2px solid transparent; margin-bottom: 1px; position: relative;
+  }
+  .si:hover { background: var(--bg-hover); }
+  .si.kb-active { background: rgba(124,58,237,0.12); outline: 1px solid rgba(124,58,237,0.3); outline-offset: -1px; }
+  .si.sel {
+    background: var(--bg-active);
+    border-left-color: var(--purple);
+  }
+  .si.sel .si-name { color: var(--text); }
+  .si-info { flex: 1; min-width: 0; }
+  .si-name {
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .si-name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .si-name-text {
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .si.sel .si-name-text { color: var(--text); }
+  .si-meta { font-size: 10px; color: var(--text-3); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .si-time { flex-shrink: 0; font-size: 10px; color: var(--text-3); }
+
+  .si.pinned { background: rgba(124,58,237,0.04); }
+  .si-actions {
+    display: none; gap: 4px; flex-shrink: 0;
+  }
+  .si:hover .si-actions { display: flex; }
+  .si:hover .si-time { display: none; }
+  .si-action {
+    width: 24px; height: 24px; border-radius: 5px; border: none;
+    background: rgba(255,255,255,0.06); color: var(--text-3);
+    cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .si-action:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+  .si-action.pin:hover { background: rgba(124,58,237,0.2); color: var(--purple-l); }
+  .si-action.pin.active { background: rgba(124,58,237,0.15); color: var(--purple-l); }
+  .si-action.jump:hover { background: rgba(96,165,250,0.2); color: var(--blue); }
+  .si-action.restart:hover { background: rgba(16,185,129,0.2); color: var(--green); }
+  .si-action.close:hover { background: rgba(239,68,68,0.2); color: var(--red); }
+
+  .notify-badge {
+    min-width: 16px; height: 16px; border-radius: 8px;
+    background: var(--red); color: white; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 5px; flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(239,68,68,0.4);
+  }
+  .pin-marker {
+    font-size: 8px; margin-right: 2px; flex-shrink: 0;
+  }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .dot.working { background: var(--yellow); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+  .dot.thinking { background: var(--purple-l); box-shadow: 0 0 6px rgba(139,92,246,0.5); animation: pulse 1.5s infinite; }
+  .dot.waiting { background: var(--blue); }
+  .dot.idle { background: rgba(255,255,255,0.2); }
+  .dot.ended { background: rgba(255,255,255,0.07); }
+  .dot.approval { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.5); animation: pulse 1.5s infinite; }
+
+  .popup-dot {
+    position: absolute; top: 4px; right: 4px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 6px rgba(239,68,68,0.6);
+  }
+
+  .restart-btn {
+    height: 22px; padding: 0 8px; border: none; font-size: 10px;
+    background: rgba(96,165,250,0.1); color: var(--blue); border-radius: 5px;
+    cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+  }
+  .restart-btn:hover { background: rgba(96,165,250,0.2); }
+
+  .sb-foot {
+    padding: 8px 10px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sb-foot-avatar {
+    width: 24px; height: 24px; border-radius: 6px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: white;
+  }
+  .sb-foot-name { font-size: 11px; color: var(--text-2); }
+  .sb-foot-ver { font-size: 10px; color: var(--text-3); margin-left: auto; }
+
+  /* ---- Main Area ---- */
+  .main { flex: 1; display: flex; flex-direction: column; background: var(--bg-main); overflow: hidden; }
+
+  /* Welcome */
+  .welcome {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 40px;
+  }
+  .welcome-icon {
+    width: 80px; height: 80px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 800; color: white;
+    box-shadow: 0 12px 40px rgba(124,58,237,0.25);
+  }
+  .welcome-title { font-size: 24px; font-weight: 700; color: var(--text); }
+  .welcome-sub { font-size: 14px; color: var(--text-3); }
+  .stats { display: flex; gap: 14px; margin-top: 6px; }
+  .stat {
+    padding: 16px 22px; background: var(--bg-card); border-radius: 10px;
+    text-align: center; min-width: 96px; border: 1px solid var(--border);
+  }
+  .stat-v { font-size: 24px; font-weight: 700; }
+  .stat-l { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .stat:nth-child(1) .stat-v { color: var(--purple-l); }
+  .stat:nth-child(2) .stat-v { color: var(--blue); }
+  .stat:nth-child(3) .stat-v { color: var(--yellow); }
+  .stat:nth-child(4) .stat-v { color: var(--green); }
+  .welcome-hint { font-size: 13px; color: var(--text-3); opacity: 0.5; }
+
+  /* Chat */
+  .chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .chat-hd {
+    height: 46px; min-height: 46px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 14px; gap: 10px;
+  }
+  .chat-hd-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .chat-hd-status {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  }
+  .chat-hd-status.idle { background: rgba(255,255,255,0.06); color: var(--text-3); }
+  .chat-hd-status.working { background: rgba(245,158,11,0.12); color: var(--yellow); }
+  .chat-hd-status.thinking { background: rgba(139,92,246,0.12); color: var(--purple-l); }
+  .chat-hd-status.approval { background: rgba(239,68,68,0.12); color: var(--red); }
+  .chat-hd-status.ended { background: rgba(255,255,255,0.04); color: var(--text-3); }
+  .chat-hd-gap { flex: 1; }
+  .chat-hd-btn {
+    height: 26px; padding: 0 10px; border: none; background: transparent;
+    color: var(--text-2); border-radius: 6px; cursor: pointer; font-size: 11px;
+    transition: all 0.15s;
+  }
+  .chat-hd-btn:hover { background: var(--bg-hover); }
+  .chat-hd-btn.jump { background: rgba(96,165,250,0.1); color: var(--blue); }
+  .chat-hd-btn.jump:hover { background: rgba(96,165,250,0.18); }
+
+  /* Chat + activity split */
+  .chat-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .chat-msgs {
+    flex: 1; overflow-y: auto; padding: 14px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .chat-msgs::-webkit-scrollbar { width: 4px; }
+  .chat-msgs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+  .msg {
+    max-width: 80%; padding: 10px 14px; border-radius: 10px;
+    font-size: 13px; line-height: 1.65;
+  }
+  .msg.user {
+    align-self: flex-end; background: rgba(124,58,237,0.18);
+    color: var(--text); border: 1px solid rgba(124,58,237,0.2);
+  }
+  .msg.asst {
+    align-self: flex-start; background: var(--bg-card);
+    color: var(--text); border: 1px solid var(--border);
+  }
+
+  .tool {
+    align-self: flex-start; width: 100%; max-width: 100%;
+    background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15);
+    border-radius: 8px; padding: 8px 12px; font-size: 12px;
+  }
+  .tool-hd {
+    color: var(--yellow); font-weight: 600; font-size: 11px;
+    margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .tool-body {
+    background: rgba(0,0,0,0.25); border-radius: 6px; padding: 6px 10px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 11px; color: var(--text-2); white-space: pre-wrap; overflow-x: auto;
+  }
+
+  /* Activity Timeline — 方案A bottom panel */
+  .act-list.collapsed { max-height: 32px; overflow: hidden; cursor: pointer; }
+  .act-hd .toggle-arrow { font-size: 10px; transition: transform 0.2s; }
+  .act-hd .toggle-arrow.open { transform: rotate(90deg); }
+  /* 方案B Tab toggle */
+  .chat-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .chat-tab { flex: 1; padding: 8px 16px; font-size: 12px; font-weight: 500; background: none; border: none; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .chat-tab.on { color: var(--text); border-bottom-color: var(--purple); }
+  .chat-tab:hover:not(.on) { color: var(--text-2); }
+  .act-list-tab { flex: 1; overflow-y: auto; padding: 8px 18px; }
+  .act-list-tab .act-item { padding: 6px 0; }
+  /* 方案C Right timeline */
+  .chat-with-timeline { display: flex; flex: 1; overflow: hidden; }
+  .chat-msgs-timeline { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .act-timeline { width: 200px; border-left: 1px solid var(--border); overflow-y: auto; padding: 10px 12px; background: rgba(0,0,0,0.12); flex-shrink: 0; }
+  .act-timeline .act-hd { font-size: 10px; padding: 4px 0 8px; }
+  .act-timeline .act-item { padding: 5px 0; }
+  .act-timeline .act-desc { white-space: nowrap; }
+  /* Layout switcher pills */
+  .lo-switch { display: flex; gap: 3px; background: rgba(255,255,255,0.04); border-radius: 6px; padding: 2px; }
+  .lo-pill { padding: 3px 8px; font-size: 10px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; color: var(--text-3); background: transparent; transition: all 0.15s; }
+  .lo-pill.on { background: rgba(124,58,237,0.3); color: var(--text); }
+  .chat-msgs-timeline::-webkit-scrollbar { width: 4px; }
+  .chat-msgs-timeline::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .act-timeline::-webkit-scrollbar { width: 4px; }
+  .act-timeline::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .act-list-tab::-webkit-scrollbar { width: 4px; }
+  .act-list-tab::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .act-list {
+    border-top: 1px solid var(--border);
+    max-height: 140px; overflow-y: auto;
+    padding: 6px 14px; background: rgba(0,0,0,0.15);
+  }
+  .act-list::-webkit-scrollbar { width: 4px; }
+  .act-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  .act-hd {
+    font-size: 10px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 6px 0; display: flex; align-items: center; gap: 6px;
+  }
+  .act-item {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 5px 0; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.02);
+  }
+  .act-item-row { display: flex; align-items: center; gap: 8px; }
+  .act-item-desc {
+    color: var(--text-2); font-size: 11px; padding-left: 68px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .act-time { color: var(--text-3); font-size: 10px; flex-shrink: 0; width: 44px; }
+  .act-icon { font-size: 12px; flex-shrink: 0; width: 16px; text-align: center; }
+  .act-tool { color: var(--yellow); font-weight: 500; }
+  .act-status { font-size: 10px; flex-shrink: 0; }
+  .act-status.ok { color: var(--green); }
+  .act-status.err { color: var(--red); }
+  .act-duration {
+    font-size: 10px; color: var(--text-3); flex-shrink: 0; width: 36px; text-align: right;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  /* Floating tooltip popover */
+  .act-popover {
+    position: fixed; z-index: 9999; pointer-events: none;
+    background: rgba(18,18,18,0.98); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px; padding: 12px 14px; min-width: 300px; max-width: 420px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    font-size: 11px; opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s;
+  }
+  .act-popover.show { opacity: 1; transform: translateY(0); }
+  .act-popover-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 4px 0;
+  }
+  .act-popover-label {
+    color: var(--text-3); flex-shrink: 0; width: 32px; text-align: right; font-size: 10px;
+  }
+  .act-popover-value { color: var(--text-2); word-break: break-all; line-height: 1.4; }
+  .act-popover-value.mono {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px;
+    background: rgba(0,0,0,0.3); padding: 5px 8px; border-radius: 5px;
+    white-space: pre-wrap; max-height: 100px; overflow-y: auto; line-height: 1.5;
+  }
+  .act-popover-value.ok { color: var(--green); }
+  .act-popover-value.err { color: var(--red); }
+  .act-popover-hd {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .act-popover-hd-icon { font-size: 16px; }
+  .act-popover-hd-tool { color: var(--yellow); font-weight: 600; font-size: 12px; }
+  .act-popover-hd-status { font-size: 10px; margin-left: auto; }
+  .act-popover-hd-status.ok { color: var(--green); }
+  .act-popover-hd-status.err { color: var(--red); }
+
+	  /* Permission request card */
+	  .perm-card {
+	    margin: 0 18px 12px; padding: 14px 16px;
+	    background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.25);
+	    border-radius: 10px; flex-shrink: 0;
+	  }
+	  .perm-card-header {
+	    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+	  }
+	  .perm-card-icon {
+	    width: 28px; height: 28px; border-radius: 8px;
+	    background: rgba(239,68,68,0.15); display: flex; align-items: center; justify-content: center;
+	    font-size: 14px;
+	  }
+	  .perm-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+	  .perm-card-subtitle { font-size: 11px; color: var(--text-3); }
+	  .perm-card-body {
+	    background: rgba(0,0,0,0.25); border-radius: 6px; padding: 8px 12px;
+	    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: var(--text-2);
+	    white-space: pre-wrap; margin-bottom: 10px;
+	  }
+	  .perm-card-actions { display: flex; gap: 8px; }
+	  .perm-btn {
+	    flex: 1; padding: 7px 16px; border-radius: 7px; border: none;
+	    font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+	  }
+	  .perm-btn.allow { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+	  .perm-btn.allow:hover { background: rgba(16,185,129,0.25); }
+	  .perm-btn.deny { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+	  .perm-btn.deny:hover { background: rgba(239,68,68,0.2); }
+	  .perm-timer {
+	    font-size: 10px; color: var(--yellow); display: flex; align-items: center; gap: 4px;
+	    margin-left: auto;
+	  }
+	  .perm-expiry-bar {
+	    height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 8px;
+	    overflow: hidden;
+	  }
+	  .perm-expiry-fill {
+	    height: 100%; width: 65%; border-radius: 2px;
+	    background: linear-gradient(90deg, var(--yellow), var(--red));
+	    transition: width 1s linear;
+	  }
+
+  .thinking-block {
+    align-self: flex-start; display: flex; align-items: center; gap: 8px;
+    color: var(--text-3); font-size: 12px; padding: 4px 0;
+  }
+  .thinking-dots { display: flex; gap: 3px; }
+  .thinking-dots span {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--purple-l);
+    animation: bounce 1.2s infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,100% { opacity: 0.2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-4px); } }
+
+  /* Settings (full) */
+  .settings { flex: 1; overflow-y: auto; }
+  .settings::-webkit-scrollbar { width: 4px; }
+  .settings::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+  .set-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    padding: 0 20px; gap: 0;
+  }
+  .set-tab {
+    height: 36px; padding: 0 16px; border: none; background: transparent;
+    color: var(--text-3); font-size: 12px; font-weight: 500; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .set-tab:hover { color: var(--text-2); }
+  .set-tab.on { color: var(--purple-l); border-bottom-color: var(--purple); }
+
+  .set-body { padding: 20px 24px; }
+  .set-body h3 {
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.8px; margin: 20px 0 8px;
+  }
+  .set-body h3:first-child { margin-top: 0; }
+  .s-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border-light);
+  }
+  .s-row label { font-size: 13px; color: var(--text); font-weight: 500; }
+  .s-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .s-row input[type=text], .s-row input[type=number] {
+    width: 180px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(0,0,0,0.3); color: var(--text); font-size: 12px; text-align: right;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .s-row input:focus { outline: none; border-color: var(--purple); }
+
+  .toggle {
+    width: 40px; height: 22px; border-radius: 11px; border: none;
+    background: rgba(255,255,255,0.1); position: relative; cursor: pointer;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--purple); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%; background: white;
+    transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle.on::after { left: 20px; }
+
+  .select-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .select-wrap select {
+    padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(0,0,0,0.3); color: var(--text); font-size: 12px;
+  }
+
+  .btn-save {
+    margin-top: 20px; padding: 8px 22px;
+    background: var(--purple); color: white;
+    border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn-save:hover { background: var(--purple-l); }
+
+  .hook-status { font-size: 11px; font-weight: 600; }
+  .hook-status.ok { color: var(--green); }
+  .hook-status.missing { color: var(--red); }
+
+  /* QR code placeholder */
+  .qr-placeholder {
+    width: 120px; height: 120px; background: white; border-radius: 8px;
+    margin: 8px 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #666; text-align: center; line-height: 1.5;
+  }
+
+  .pairing-info {
+    background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.15);
+    border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--text-2);
+    margin-top: 8px;
+  }
+  .pairing-info code {
+    font-family: 'SF Mono', monospace; font-size: 11px;
+    background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
+    color: var(--blue); word-break: break-all;
+  }
+
+  /* Restart dialog overlay */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .dialog {
+    width: 420px; background: var(--bg-sidebar);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  }
+  .dialog h3 { font-size: 15px; color: var(--text); margin-bottom: 16px; }
+  .dialog label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+  .dialog select, .dialog input {
+    width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(0,0,0,0.3); color: var(--text); font-size: 12px; margin-bottom: 12px;
+  }
+  .dialog-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .dialog-btns button {
+    padding: 6px 16px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dialog-btns .btn-cancel { background: rgba(255,255,255,0.06); color: var(--text-2); }
+  .dialog-btns .btn-cancel:hover { background: rgba(255,255,255,0.1); }
+  .dialog-btns .btn-confirm { background: var(--purple); color: white; }
+  .dialog-btns .btn-confirm:hover { background: var(--purple-l); }
+
+  /* Toast */
+  .toast {
+    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+    padding: 6px 16px; border-radius: 20px; font-size: 12px;
+    background: rgba(16,185,129,0.15); color: var(--green);
+    border: 1px solid rgba(16,185,129,0.25);
+    animation: toastIn 0.3s ease;
+    pointer-events: none; z-index: 20;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
+
+  .flex-row { display: flex; align-items: center; gap: 6px; }
+  .text-mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="window" id="app">
+  <!-- Title Bar -->
+  <div class="tb">
+    <div class="crab-wrap"><div class="crab"><div class="crab-body"><div class="crab-eye-l"></div><div class="crab-eye-r"></div></div><div class="crab-leg l1"></div><div class="crab-leg l2"></div><div class="crab-leg r1"></div><div class="crab-leg r2"></div></div></div>
+    <span class="tb-title">Ease-Island</span>
+    <div class="cloud-dot connected" id="cloudDot" title="云服务已连接"></div>
+    <span style="font-size:10px;color:var(--green);margin-right:8px" id="cloudLabel">已连接</span>
+    <div class="tb-gap"></div>
+    <button class="tb-btn island" onclick="toast('切换回灵动岛模式')">◉ 灵动岛</button>
+    <button class="tb-btn" onclick="toggleCloud()" title="切换云连接状态">☁</button>
+    <button class="tb-btn" id="settingsBtn" onclick="openSettings()">⚙ 设置</button>
+    <button class="tb-btn" onclick="toast('最小化')">─</button>
+    <button class="tb-btn" onclick="toast('最大化')">□</button>
+    <button class="tb-btn warn" onclick="toast('关闭窗口')">✕</button>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" style="display:none" class="toast"></div>
+
+  <!-- Restart Dialog -->
+  <div id="restartOverlay" class="overlay" style="display:none" onclick="if(event.target===this)closeRestart()">
+    <div class="dialog">
+      <h3>重启会话</h3>
+      <label>会话</label>
+      <div style="color:var(--text);font-size:13px;padding:6px 0" id="restartProj"></div>
+      <label>终端</label>
+      <select id="restartTerm">
+        <option>Terminal.app</option>
+        <option>iTerm2</option>
+        <option>Warp</option>
+        <option>kitty</option>
+      </select>
+      <label>Claude CLI 参数</label>
+      <input type="text" value="--resume" id="restartArgs" placeholder="--resume">
+      <div style="font-size:11px;color:var(--text-3);margin-top:-4px">命令预览: <code class="text-mono" id="restartCmd" style="color:var(--text-2)">claude --resume</code></div>
+      <div class="dialog-btns">
+        <button class="btn-cancel" onclick="closeRestart()">取消</button>
+        <button class="btn-confirm" onclick="doRestart()">启动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+    <!-- Sidebar -->
+    <div class="sb">
+      <div class="sb-tabs">
+        <button class="sb-tab on" data-tab="active" onclick="switchTab('active')">
+          活跃 <span class="badge">3</span>
+        </button>
+        <button class="sb-tab" data-tab="idle" onclick="switchTab('idle')">
+          空闲 <span class="badge">1</span>
+        </button>
+        <button class="sb-tab" data-tab="history" onclick="switchTab('history')">
+          历史 <span class="badge">2</span>
+        </button>
+      </div>
+      <div class="sb-search">
+        <span class="sb-search-icon">🔍</span>
+        <input type="text" id="sbSearchInput" placeholder="搜索会话..." oninput="onSearchInput(this.value)">
+        <span class="kbd-hint" id="kbdHint">⌘F</span>
+      </div>
+      <div class="sb-list" id="sbList"></div>
+      <div class="sb-foot">
+        <div class="sb-foot-avatar">A</div>
+        <span class="sb-foot-name">akke</span>
+        <span class="sb-foot-ver">v0.3.9</span>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main" id="mainArea"></div>
+  </div>
+</div>
+
+<script>
+// ---- Data ----
+const SESSIONS = [
+  { id:'s1', project:'cc-island', alias:null, status:'working', tool:'Bash · pnpm tauri build', time:'2分钟前', _notifyCount:0 },
+  { id:'s2', project:'api-server', alias:'API重构', status:'thinking', tool:null, time:'5分钟前', _notifyCount:1 },
+  { id:'s3', project:'mobile-app', alias:null, status:'approval', tool:'Write · config.ts', time:'刚刚', _notifyCount:3 },
+  { id:'s4', project:'docs-site', alias:'文档站', status:'idle', tool:null, time:'23分钟前', _notifyCount:0 },
+];
+
+const HISTORY = [
+  { id:'h1', project:'legacy-app', alias:null, time:'1小时前', cwd:'/home/projects/legacy' },
+  { id:'h2', project:'test-utils', alias:'测试工具', time:'3小时前', cwd:'/home/projects/test-utils' },
+];
+
+const CHAT_MSGS = [
+  { type:'user', text:'帮我写一个 Rust 函数来处理 WebSocket 心跳超时，需要同时支持 TCP keepalive 和应用层 ping/pong' },
+  { type:'thinking', text:'分析项目中现有的 WebSocket 实现...' },
+  { type:'tool', tool:'Bash', content:'$ rg "timeout|keepalive|ping" src-tauri/src/ws/\n\nconnection.rs\n45: const AUTH_TIMEOUT = Duration::from_secs(30);\n46: const READ_TIMEOUT = Duration::from_secs(120);\n\nserver.rs\n89: let keepalive = TcpKeepalive::new()\n    .with_time(Duration::from_secs(60))\n    .with_interval(Duration::from_secs(10));' },
+  { type:'asst', text:'好的，我看到项目中已有三层超时防护：\n\n1. **AUTH_TIMEOUT** — 30 秒认证超时\n2. **READ_TIMEOUT** — 120 秒读取超时\n3. **TCP Keepalive** — 60 秒间隔 + 10 秒重试 × 3\n\n现在我来添加应用层 Ping/Pong 心跳机制。' },
+];
+
+// Tool activity history
+const ACTIVITIES = [
+  { time:'14:32:04', endTime:'14:32:16', duration:'12s', tool:'Bash', icon:'🔧', desc:'rg "timeout|keepalive" src-tauri/', command:'rg "timeout|keepalive|ping" src-tauri/src/ws/', result:'connection.rs:45: const AUTH_TIMEOUT...\nserver.rs:89: let keepalive = TcpKeepalive...', status:'ok' },
+  { time:'14:32:18', endTime:'14:32:19', duration:'1s', tool:'Read', icon:'📖', desc:'src-tauri/src/ws/connection.rs', command:'Read /home/project/cc-island/src-tauri/src/ws/connection.rs', result:'(无输出)', status:'ok' },
+  { time:'14:32:25', endTime:'14:32:38', duration:'13s', tool:'Write', icon:'✏️', desc:'src-tauri/src/ws/heartbeat.rs', command:'Write /home/project/cc-island/src-tauri/src/ws/heartbeat.rs', result:'已写入 87 行', status:'ok' },
+  { time:'14:32:40', endTime:'14:32:50', duration:'10s', tool:'Bash', icon:'🔧', desc:'cargo check', command:'cargo check --manifest-path src-tauri/Cargo.toml', result:'Checking cc-island v0.3.9\nFinished dev [unoptimized + debuginfo]', status:'ok' },
+  { time:'14:32:52', endTime:'14:33:04', duration:'12s', tool:'Edit', icon:'📝', desc:'server.rs (keepalive config)', command:'Edit /home/project/cc-island/src-tauri/src/ws/server.rs', result:'error[E0432]: unresolved import `socket2`\n  --> src/ws/server.rs:3:5', status:'err' },
+  { time:'14:33:05', endTime:'14:33:23', duration:'18s', tool:'Bash', icon:'🔧', desc:'cargo check (fix)', command:'cargo check --manifest-path src-tauri/Cargo.toml', result:'Checking cc-island v0.3.9\nFinished dev [unoptimized + debuginfo]', status:'ok' },
+];
+
+// ---- State ----
+let selId = null;
+let tab = 'active';
+let setTab = 'hooks';
+let showSettings = false;
+let showRestart = false;
+let restartSession = null;
+let cloudConnected = true;
+let actLayout = 'c';
+let actCollapsed = true;  // 方案A: collapsed by default
+let actTab = 'chat';      // 方案B: 'chat' or 'act'
+let permDismissed = {};  // per-session dismiss state: { sessionId: true/false }
+let pinnedSessions = new Set();
+let searchQuery = '';
+let kbNavIndex = -1;  // keyboard navigation index in filtered session list
+
+// ---- Toast ----
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display = 'none', 1800);
+}
+
+// ---- Cloud toggle ----
+function toggleCloud() {
+  cloudConnected = !cloudConnected;
+  const dot = document.getElementById('cloudDot');
+  const label = document.getElementById('cloudLabel');
+  dot.className = 'cloud-dot ' + (cloudConnected ? 'connected' : 'disconnected');
+  label.textContent = cloudConnected ? '已连接' : '未连接';
+  label.style.color = cloudConnected ? 'var(--green)' : 'var(--text-3)';
+  toast(cloudConnected ? '☁ 云服务已连接' : '☁ 云服务已断开');
+}
+
+// ---- Restart ----
+function openRestart(session) {
+  restartSession = session;
+  document.getElementById('restartProj').textContent = session.alias || session.project;
+  document.getElementById('restartArgs').value = '--resume';
+  updateRestartCmd();
+  document.getElementById('restartOverlay').style.display = 'flex';
+}
+function closeRestart() {
+  document.getElementById('restartOverlay').style.display = 'none';
+  restartSession = null;
+}
+function updateRestartCmd() {
+  const args = document.getElementById('restartArgs').value;
+  document.getElementById('restartCmd').textContent = 'claude ' + args;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('restartArgs').addEventListener('input', updateRestartCmd);
+});
+function doRestart() {
+  toast('✓ 已重启: ' + (restartSession.alias || restartSession.project));
+  closeRestart();
+}
+
+// ---- Search ----
+function onSearchInput(val) {
+  searchQuery = val;
+  kbNavIndex = -1;
+  renderSidebar();
+}
+
+// ---- Pin ----
+function togglePin(sessionId) {
+  if (pinnedSessions.has(sessionId)) {
+    pinnedSessions.delete(sessionId);
+  } else {
+    pinnedSessions.add(sessionId);
+  }
+  renderSidebar();
+}
+
+// ---- Render Sidebar ----
+function renderSidebar() {
+  const list = document.getElementById('sbList');
+  let items = [];
+
+  if (tab === 'active') {
+    items = SESSIONS.filter(s => s.status !== 'idle');
+  } else if (tab === 'idle') {
+    items = SESSIONS.filter(s => s.status === 'idle');
+  } else if (tab === 'history') {
+    items = [];
+  }
+
+  // Filter by search query (match project name or alias)
+  const q = searchQuery.toLowerCase().trim();
+  if (q) {
+    if (tab === 'history') {
+      // filter history inline
+    } else {
+      items = items.filter(s =>
+        s.project.toLowerCase().includes(q) ||
+        (s.alias && s.alias.toLowerCase().includes(q))
+      );
+    }
+  }
+
+  // Sort pinned to top
+  if (tab !== 'history') {
+    items.sort((a, b) => {
+      const aP = pinnedSessions.has(a.id) ? 1 : 0;
+      const bP = pinnedSessions.has(b.id) ? 1 : 0;
+      return bP - aP;
+    });
+  }
+
+  // Empty state
+  if (items.length === 0 && tab !== 'history') {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px">${q ? '无匹配会话' : '暂无会话'}</div>`;
+    return;
+  }
+
+  let html = '';
+  if (tab === 'history') {
+    const filteredHistory = q
+      ? HISTORY.filter(h => h.project.toLowerCase().includes(q) || (h.alias && h.alias.toLowerCase().includes(q)))
+      : HISTORY;
+    if (filteredHistory.length === 0 && q) {
+      html = `<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px">无匹配历史</div>`;
+    } else {
+      filteredHistory.forEach(h => {
+        html += `
+          <div class="si ${selId === h.id ? 'sel' : ''}" onclick="selectSession('${h.id}')">
+            <div class="dot ended"></div>
+            <div class="si-info">
+              <div class="si-name">${h.alias || h.project}</div>
+              <div class="si-meta">已结束 · ${h.time}</div>
+            </div>
+            <button class="restart-btn" onclick="event.stopPropagation();openRestart(${JSON.stringify(h).replace(/"/g,'&quot;')})">↻ 重启</button>
+          </div>`;
+      });
+    }
+  } else {
+    items.forEach((s, idx) => {
+      const dc = { working:'working', thinking:'thinking', approval:'approval', idle:'idle' }[s.status];
+      const hasP = s.status === 'approval';
+      const isPinned = pinnedSessions.has(s.id);
+      const isKbActive = kbNavIndex === idx;
+      let meta = '';
+      if (s.status === 'working') meta = `<span style="color:var(--yellow);font-size:10px">${s.tool}</span>`;
+      if (s.status === 'thinking') meta = `<span style="color:var(--purple-l);font-size:10px">思考中…</span>`;
+      if (s.status === 'approval') meta = `<span style="color:var(--red);font-size:10px">⚠ 需要授权</span>`;
+      if (s.status === 'idle') meta = `<span style="font-size:10px">就绪</span>`;
+
+      // Notification badge count
+      const notifyCount = s._notifyCount || 0;
+      const badgeHTML = notifyCount > 0
+        ? `<span class="notify-badge">${notifyCount > 99 ? '99+' : notifyCount}</span>`
+        : '';
+
+      // Hover quick actions
+      const actionsHTML = `
+        <div class="si-actions">
+          <button class="si-action pin ${isPinned ? 'active' : ''}" onclick="event.stopPropagation();togglePin('${s.id}')" title="${isPinned ? '取消置顶' : '置顶'}">📌</button>
+          <button class="si-action jump" onclick="event.stopPropagation();toast('跳转到终端: ${s.project}')" title="跳转到终端">↗</button>
+          <button class="si-action restart" onclick="event.stopPropagation();openRestart({project:'${s.project}',alias:'${s.alias||''}'})" title="重启会话">↻</button>
+          <button class="si-action close" onclick="event.stopPropagation();toast('已关闭: ${s.project}')" title="关闭会话">✕</button>
+        </div>`;
+
+      html += `
+        <div class="si ${selId === s.id ? 'sel' : ''} ${isPinned ? 'pinned' : ''} ${isKbActive ? 'kb-active' : ''}"
+             onclick="selectSession('${s.id}')" data-idx="${idx}">
+          ${isPinned ? '<span class="pin-marker" title="已置顶">📌</span>' : ''}
+          ${hasP ? '<div class="popup-dot"></div>' : ''}
+          <div class="dot ${dc}"></div>
+          <div class="si-info">
+            <div class="si-name-row"><span class="si-name-text">${s.alias || s.project}</span>${badgeHTML}</div>
+            <div class="si-meta">${meta}</div>
+          </div>
+          ${actionsHTML}
+          <span class="si-time">${s.time}</span>
+        </div>`;
+    });
+  }
+
+  list.innerHTML = html;
+}
+
+// ---- Render Main ----
+function renderMain() {
+  const area = document.getElementById('mainArea');
+
+  if (showSettings) {
+    area.innerHTML = settingsHTML();
+    return;
+  }
+  if (!selId) { area.innerHTML = welcomeHTML(); return; }
+
+  const s = SESSIONS.find(x => x.id === selId) || HISTORY.find(x => x.id === selId);
+  if (!s) { area.innerHTML = welcomeHTML(); return; }
+
+  const chat = chatHTML(s);
+
+  // Approval session + not dismissed → dimmed chat + centered overlay
+  if (s.status === 'approval' && !permDismissed[selId]) {
+    area.innerHTML = `
+      <div style="flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden">
+        <div style="opacity:0.25;pointer-events:none;filter:blur(1px);flex:1;display:flex;flex-direction:column;overflow:hidden">${chat}</div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;background:radial-gradient(ellipse at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.15) 100%)">
+          ${permCenterHTML(s)}
+        </div>
+      </div>`;
+    return;
+  }
+
+  area.innerHTML = chat;
+}
+
+function welcomeHTML() {
+  return `
+    <div class="welcome">
+      <div class="welcome-icon">E</div>
+      <div class="welcome-title">Ease-Island</div>
+      <div class="welcome-sub">管理您的 Claude Code 会话</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-v">4</div><div class="stat-l">活跃会话</div></div>
+        <div class="stat"><div class="stat-v">127</div><div class="stat-l">消息数</div></div>
+        <div class="stat"><div class="stat-v">43</div><div class="stat-l">工具调用</div></div>
+        <div class="stat"><div class="stat-v">3</div><div class="stat-l">处理中</div></div>
+      </div>
+      <div class="welcome-hint">← 从左侧选择一个会话查看详情</div>
+    </div>`;
+}
+
+function actItemsHTML() {
+  return ACTIVITIES.map((a, idx) => `
+    <div class="act-item" data-act-idx="${idx}"
+         onmouseenter="showActPopover(event,${idx})" onmouseleave="hideActPopover()">
+      <div class="act-item-row">
+        <span class="act-time">${a.time}</span>
+        <span class="act-icon">${a.icon}</span>
+        <span class="act-tool">${a.tool}</span>
+        <span class="act-duration">${a.duration}</span>
+        <span class="act-status ${a.status === 'ok' ? 'ok' : 'err'}">${a.status === 'ok' ? '✓' : '✗'}</span>
+      </div>
+      <div class="act-item-desc">${a.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ---- Floating activity popover ----
+let popoverEl = null;
+let popoverTimer = null;
+
+function showActPopover(e, idx) {
+  clearTimeout(popoverTimer);
+  if (!popoverEl) {
+    popoverEl = document.createElement('div');
+    popoverEl.className = 'act-popover';
+    document.body.appendChild(popoverEl);
+  }
+  const a = ACTIVITIES[idx];
+  if (!a) return;
+  popoverEl.innerHTML = `
+    <div class="act-popover-hd">
+      <span class="act-popover-hd-icon">${a.icon}</span>
+      <span class="act-popover-hd-tool">${a.tool}</span>
+      <span class="act-popover-hd-status ${a.status === 'ok' ? 'ok' : 'err'}">${a.status === 'ok' ? '✓ 成功' : '✗ 失败'}</span>
+    </div>
+    <div class="act-popover-row"><span class="act-popover-label">开始</span><span class="act-popover-value">${a.time}</span></div>
+    <div class="act-popover-row"><span class="act-popover-label">结束</span><span class="act-popover-value">${a.endTime}</span></div>
+    <div class="act-popover-row"><span class="act-popover-label">耗时</span><span class="act-popover-value">${a.duration}</span></div>
+    <div class="act-popover-row"><span class="act-popover-label">命令</span><span class="act-popover-value mono">${a.command}</span></div>
+    <div class="act-popover-row"><span class="act-popover-label">结果</span><span class="act-popover-value mono ${a.status}">${a.result}</span></div>
+  `;
+  // Position: try right of cursor, fallback left
+  const rect = e.currentTarget.getBoundingClientRect();
+  const popW = 360;
+  let left = rect.right + 12;
+  if (left + popW > window.innerWidth - 16) left = rect.left - popW - 12;
+  if (left < 8) left = 8;
+  let top = rect.top - 8;
+  popoverEl.style.left = left + 'px';
+  popoverEl.style.top = top + 'px';
+  // Measure and clamp top
+  requestAnimationFrame(() => {
+    const h = popoverEl.offsetHeight;
+    if (top + h > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - h - 8);
+      popoverEl.style.top = top + 'px';
+    }
+  });
+  popoverEl.classList.add('show');
+}
+
+function hideActPopover() {
+  popoverTimer = setTimeout(() => {
+    if (popoverEl) popoverEl.classList.remove('show');
+  }, 100);
+}
+
+function layoutSwitcherHTML() {
+  const labels = { a: 'A', b: 'B', c: 'C' };
+  return `
+    <div class="lo-switch" style="margin-right:6px" title="A:折叠面板 B:标签切换 C:右侧时间线">
+      ${['a','b','c'].map(l =>
+        `<button class="lo-pill ${actLayout === l ? 'on' : ''}" onclick="switchLayout('${l}')">方案${labels[l]}</button>`
+      ).join('')}
+    </div>`;
+}
+
+function permCenterHTML(s) {
+  return `
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px">
+      <div class="perm-card" style="max-width:440px;width:100%">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div class="perm-card-header" style="margin-bottom:0">
+            <div class="perm-card-icon">⏳</div>
+            <div>
+              <div class="perm-card-title">权限请求</div>
+              <div class="perm-card-subtitle">${s.alias || s.project} · ${s.tool}</div>
+            </div>
+          </div>
+          <button onclick="dismissPerm()"
+            style="width:28px;height:28px;border-radius:6px;border:none;background:rgba(255,255,255,0.06);color:var(--text-3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0"
+            title="关闭（在终端中回答）">✕</button>
+        </div>
+        <div class="perm-timer" style="margin-left:0;margin-bottom:10px">⏱ 剩余 04:32 · 超时后自动拒绝</div>
+        <div class="perm-card-body">工具: ${s.tool ? s.tool.split('·')[0].trim() : 'Bash'}
+操作: ${s.tool ? s.tool.split('·')[1] ? s.tool.split('·')[1].trim() : '执行命令' : '执行命令'}
+详情: 该操作将修改项目文件，请确认是否允许执行</div>
+        <div class="perm-card-actions">
+          <button class="perm-btn deny" onclick="dismissPerm();toast('已拒绝权限请求')">拒绝</button>
+          <button class="perm-btn allow" onclick="dismissPerm();toast('已允许权限请求 ✓')">允许</button>
+        </div>
+        <div class="perm-expiry-bar"><div class="perm-expiry-fill"></div></div>
+        <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--text-3)">
+          已在终端中回答？<span onclick="dismissPerm()" style="color:var(--blue);cursor:pointer;text-decoration:underline">关闭此提示</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function dismissPerm() {
+  permDismissed[selId] = true;
+  renderMain();
+}
+
+function chatHTML(s) {
+  const isHistory = HISTORY.find(h => h.id === selId);
+  const st = s.status || 'ended';
+  const stText = { working:'工作中', thinking:'思考中', approval:'需要授权', idle:'就绪', ended:'已结束' }[st] || '';
+
+  let msgsHTML;
+  if (isHistory) {
+    msgsHTML = `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px">该会话已结束，消息已归档</div>`;
+  } else {
+    msgsHTML = CHAT_MSGS.map(m => {
+      if (m.type === 'user') return `<div class="msg user">${m.text}</div>`;
+      if (m.type === 'asst') return `<div class="msg asst">${m.text}</div>`;
+      if (m.type === 'tool') return `<div class="tool"><div class="tool-hd">&#128295; ${m.tool}</div><div class="tool-body">${m.content}</div></div>`;
+      if (m.type === 'thinking') return `<div class="thinking-block"><div class="thinking-dots"><span></span><span></span><span></span></div>${m.text}</div>`;
+      return '';
+    }).join('');
+  }
+
+  // 方案B: Tab toggle
+  if (actLayout === 'b' && !isHistory) {
+    return `
+      <div class="chat">
+        <div class="chat-hd">
+          <div class="chat-hd-name">${s.alias || s.project}</div>
+          <span class="chat-hd-status ${st}">${stText}</span>
+          <div class="chat-hd-gap"></div>
+          ${layoutSwitcherHTML()}
+          <button class="chat-hd-btn jump" onclick="toast('跳转到终端: ${s.project}')">↗ 跳转终端</button>
+          <button class="chat-hd-btn" onclick="clearSel()">✕ 关闭</button>
+        </div>
+        <div class="chat-tabs">
+          <button class="chat-tab ${actTab === 'chat' ? 'on' : ''}" onclick="switchActTab('chat')">💬 消息</button>
+          <button class="chat-tab ${actTab === 'act' ? 'on' : ''}" onclick="switchActTab('act')">📋 命令执行历史</button>
+        </div>
+        ${actTab === 'chat'
+          ? `<div class="chat-msgs">${msgsHTML}</div>`
+          : `<div class="act-list-tab"><div class="act-hd">命令执行历史 (${ACTIVITIES.length})</div>${actItemsHTML()}</div>`
+        }
+      </div>`;
+  }
+
+  // 方案C: Right timeline
+  if (actLayout === 'c' && !isHistory) {
+    return `
+      <div class="chat">
+        <div class="chat-hd">
+          <div class="chat-hd-name">${s.alias || s.project}</div>
+          <span class="chat-hd-status ${st}">${stText}</span>
+          <div class="chat-hd-gap"></div>
+          ${layoutSwitcherHTML()}
+          <button class="chat-hd-btn jump" onclick="toast('跳转到终端: ${s.project}')">↗ 跳转终端</button>
+          <button class="chat-hd-btn" onclick="clearSel()">✕ 关闭</button>
+        </div>
+        <div class="chat-with-timeline">
+          <div class="chat-msgs-timeline">${msgsHTML}</div>
+          <div class="act-timeline">
+            <div class="act-hd">📋 命令历史</div>
+            ${actItemsHTML()}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // 方案A: Collapsible bottom panel (default)
+  let actHTML = '';
+  if (!isHistory) {
+    const arrow = actCollapsed ? '▶' : '▼';
+    const listStyle = actCollapsed ? 'max-height:32px;overflow:hidden;cursor:pointer' : 'max-height:180px;overflow-y:auto';
+    actHTML = `
+      <div class="act-list" style="${listStyle}" onclick="${actCollapsed ? 'toggleActCollapsed()' : ''}">
+        <div class="act-hd" style="cursor:pointer" onclick="toggleActCollapsed()">
+          <span class="toggle-arrow ${actCollapsed ? '' : 'open'}">${arrow}</span>
+          📋 命令执行历史 (${ACTIVITIES.length})
+        </div>
+        ${actItemsHTML()}
+      </div>`;
+  }
+
+  return `
+    <div class="chat">
+      <div class="chat-hd">
+        <div class="chat-hd-name">${s.alias || s.project}</div>
+        <span class="chat-hd-status ${st}">${stText}</span>
+        <div class="chat-hd-gap"></div>
+        ${layoutSwitcherHTML()}
+        <button class="chat-hd-btn jump" onclick="toast('跳转到终端: ${s.project}')">↗ 跳转终端</button>
+        ${isHistory ? `<button class="chat-hd-btn jump" onclick="openRestart(${JSON.stringify(s).replace(/"/g,'&quot;')})">↻ 重启</button>` : ''}
+        <button class="chat-hd-btn" onclick="clearSel()">✕ 关闭</button>
+      </div>
+      <div class="chat-body">
+        <div class="chat-msgs">${msgsHTML}</div>
+                ${actHTML}
+      </div>
+    </div>`;
+}
+
+// ---- Settings ----
+function openSettings() {
+  showSettings = true;
+  selId = null;
+  // unselect sidebar tabs
+  document.querySelectorAll('.sb-tab').forEach(b => b.classList.remove('on'));
+  renderSidebar();
+  renderMain();
+}
+
+function closeSettings() {
+  showSettings = false;
+  // restore sidebar tab
+  document.querySelectorAll('.sb-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  renderMain();
+}
+
+function settingsHTML() {
+  return `
+    <div class="settings">
+      <div class="set-tabs">
+        <button class="set-tab ${setTab === 'hooks' ? 'on' : ''}" onclick="switchSetTab('hooks')">Hooks 配置</button>
+        <button class="set-tab ${setTab === 'general' ? 'on' : ''}" onclick="switchSetTab('general')">通用设置</button>
+        <button class="set-tab ${setTab === 'cloud' ? 'on' : ''}" onclick="switchSetTab('cloud')">远程访问</button>
+      </div>
+      <div class="set-body" id="setBody"></div>
+    </div>`;
+}
+
+function switchSetTab(t) {
+  setTab = t;
+  renderMain();
+}
+
+function renderSetBody() {
+  const body = document.getElementById('setBody');
+  if (!body) return;
+
+  if (setTab === 'hooks') {
+    body.innerHTML = `
+      <h3>Claude Code Hooks</h3>
+      <div class="s-row"><div><label>SessionStart</label><div class="desc">command · ~/.cc-island/session-start.sh</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>PreToolUse</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>PostToolUse</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>PostToolUseFailure</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>PermissionRequest</label><div class="desc">http · localhost:17527/hook · 300s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>Notification</label><div class="desc">http · localhost:17527/hook · 120s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>Stop</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status missing">✗ 未配置</span></div>
+      <div class="s-row"><div><label>UserPromptSubmit</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>SessionEnd</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status ok">✓ 已启用</span></div>
+      <div class="s-row"><div><label>PreCompact</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status missing">✗ 未配置</span></div>
+      <div class="s-row"><div><label>PostCompact</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status missing">✗ 未配置</span></div>
+      <div class="s-row"><div><label>SubagentStart</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status missing">✗ 未配置</span></div>
+      <div class="s-row"><div><label>SubagentStop</label><div class="desc">http · localhost:17527/hook · 5s</div></div><span class="hook-status missing">✗ 未配置</span></div>
+      <button class="btn-save" onclick="toast('Hooks 配置已保存 ✓')">保存设置</button>
+    `;
+  } else if (setTab === 'general') {
+    body.innerHTML = `
+      <h3>行为设置</h3>
+      <div class="s-row">
+        <div><label>自动允许常用权限</label><div class="desc">Bash、Read、Write 等无需确认（AskUserQuestion 除外）</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="s-row">
+        <div><label>显示桌面通知</label><div class="desc">会话开始/结束时弹出系统通知</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="s-row">
+        <div><label>权限请求超时 (秒)</label><div class="desc">超时后自动拒绝，默认 300 秒</div></div>
+        <div class="select-wrap">
+          <select><option>120</option><option selected>300</option><option>600</option></select>
+        </div>
+      </div>
+      <div class="s-row">
+        <div><label>Ask 请求超时 (秒)</label><div class="desc">AskUserQuestion 超时，默认 120 秒</div></div>
+        <div class="select-wrap">
+          <select><option>60</option><option selected>120</option><option>300</option></select>
+        </div>
+      </div>
+      <div class="s-row">
+        <div><label>最大活跃实例数</label><div class="desc">超出后自动清理最早结束的会话</div></div>
+        <input type="number" value="10" style="width:60px">
+      </div>
+      <div class="s-row">
+        <div><label>轮询间隔 (ms)</label><div class="desc">前端向 Tauri 后端请求数据的频率</div></div>
+        <input type="number" value="100" style="width:60px">
+      </div>
+      <h3>Hook 转发</h3>
+      <div class="s-row">
+        <div><label>转发 URL</label><div class="desc">将 Hook 事件转发到外部服务（留空禁用）</div></div>
+        <input type="text" value="" placeholder="https://example.com/hook">
+      </div>
+      <div class="s-row">
+        <div><label>启用日志记录</label><div class="desc">将所有 Hook 写入日志文件</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <button class="btn-save" onclick="toast('通用设置已保存 ✓')">保存设置</button>
+    `;
+  } else if (setTab === 'cloud') {
+    body.innerHTML = `
+      <h3>云中继服务器</h3>
+      <div class="s-row">
+        <div><label>启用远程访问</label><div class="desc">通过云服务器从手机监控桌面会话</div></div>
+        <button class="toggle ${cloudConnected ? 'on' : ''}" onclick="this.classList.toggle('on');toggleCloud()"></button>
+      </div>
+      <div class="s-row">
+        <div><label>服务器地址</label><div class="desc">云中继 WebSocket 地址</div></div>
+        <input type="text" value="ws://cc-island.example.com:17528">
+      </div>
+      <div class="s-row">
+        <div><label>设备 Token</label><div class="desc">本机唯一标识，用于配对</div></div>
+        <code class="text-mono" style="color:var(--blue)">d4f8e9a2b1c3...</code>
+      </div>
+      <h3>手机配对</h3>
+      <div class="flex-row" style="gap:16px;margin-top:8px">
+        <div class="qr-placeholder">QR Code<br>扫码配对</div>
+        <div class="pairing-info">
+          <div style="font-weight:600;margin-bottom:4px">配对信息</div>
+          <div>服务器: <code>ws://cc-island.example.com:17528</code></div>
+          <div>Token: <code>d4f8e9a2b1c3567890abcdef1234567</code></div>
+          <div style="margin-top:6px;font-size:10px;color:var(--text-3)">在手机 App 中输入以上信息或扫描二维码</div>
+        </div>
+      </div>
+      <h3>连接状态</h3>
+      <div class="s-row">
+        <div><label>当前状态</label><div class="desc">云服务器连接状态</div></div>
+        <span style="color:var(--green);font-size:12px;font-weight:600" id="cloudStatusText">● 已连接</span>
+      </div>
+      <div class="s-row">
+        <div><label>心跳间隔</label><div class="desc">WebSocket Ping 间隔</div></div>
+        <input type="number" value="30" style="width:60px"> <span style="font-size:11px;color:var(--text-3)">秒</span>
+      </div>
+      <div class="s-row">
+        <div><label>自动重连</label><div class="desc">断开后自动尝试重连</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <button class="btn-save" onclick="toast('远程访问设置已保存 ✓')">保存设置</button>
+    `;
+  }
+}
+
+// ---- Make setBody reactive ----
+const origRenderMain = renderMain;
+renderMain = function() {
+  origRenderMain();
+  setTimeout(renderSetBody, 10);
+};
+
+// ---- Actions ----
+function selectSession(id) {
+  selId = id;
+  showSettings = false;
+  kbNavIndex = -1;
+  const s = SESSIONS.find(x => x.id === id);
+  if (s) { tab = s.status === 'idle' ? 'idle' : 'active'; }
+  document.querySelectorAll('.sb-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  renderSidebar();
+  renderMain();
+}
+
+function clearSel() {
+  selId = null;
+  renderSidebar();
+  renderMain();
+}
+
+function switchLayout(l) {
+  actLayout = l;
+  if (l === 'c') actCollapsed = false;  // 方案C不需要折叠状态
+  renderMain();
+}
+
+function switchActTab(t) {
+  actTab = t;
+  renderMain();
+}
+
+function toggleActCollapsed() {
+  actCollapsed = !actCollapsed;
+  renderMain();
+}
+
+function switchTab(t) {
+  tab = t;
+  showSettings = false;
+  if (t !== 'history' || !HISTORY.find(h => h.id === selId)) selId = null;
+  document.querySelectorAll('.sb-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  renderSidebar();
+  renderMain();
+}
+
+// ---- Keyboard shortcuts ----
+document.addEventListener('keydown', (e) => {
+  const tag = document.activeElement?.tagName;
+  const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+  // Ctrl/Cmd+F: focus search
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    if (!isInput || document.activeElement?.id !== 'sbSearchInput') {
+      e.preventDefault();
+      const inp = document.getElementById('sbSearchInput');
+      inp.focus();
+      inp.select();
+    }
+    return;
+  }
+
+  // Esc: clear selection or close settings
+  if (e.key === 'Escape') {
+    if (isInput && document.activeElement?.id === 'sbSearchInput') {
+      document.getElementById('sbSearchInput').value = '';
+      onSearchInput('');
+      return;
+    }
+    if (showSettings) { closeSettings(); return; }
+    if (selId) { clearSel(); return; }
+    return;
+  }
+
+  // ArrowUp/ArrowDown: navigate sidebar items
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !isInput) {
+    e.preventDefault();
+    const visibleItems = document.querySelectorAll('.sb-list .si');
+    if (visibleItems.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      kbNavIndex = Math.min(kbNavIndex + 1, visibleItems.length - 1);
+    } else {
+      kbNavIndex = Math.max(kbNavIndex - 1, 0);
+    }
+    renderSidebar();
+    // Scroll into view
+    const target = document.querySelector(`.sb-list .si[data-idx="${kbNavIndex}"]`);
+    if (target) target.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Enter: select kb-highlighted item
+  if (e.key === 'Enter' && kbNavIndex >= 0 && !isInput) {
+    const visibleItems = document.querySelectorAll('.sb-list .si');
+    if (visibleItems[kbNavIndex]) {
+      visibleItems[kbNavIndex].click();
+    }
+  }
+});
+
+// ---- Init ----
+renderSidebar();
+renderMain();
+</script>
+</body>
+</html>

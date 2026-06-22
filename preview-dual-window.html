@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CC-Island 双窗口预览</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --border: rgba(255,255,255,0.08);
+    --text: rgba(255,255,255,0.85);
+    --text2: rgba(255,255,255,0.45);
+    --text3: rgba(255,255,255,0.25);
+    --purple: #a855f7;
+    --purple2: #7c3aed;
+    --green: #22c55e;
+    --green2: #16a34a;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --blue: #3b82f6;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0a;
+    color: var(--text);
+    height:100vh; overflow:hidden;
+    user-select:none;
+  }
+
+  /* ===== ISLAND WINDOW ===== */
+  .island-wrap {
+    position:fixed; top:12px; left:50%; transform:translateX(-50%);
+    z-index:9999; display:flex; flex-direction:column; align-items:center;
+  }
+  .island-capsule {
+    width:320px; height:40px;
+    background:rgba(20,20,20,0.95);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:22px;
+    display:flex; align-items:center; padding:0 14px;
+    gap:10px; cursor:default;
+    transition: all 0.25s ease;
+    position:relative;
+  }
+  .island-capsule:hover { border-color:rgba(255,255,255,0.2); }
+
+  .island-dot {
+    width:8px; height:8px; border-radius:50%; flex-shrink:0;
+    transition:background 0.3s;
+  }
+  .island-dot.green { background:var(--green); box-shadow:0 0 6px var(--green); }
+  .island-dot.yellow { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+  .island-dot.red { background:var(--red); box-shadow:0 0 6px var(--red); }
+
+  .island-status {
+    flex:1; font-size:12px; color:var(--text2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .island-actions {
+    display:flex; gap:4px; align-items:center;
+  }
+  .island-btn {
+    width:24px; height:24px; border-radius:6px; border:none;
+    background:rgba(255,255,255,0.06); color:var(--text2);
+    font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s;
+  }
+  .island-btn:hover { background:rgba(255,255,255,0.12); color:var(--text); }
+  .island-btn.desktop-open { background:rgba(168,85,247,0.25); color:var(--purple); }
+
+  /* Island expanded panel */
+  .island-panel {
+    width:480px; max-height:0; overflow:hidden;
+    background:rgba(20,20,20,0.95);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:18px; margin-top:8px;
+    transition: max-height 0.3s ease, padding 0.3s ease, border-color 0.3s ease;
+    border-color:transparent;
+  }
+  .island-panel.open {
+    max-height:440px; overflow-y:auto;
+    border-color:rgba(255,255,255,0.12); padding:12px;
+  }
+
+  .ip-header {
+    font-size:11px; color:var(--text2); text-transform:uppercase;
+    letter-spacing:0.5px; padding:4px 8px 8px;
+  }
+  .ip-session {
+    display:flex; align-items:center; gap:8px;
+    padding:8px; border-radius:8px; cursor:pointer;
+    transition:background 0.15s;
+    border:1px solid transparent;
+  }
+  .ip-session:hover { background:rgba(255,255,255,0.04); }
+  .ip-session.has-popup { border-color:rgba(168,85,247,0.3); background:rgba(168,85,247,0.06); }
+
+  .ip-session-icon { font-size:16px; flex-shrink:0; }
+  .ip-session-info { flex:1; min-width:0; }
+  .ip-session-name { font-size:13px; }
+  .ip-session-status { font-size:11px; color:var(--text2); }
+  .ip-session-acts { display:flex; gap:4px; }
+
+  .ip-act-btn {
+    padding:3px 10px; border-radius:5px; border:none;
+    font-size:11px; cursor:pointer; font-weight:500;
+    transition:all 0.15s;
+  }
+  .ip-act-btn.allow { background:rgba(34,197,94,0.2); color:var(--green); }
+  .ip-act-btn.allow:hover { background:rgba(34,197,94,0.35); }
+  .ip-act-btn.deny { background:rgba(239,68,68,0.2); color:var(--red); }
+  .ip-act-btn.deny:hover { background:rgba(239,68,68,0.35); }
+
+  /* ===== DESKTOP WINDOW ===== */
+  .desktop-wrap {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.92);
+    width:960px; height:640px; min-width:640px; min-height:480px;
+    background:rgba(20,20,20,0.98);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:12px; display:none; flex-direction:column;
+    box-shadow:0 25px 60px rgba(0,0,0,0.6);
+    z-index:9000; opacity:0; transition:opacity 0.2s, transform 0.2s;
+    overflow:hidden; resize:both;
+  }
+  .desktop-wrap.open {
+    display:flex; opacity:1; transform:translate(-50%,-50%) scale(1);
+  }
+  .desktop-wrap.minimized {
+    display:flex; opacity:0; transform:translate(-50%,-50%) scale(0.85);
+    pointer-events:none;
+  }
+
+  /* Title bar */
+  .dt-titlebar {
+    height:38px; flex-shrink:0; display:flex; align-items:center;
+    padding:0 12px; gap:8px;
+    border-bottom:1px solid var(--border);
+    cursor:grab;
+  }
+  .dt-titlebar:active { cursor:grabbing; }
+  .dt-title {
+    flex:1; font-size:12px; color:var(--text2);
+    -webkit-app-region:drag;
+  }
+  .dt-ctrl {
+    width:14px; height:14px; border-radius:50%; border:none;
+    cursor:pointer; flex-shrink:0; transition:filter 0.15s;
+  }
+  .dt-ctrl:hover { filter:brightness(1.3); }
+  .dt-ctrl.close { background:#ef4444; }
+  .dt-ctrl.min { background:#eab308; }
+  .dt-ctrl.max { background:#22c55e; }
+
+  /* Body */
+  .dt-body {
+    flex:1; display:flex; overflow:hidden;
+  }
+
+  /* Sidebar */
+  .dt-sidebar {
+    width:260px; flex-shrink:0; display:flex; flex-direction:column;
+    border-right:1px solid var(--border);
+    background:rgba(15,15,15,0.5);
+  }
+  .sb-search {
+    padding:10px 10px 6px;
+  }
+  .sb-search input {
+    width:100%; padding:7px 10px; border-radius:7px;
+    border:1px solid var(--border);
+    background:rgba(255,255,255,0.04);
+    color:var(--text); font-size:12px; outline:none;
+    transition:border-color 0.15s;
+  }
+  .sb-search input:focus { border-color:rgba(168,85,247,0.4); }
+  .sb-search input::placeholder { color:var(--text3); }
+
+  .sb-tabs {
+    display:flex; gap:1px; padding:6px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  .sb-tab {
+    flex:1; padding:6px 0; text-align:center; font-size:11px;
+    color:var(--text2); cursor:pointer; border-radius:5px;
+    transition:all 0.15s; position:relative;
+  }
+  .sb-tab:hover { color:var(--text); background:rgba(255,255,255,0.03); }
+  .sb-tab.act { color:var(--text); background:rgba(255,255,255,0.06); }
+  .sb-tab .badge {
+    position:absolute; top:2px; right:6px;
+    background:var(--purple); color:#fff; font-size:9px;
+    padding:1px 5px; border-radius:8px; min-width:16px; text-align:center;
+  }
+
+  .sb-list {
+    flex:1; overflow-y:auto; padding:6px 6px;
+  }
+  .sb-list::-webkit-scrollbar { width:4px; }
+  .sb-list::-webkit-scrollbar-track { background:transparent; }
+  .sb-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
+
+  .si-item {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    transition:background 0.12s; position:relative;
+    border:1px solid transparent;
+  }
+  .si-item:hover { background:rgba(255,255,255,0.04); }
+  .si-item.active { background:rgba(168,85,247,0.1); border-color:rgba(168,85,247,0.2); }
+  .si-item.kb-active { background:rgba(168,85,247,0.06); outline:1px solid rgba(168,85,247,0.3); }
+
+  .si-icon { font-size:16px; flex-shrink:0; }
+  .si-body { flex:1; min-width:0; }
+  .si-name-row { display:flex; align-items:center; gap:6px; }
+  .si-name-text { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .si-badge {
+    background:var(--purple); color:#fff; font-size:9px;
+    padding:1px 5px; border-radius:8px; flex-shrink:0;
+  }
+  .si-sub { font-size:10px; color:var(--text3); margin-top:2px; }
+  .si-acts {
+    display:none; gap:3px; flex-shrink:0;
+  }
+  .si-item:hover .si-acts { display:flex; }
+
+  .si-act {
+    width:22px; height:22px; border-radius:4px; border:none;
+    background:rgba(255,255,255,0.06); color:var(--text2);
+    font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:all 0.12s;
+  }
+  .si-act:hover { background:rgba(255,255,255,0.12); color:var(--text); }
+  .si-act.danger:hover { background:rgba(239,68,68,0.2); color:var(--red); }
+
+  .sb-footer {
+    padding:8px 12px; border-top:1px solid var(--border);
+    font-size:10px; color:var(--text3);
+    display:flex; gap:12px;
+  }
+
+  /* Main content */
+  .dt-main {
+    flex:1; display:flex; flex-direction:column; overflow:hidden;
+    background:rgba(10,10,10,0.3);
+  }
+  .main-welcome {
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:40px;
+  }
+  .main-welcome h2 { font-size:20px; font-weight:500; margin-bottom:8px; }
+  .main-welcome p { font-size:13px; color:var(--text2); margin-bottom:24px; }
+
+  .stats-cards { display:flex; gap:16px; }
+  .stat-card {
+    padding:20px 28px; border-radius:12px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    text-align:center; min-width:120px;
+  }
+  .stat-card .val { font-size:28px; font-weight:600; }
+  .stat-card .lbl { font-size:11px; color:var(--text2); margin-top:4px; }
+
+  .main-chat {
+    flex:1; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .chat-header {
+    padding:12px 16px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:8px; flex-shrink:0;
+  }
+  .chat-back-btn {
+    background:none; border:none; color:var(--text2); cursor:pointer;
+    font-size:16px; padding:4px;
+  }
+  .chat-back-btn:hover { color:var(--text); }
+  .chat-title { font-size:13px; font-weight:500; }
+  .chat-title-sub { font-size:11px; color:var(--text2); }
+
+  .chat-msgs {
+    flex:1; overflow-y:auto; padding:16px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .chat-msgs::-webkit-scrollbar { width:4px; }
+  .chat-msgs::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
+
+  .msg-row { display:flex; gap:8px; }
+  .msg-avatar { width:28px; height:28px; border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .msg-body { flex:1; }
+  .msg-role { font-size:11px; color:var(--text3); margin-bottom:4px; }
+  .msg-text { font-size:13px; line-height:1.6; }
+  .msg-text code {
+    background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:3px;
+    font-size:11px;
+  }
+  .msg-tool {
+    margin:8px 0; padding:10px 12px; border-radius:8px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  }
+  .msg-tool-hd { font-size:11px; color:var(--text2); display:flex; align-items:center; gap:6px; }
+  .msg-tool-cmd { font-size:11px; font-family:monospace; color:var(--text3); margin-top:4px; word-break:break-all; }
+
+  .chat-cmdlog {
+    border-top:1px solid var(--border);
+    max-height:150px; overflow-y:auto; flex-shrink:0;
+  }
+  .chat-cmdlog::-webkit-scrollbar { width:4px; }
+  .chat-cmdlog::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
+
+  .cmd-item {
+    display:flex; align-items:center; gap:8px;
+    padding:6px 16px; font-size:11px; border-bottom:1px solid rgba(255,255,255,0.03);
+  }
+  .cmd-item .cmd-time { color:var(--text3); width:40px; flex-shrink:0; }
+  .cmd-item .cmd-icon { width:18px; text-align:center; flex-shrink:0; }
+  .cmd-item .cmd-tool { color:var(--purple); width:70px; flex-shrink:0; }
+  .cmd-item .cmd-desc { flex:1; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cmd-item .cmd-dur { color:var(--text3); flex-shrink:0; }
+
+  /* Settings */
+  .main-settings {
+    flex:1; overflow-y:auto; padding:24px; display:none; flex-direction:column; gap:16px;
+  }
+  .main-settings.open { display:flex; }
+  .set-group {
+    border:1px solid var(--border); border-radius:10px; padding:16px;
+  }
+  .set-group h4 { font-size:12px; color:var(--text2); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px; }
+  .set-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+  .set-label { font-size:13px; }
+  .set-desc { font-size:11px; color:var(--text3); }
+  .set-toggle {
+    width:36px; height:20px; border-radius:10px; border:none;
+    background:rgba(255,255,255,0.1); cursor:pointer;
+    position:relative; transition:background 0.2s;
+  }
+  .set-toggle.on { background:var(--purple); }
+  .set-toggle::after {
+    content:''; position:absolute; top:2px; left:2px;
+    width:16px; height:16px; border-radius:50%; background:#fff;
+    transition:left 0.2s;
+  }
+  .set-toggle.on::after { left:18px; }
+
+  /* Toast */
+  .toast {
+    position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
+    padding:8px 20px; border-radius:20px; font-size:12px;
+    background:rgba(30,30,30,0.95); border:1px solid rgba(255,255,255,0.1);
+    z-index:99999; opacity:0; transition:opacity 0.25s; pointer-events:none;
+  }
+  .toast.show { opacity:1; }
+
+  /* Activity popover - floating */
+  .act-popover {
+    position:fixed; z-index:99998; padding:12px 14px; border-radius:10px;
+    background:rgba(25,25,25,0.98); border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 8px 24px rgba(0,0,0,0.5); font-size:11px;
+    max-width:320px; display:none; pointer-events:none;
+  }
+  .act-popover.show { display:block; }
+  .act-popover-row { display:flex; gap:8px; padding:3px 0; }
+  .act-popover-hd { color:var(--text3); width:55px; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<!-- Island Window -->
+<div class="island-wrap" id="islandWrap">
+  <div class="island-capsule" id="islandCapsule">
+    <div class="island-dot green" id="islandDot"></div>
+    <div class="island-status" id="islandStatus">3 活跃 · 1 待处理</div>
+    <div class="island-actions">
+      <button class="island-btn" id="islandDesktopBtn" onclick="toggleDesktop()" title="桌面窗口">🖥</button>
+    </div>
+  </div>
+  <div class="island-panel" id="islandPanel"></div>
+</div>
+
+<!-- Desktop Window -->
+<div class="desktop-wrap" id="desktopWrap">
+  <!-- Title bar -->
+  <div class="dt-titlebar">
+    <span class="dt-ctrl close" onclick="closeDesktop()" title="关闭（隐藏）"></span>
+    <span class="dt-ctrl min" onclick="minimizeDesktop()" title="最小化"></span>
+    <span class="dt-ctrl max" onclick="toggleMaxDesktop()" title="最大化"></span>
+    <span class="dt-title">CC-Island Desktop</span>
+  </div>
+
+  <!-- Body -->
+  <div class="dt-body">
+    <!-- Sidebar -->
+    <div class="dt-sidebar">
+      <div class="sb-search">
+        <input type="text" id="searchInput" placeholder="搜索会话... (Ctrl+F)" oninput="onSearchInput()" onkeydown="onSearchKeydown(event)">
+      </div>
+      <div class="sb-tabs">
+        <div class="sb-tab act" data-tab="active" onclick="setTab('active')">活跃<span class="badge" id="badgeActive">3</span></div>
+        <div class="sb-tab" data-tab="idle" onclick="setTab('idle')">空闲<span class="badge" id="badgeIdle">2</span></div>
+        <div class="sb-tab" data-tab="history" onclick="setTab('history')">历史<span class="badge" id="badgeHistory">4</span></div>
+      </div>
+      <div class="sb-list" id="sbList"></div>
+      <div class="sb-footer">
+        <span id="footerStats">3 活跃 · 2 空闲 · 4 历史</span>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="dt-main">
+      <!-- Welcome -->
+      <div class="main-welcome" id="mainWelcome">
+        <h2>CC-Island</h2>
+        <p>从左侧选择一个会话以查看详情</p>
+        <div class="stats-cards">
+          <div class="stat-card"><div class="val">3</div><div class="lbl">活跃会话</div></div>
+          <div class="stat-card"><div class="val">1</div><div class="lbl">待处理弹窗</div></div>
+          <div class="stat-card"><div class="val">47</div><div class="lbl">今日消息</div></div>
+        </div>
+      </div>
+
+      <!-- Chat view -->
+      <div class="main-chat" id="mainChat" style="display:none">
+        <div class="chat-header">
+          <button class="chat-back-btn" onclick="closeChat()">←</button>
+          <div>
+            <div class="chat-title" id="chatTitle">项目名</div>
+            <div class="chat-title-sub" id="chatSub">session-id</div>
+          </div>
+        </div>
+        <div class="chat-msgs" id="chatMsgs"></div>
+        <div class="chat-cmdlog" id="chatCmdLog"></div>
+      </div>
+
+      <!-- Settings -->
+      <div class="main-settings" id="mainSettings">
+        <div class="chat-header" style="border-bottom:none;padding:0 0 12px 0;">
+          <button class="chat-back-btn" onclick="closeSettings()">←</button>
+          <div class="chat-title">设置</div>
+        </div>
+        <div class="set-group">
+          <h4>通用</h4>
+          <div class="set-row">
+            <div><div class="set-label">权限超时时间</div><div class="set-desc">超时后自动拒绝(秒)</div></div>
+            <input type="number" value="300" style="width:60px;padding:4px 8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;text-align:center;">
+          </div>
+          <div class="set-row">
+            <div><div class="set-label">显示通知</div></div>
+            <button class="set-toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+          <div class="set-row">
+            <div><div class="set-label">显示思考消息</div></div>
+            <button class="set-toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+        <div class="set-group">
+          <h4>Hooks 配置</h4>
+          <div class="set-row">
+            <div><div class="set-label">Notification Hook</div><div class="set-desc">localhost:17527/hook</div></div>
+            <span style="font-size:11px;color:var(--green);">✓ 已配置</span>
+          </div>
+          <div class="set-row">
+            <div><div class="set-label">PostToolUse Hook</div><div class="set-desc">localhost:17527/hook</div></div>
+            <span style="font-size:11px;color:var(--green);">✓ 已配置</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Activity popover -->
+<div class="act-popover" id="actPopover"></div>
+
+<!-- Toast -->
+<div class="toast" id="toastEl"></div>
+
+<script>
+// ====================================================================
+// DATA
+// ====================================================================
+const NOW = Date.now();
+
+const SESSIONS = [
+  { id:'s1', name:'my-project', status:'active', tool:'Bash', cwd:'/home/akke/project/my-project', started:NOW-3600000, hasPopup:true, popupTool:'Bash', popupAction:'npm test', popupDetails:'Running npm test in project root', notifyCount:3, pinned:true },
+  { id:'s2', name:'cc-island', status:'thinking', tool:'', cwd:'/home/akke/project/cc-island', started:NOW-1800000, hasPopup:false, notifyCount:0, pinned:true },
+  { id:'s3', name:'api-server', status:'working', tool:'Write', cwd:'/home/akke/project/api-server', started:NOW-7200000, hasPopup:false, notifyCount:0, pinned:false },
+  { id:'s4', name:'docs-site', status:'idle', tool:'', cwd:'/home/akke/project/docs-site', started:NOW-86400000, hasPopup:false, notifyCount:1, pinned:false },
+  { id:'s5', name:'legacy-app', status:'idle', tool:'', cwd:'/home/akke/project/legacy', started:NOW-172800000, hasPopup:false, notifyCount:0, pinned:false },
+  { id:'s6', name:'data-pipeline', status:'ended', tool:'', cwd:'/home/akke/project/pipeline', started:NOW-259200000, ended:NOW-100000000, notifyCount:0, pinned:false },
+  { id:'s7', name:'cli-tools', status:'ended', tool:'', cwd:'/home/akke/project/cli', started:NOW-345600000, ended:NOW-200000000, notifyCount:0, pinned:false },
+  { id:'s8', name:'web-app', status:'ended', tool:'', cwd:'/home/akke/project/web', started:NOW-432000000, ended:NOW-300000000, notifyCount:0, pinned:false },
+  { id:'s9', name:'mobile-client', status:'ended', tool:'', cwd:'/home/akke/project/mobile', started:NOW-518400000, ended:NOW-400000000, notifyCount:0, pinned:false },
+];
+
+const ACTIVITIES = [
+  { id:1, sessionId:'s1', tool:'Bash', content:'npm test -- --coverage', ts:NOW-60000, end:NOW-55000, status:'success', result:'Tests: 42 passed, 0 failed' },
+  { id:2, sessionId:'s1', tool:'Read', content:'src/App.tsx', ts:NOW-120000, end:NOW-119800, status:'success' },
+  { id:3, sessionId:'s2', tool:'Write', content:'src/components/Modal.tsx', ts:NOW-180000, end:NOW-179500, status:'error', result:'Permission denied' },
+  { id:4, sessionId:'s3', tool:'Bash', content:'cargo build --release', ts:NOW-240000, end:NOW-180000, status:'success', result:'Finished release [optimized] in 60s' },
+  { id:5, sessionId:'s1', tool:'Grep', content:'TODO|FIXME', ts:NOW-300000, end:NOW-299900, status:'success' },
+];
+
+const CHAT_MSGS = {
+  's1': [
+    { role:'user', text:'Please run npm test and fix any failing tests' },
+    { role:'assistant', text:'I\'ll start by running the test suite to see the current state.' },
+    { role:'tool', tool:'Bash', cmd:'npm test -- --coverage', result:'Tests: 40 passed, 2 failed', success:true },
+    { role:'assistant', text:'Found 2 failing tests in the auth module. Both are related to the new session timeout logic. Let me fix them.' },
+    { role:'tool', tool:'Read', cmd:'src/auth/session.test.ts', success:true },
+    { role:'tool', tool:'Write', cmd:'src/auth/session.ts', result:'Updated timeout logic', success:true },
+    { role:'tool', tool:'Bash', cmd:'npm test -- --coverage', result:'Tests: 42 passed, 0 failed', success:true },
+    { role:'assistant', text:'All 42 tests pass now. The issue was that the session timeout was being calculated from epoch instead of from the last activity timestamp.' },
+  ],
+  's2': [
+    { role:'user', text:'Add a modal component with animation' },
+    { role:'assistant', text:'I\'ll create a reusable Modal component using Framer Motion for animations.' },
+  ],
+  's3': [
+    { role:'user', text:'Optimize the database queries in the API server' },
+    { role:'assistant', text:'Let me first analyze the current query performance.' },
+  ],
+};
+
+// ====================================================================
+// STATE
+// ====================================================================
+let desktopOpen = false;
+let desktopMinimized = false;
+let desktopMaxed = false;
+let activeTab = 'active';
+let searchQuery = '';
+let selectedSessionId = null;
+let kbIndex = -1;
+let pinnedSessions = new Set(['s1','s2']);
+let islandExpanded = false;
+let islandHoverTimer = null;
+let islandCloseTimer = null;
+
+// ====================================================================
+// FILTER
+// ====================================================================
+function getFilteredSessions() {
+  let list = SESSIONS.filter(s => {
+    if (activeTab === 'active') return s.status === 'active' || s.status === 'thinking' || s.status === 'working';
+    if (activeTab === 'idle') return s.status === 'idle';
+    if (activeTab === 'history') return s.status === 'ended';
+    return true;
+  });
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter(s => s.name.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
+  }
+  // Sort: pinned first, then by started desc
+  list.sort((a,b) => {
+    if (pinnedSessions.has(a.id) && !pinnedSessions.has(b.id)) return -1;
+    if (!pinnedSessions.has(a.id) && pinnedSessions.has(b.id)) return 1;
+    return b.started - a.started;
+  });
+  return list;
+}
+
+function getHasPopupSessions() {
+  return SESSIONS.filter(s => s.hasPopup);
+}
+
+// ====================================================================
+// ISLAND
+// ====================================================================
+function updateIslandStatus() {
+  const active = SESSIONS.filter(s => s.status === 'active' || s.status === 'thinking' || s.status === 'working').length;
+  const popupCount = SESSIONS.filter(s => s.hasPopup).length;
+  const dot = document.getElementById('islandDot');
+  const status = document.getElementById('islandStatus');
+
+  dot.className = 'island-dot';
+  if (popupCount > 0) { dot.classList.add('red'); }
+  else if (active > 0) { dot.classList.add('green'); }
+  else { dot.classList.add('yellow'); }
+
+  let txt = `${active} 活跃`;
+  if (popupCount > 0) txt += ` · ${popupCount} 待处理`;
+  status.textContent = txt;
+
+  const desktopBtn = document.getElementById('islandDesktopBtn');
+  desktopBtn.classList.toggle('desktop-open', desktopOpen);
+}
+
+function renderIslandPanel() {
+  const panel = document.getElementById('islandPanel');
+  const popupSessions = getHasPopupSessions();
+  const activeSessions = SESSIONS.filter(s => s.status === 'active' || s.status === 'thinking' || s.status === 'working');
+  const otherSessions = activeSessions.filter(s => !popupSessions.includes(s));
+
+  let html = '';
+  if (popupSessions.length > 0) {
+    html += '<div class="ip-header">待处理弹窗</div>';
+    html += popupSessions.map(s => `
+      <div class="ip-session has-popup" onclick="openDesktopSession('${s.id}')">
+        <div class="ip-session-icon">⚠️</div>
+        <div class="ip-session-info">
+          <div class="ip-session-name">${s.name}</div>
+          <div class="ip-session-status">${s.popupTool}: ${s.popupAction || ''}</div>
+        </div>
+        <div class="ip-session-acts">
+          <button class="ip-act-btn allow" onclick="event.stopPropagation(); handleIslandPopup('${s.id}','allow')">允许</button>
+          <button class="ip-act-btn deny" onclick="event.stopPropagation(); handleIslandPopup('${s.id}','deny')">拒绝</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  if (otherSessions.length > 0) {
+    html += '<div class="ip-header" style="margin-top:4px;">活跃会话</div>';
+    html += otherSessions.map(s => `
+      <div class="ip-session" onclick="openDesktopSession('${s.id}')">
+        <div class="ip-session-icon">${s.status === 'thinking' ? '💭' : '⚡'}</div>
+        <div class="ip-session-info">
+          <div class="ip-session-name">${s.name}</div>
+          <div class="ip-session-status">${s.status === 'thinking' ? '思考中...' : (s.tool || '工作中...')}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  panel.innerHTML = html || '<div style="padding:12px;text-align:center;font-size:12px;color:var(--text3);">无活跃会话</div>';
+}
+
+// Island hover logic
+document.getElementById('islandCapsule').addEventListener('mouseenter', () => {
+  clearTimeout(islandCloseTimer);
+  islandHoverTimer = setTimeout(() => {
+    islandExpanded = true;
+    document.getElementById('islandPanel').classList.add('open');
+    renderIslandPanel();
+  }, 200);
+});
+
+document.getElementById('islandWrap').addEventListener('mouseleave', () => {
+  clearTimeout(islandHoverTimer);
+  islandCloseTimer = setTimeout(() => {
+    islandExpanded = false;
+    document.getElementById('islandPanel').classList.remove('open');
+  }, 300);
+});
+
+function handleIslandPopup(sessionId, decision) {
+  const s = SESSIONS.find(x => x.id === sessionId);
+  if (!s) return;
+  s.hasPopup = false;
+  toast(`${decision === 'allow' ? '已允许' : '已拒绝'} ${s.popupTool}`);
+  updateIslandStatus();
+  renderIslandPanel();
+  renderSidebar();
+}
+
+// ====================================================================
+// DESKTOP
+// ====================================================================
+function toggleDesktop() {
+  if (desktopMinimized) {
+    desktopMinimized = false;
+    document.getElementById('desktopWrap').classList.remove('minimized');
+    document.getElementById('desktopWrap').classList.add('open');
+    desktopOpen = true;
+  } else if (desktopOpen) {
+    closeDesktop();
+  } else {
+    openDesktop();
+  }
+}
+
+function openDesktop() {
+  desktopOpen = true;
+  desktopMinimized = false;
+  document.getElementById('desktopWrap').classList.add('open');
+  document.getElementById('desktopWrap').classList.remove('minimized');
+  updateIslandStatus();
+  renderSidebar();
+  updateBadges();
+}
+
+function openDesktopSession(sessionId) {
+  openDesktop();
+  selectedSessionId = sessionId;
+  openChat(sessionId);
+}
+
+function closeDesktop() {
+  desktopOpen = false;
+  desktopMinimized = false;
+  document.getElementById('desktopWrap').classList.remove('open');
+  updateIslandStatus();
+}
+
+function minimizeDesktop() {
+  if (!desktopOpen) return;
+  desktopMinimized = true;
+  document.getElementById('desktopWrap').classList.add('minimized');
+  toast('桌面已最小化 — 点击灵动岛恢复');
+}
+
+function toggleMaxDesktop() {
+  const el = document.getElementById('desktopWrap');
+  if (desktopMaxed) {
+    el.style.width = '960px';
+    el.style.height = '640px';
+    el.style.top = '50%';
+    el.style.left = '50%';
+    el.style.transform = 'translate(-50%,-50%) scale(1)';
+  } else {
+    el.style.width = '100vw';
+    el.style.height = '100vh';
+    el.style.top = '0';
+    el.style.left = '0';
+    el.style.transform = 'scale(1)';
+    el.style.borderRadius = '0';
+  }
+  desktopMaxed = !desktopMaxed;
+  if (!desktopMaxed) el.style.borderRadius = '12px';
+}
+
+// ====================================================================
+// SIDEBAR
+// ====================================================================
+function setTab(tab) {
+  activeTab = tab;
+  kbIndex = -1;
+  document.querySelectorAll('.sb-tab').forEach(t => t.classList.toggle('act', t.dataset.tab === tab));
+  renderSidebar();
+  updateBadges();
+}
+
+function onSearchInput() {
+  searchQuery = document.getElementById('searchInput').value;
+  kbIndex = -1;
+  renderSidebar();
+}
+
+function onSearchKeydown(e) {
+  const list = getFilteredSessions();
+  if (e.key === 'Escape') {
+    document.getElementById('searchInput').value = '';
+    searchQuery = '';
+    kbIndex = -1;
+    renderSidebar();
+    document.getElementById('searchInput').blur();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (list.length === 0) return;
+    kbIndex = Math.min(kbIndex + 1, list.length - 1);
+    renderSidebar();
+    scrollToKb();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (list.length === 0) return;
+    kbIndex = Math.max(kbIndex - 1, 0);
+    renderSidebar();
+    scrollToKb();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (kbIndex >= 0 && kbIndex < list.length) {
+      const s = list[kbIndex];
+      selectSession(s.id);
+    }
+  }
+}
+
+function scrollToKb() {
+  const el = document.querySelector('.si-item.kb-active');
+  if (el) el.scrollIntoView({ block:'nearest' });
+}
+
+function togglePin(sessionId) {
+  if (pinnedSessions.has(sessionId)) {
+    pinnedSessions.delete(sessionId);
+  } else {
+    pinnedSessions.add(sessionId);
+  }
+  renderSidebar();
+}
+
+function selectSession(sessionId) {
+  selectedSessionId = sessionId;
+  openChat(sessionId);
+  renderSidebar();
+}
+
+function openChat(sessionId) {
+  const s = SESSIONS.find(x => x.id === sessionId);
+  if (!s) return;
+  selectedSessionId = sessionId;
+
+  document.getElementById('mainWelcome').style.display = 'none';
+  document.getElementById('mainChat').style.display = 'flex';
+  document.getElementById('mainSettings').classList.remove('open');
+
+  document.getElementById('chatTitle').textContent = s.name;
+  document.getElementById('chatSub').textContent = s.cwd;
+
+  // Render messages
+  const msgs = CHAT_MSGS[sessionId] || [];
+  document.getElementById('chatMsgs').innerHTML = msgs.map(m => {
+    if (m.role === 'user') {
+      return `<div class="msg-row"><div class="msg-avatar">👤</div><div class="msg-body"><div class="msg-role">User</div><div class="msg-text">${m.text}</div></div></div>`;
+    } else if (m.role === 'assistant') {
+      return `<div class="msg-row"><div class="msg-avatar">🤖</div><div class="msg-body"><div class="msg-role">Claude</div><div class="msg-text">${m.text}</div></div></div>`;
+    } else if (m.role === 'tool') {
+      return `<div class="msg-tool">
+        <div class="msg-tool-hd">🔧 ${m.tool} ${m.success !== false ? '✓' : '✗'}</div>
+        <div class="msg-tool-cmd">${m.cmd || ''}</div>
+        ${m.result ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;">${m.result}</div>` : ''}
+      </div>`;
+    }
+    return '';
+  }).join('');
+
+  // Render command history
+  const acts = ACTIVITIES.filter(a => a.sessionId === sessionId);
+  document.getElementById('chatCmdLog').innerHTML = acts.map(a => {
+    const dur = a.end ? ((a.end - a.ts) / 1000).toFixed(1) + 's' : '';
+    const icon = a.status === 'success' ? '✓' : a.status === 'error' ? '✗' : '●';
+    const iconColor = a.status === 'success' ? 'var(--green)' : a.status === 'error' ? 'var(--red)' : 'var(--yellow)';
+    return `<div class="cmd-item" onmouseenter="showActPopover(event,${a.id})" onmouseleave="hideActPopover()">
+      <span class="cmd-time">${new Date(a.ts).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="cmd-icon" style="color:${iconColor}">${icon}</span>
+      <span class="cmd-tool">${a.tool}</span>
+      <span class="cmd-desc">${a.content}</span>
+      <span class="cmd-dur">${dur}</span>
+    </div>`;
+  }).join('') || '<div style="padding:12px;text-align:center;font-size:11px;color:var(--text3);">无历史命令</div>';
+
+  renderSidebar();
+}
+
+function closeChat() {
+  selectedSessionId = null;
+  document.getElementById('mainWelcome').style.display = 'flex';
+  document.getElementById('mainChat').style.display = 'none';
+  document.getElementById('mainSettings').classList.remove('open');
+  kbIndex = -1;
+  renderSidebar();
+}
+
+function openSettings() {
+  document.getElementById('mainWelcome').style.display = 'none';
+  document.getElementById('mainChat').style.display = 'none';
+  document.getElementById('mainSettings').classList.add('open');
+  selectedSessionId = null;
+  renderSidebar();
+}
+
+function closeSettings() {
+  document.getElementById('mainSettings').classList.remove('open');
+  document.getElementById('mainWelcome').style.display = 'flex';
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const list = getFilteredSessions();
+  const container = document.getElementById('sbList');
+
+  let html = '';
+  if (list.length === 0) {
+    html = '<div style="padding:20px;text-align:center;font-size:12px;color:var(--text3);">无匹配会话</div>';
+  } else {
+    html = list.map((s, i) => {
+      const isActive = selectedSessionId === s.id;
+      const isKb = i === kbIndex;
+      const isPinned = pinnedSessions.has(s.id);
+      const cls = ['si-item'];
+      if (isActive) cls.push('active');
+      if (isKb) cls.push('kb-active');
+
+      const statusText = s.status === 'thinking' ? '思考中' :
+        s.status === 'working' ? (s.tool || '工作中') :
+        s.status === 'ended' ? '已结束' : '空闲';
+
+      const icon = s.status === 'thinking' ? '💭' :
+        s.status === 'working' ? '⚡' :
+        s.status === 'ended' ? '◼' : '●';
+      const iconStyle = s.status === 'ended' ? 'opacity:0.4' : '';
+
+      return `<div class="${cls.join(' ')}" onclick="selectSession('${s.id}')">
+        <span class="si-icon" style="${iconStyle}">${icon}</span>
+        <div class="si-body">
+          <div class="si-name-row">
+            <span class="si-name-text">${isPinned ? '📌 ' : ''}${s.name}</span>
+            ${s.notifyCount > 0 ? `<span class="si-badge">${s.notifyCount}</span>` : ''}
+          </div>
+          <div class="si-sub">${statusText} · ${s.cwd}</div>
+        </div>
+        <div class="si-acts">
+          <button class="si-act" onclick="event.stopPropagation(); togglePin('${s.id}')" title="置顶">📌</button>
+          <button class="si-act" onclick="event.stopPropagation(); toast('跳转终端: '+ '${s.name}')" title="跳转">↗</button>
+          <button class="si-act" onclick="event.stopPropagation(); toast('重启会话: '+'${s.name}')" title="重启">↻</button>
+          <button class="si-act danger" onclick="event.stopPropagation(); toast('关闭会话: '+'${s.name}')" title="关闭">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  container.innerHTML = html;
+
+  // Footer stats
+  const active = SESSIONS.filter(s => s.status === 'active' || s.status === 'thinking' || s.status === 'working').length;
+  const idle = SESSIONS.filter(s => s.status === 'idle').length;
+  const history = SESSIONS.filter(s => s.status === 'ended').length;
+  document.getElementById('footerStats').textContent = `${active} 活跃 · ${idle} 空闲 · ${history} 历史`;
+}
+
+function updateBadges() {
+  const active = SESSIONS.filter(s => s.status === 'active' || s.status === 'thinking' || s.status === 'working').length;
+  const idle = SESSIONS.filter(s => s.status === 'idle').length;
+  const history = SESSIONS.filter(s => s.status === 'ended').length;
+  document.getElementById('badgeActive').textContent = active;
+  document.getElementById('badgeIdle').textContent = idle;
+  document.getElementById('badgeHistory').textContent = history;
+}
+
+// ====================================================================
+// ACTIVITY POPOVER
+// ====================================================================
+function showActPopover(e, actId) {
+  const a = ACTIVITIES.find(x => x.id === actId);
+  if (!a) return;
+  const pop = document.getElementById('actPopover');
+  const dur = a.end ? ((a.end - a.ts) / 1000).toFixed(1) + 's' : '进行中';
+  const startTime = new Date(a.ts).toLocaleString('zh-CN');
+  const endTime = a.end ? new Date(a.end).toLocaleString('zh-CN') : '-';
+
+  pop.innerHTML = `
+    <div class="act-popover-row"><span class="act-popover-hd">工具</span><span>${a.tool}</span></div>
+    <div class="act-popover-row"><span class="act-popover-hd">开始</span><span>${startTime}</span></div>
+    <div class="act-popover-row"><span class="act-popover-hd">结束</span><span>${endTime}</span></div>
+    <div class="act-popover-row"><span class="act-popover-hd">耗时</span><span>${dur}</span></div>
+    <div class="act-popover-row"><span class="act-popover-hd">状态</span><span style="color:${a.status==='success'?'var(--green)':a.status==='error'?'var(--red)':'var(--yellow)'}">${a.status}</span></div>
+    <div class="act-popover-row"><span class="act-popover-hd">命令</span><span style="font-family:monospace;font-size:10px;">${a.content}</span></div>
+    ${a.result ? `<div class="act-popover-row"><span class="act-popover-hd">结果</span><span>${a.result}</span></div>` : ''}
+  `;
+  pop.classList.add('show');
+
+  const rect = e.target.closest('.cmd-item')?.getBoundingClientRect() || e.target.getBoundingClientRect();
+  let left = rect.right + 8;
+  let top = rect.top;
+  if (left + 320 > window.innerWidth) left = rect.left - 328;
+  if (top + 200 > window.innerHeight) top = window.innerHeight - 210;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+}
+
+function hideActPopover() {
+  document.getElementById('actPopover').classList.remove('show');
+}
+
+// ====================================================================
+// KEYBOARD SHORTCUTS
+// ====================================================================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'f') {
+    e.preventDefault();
+    openDesktop();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+// ====================================================================
+// TOAST
+// ====================================================================
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toastEl');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// ====================================================================
+// INIT
+// ====================================================================
+updateIslandStatus();
+renderIslandPanel();
+renderSidebar();
+updateBadges();
+</script>
+</body>
+</html>

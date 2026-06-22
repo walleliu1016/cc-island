@@ -31,6 +31,12 @@ use tauri::menu::{Menu, MenuItem};
 
 #[cfg(feature = "desktop")]
 use tauri::Manager;
+#[cfg(feature = "desktop")]
+use tauri::Emitter;
+#[cfg(feature = "desktop")]
+use tauri::WebviewUrl;
+#[cfg(feature = "desktop")]
+use tauri::WebviewWindowBuilder;
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -106,6 +112,7 @@ pub struct AppState {
     pub cloud_stop_signal: Option<tokio::sync::watch::Sender<bool>>,  // Stop signal for reconnect loop
     pub jsonl_watcher: Option<JsonlWatcherHandle>,  // JSONL file watcher
     pub history_store: history_store::HistoryStore,
+    pub desktop_window_open: bool,
 }
 
 impl AppState {
@@ -123,6 +130,7 @@ impl AppState {
             cloud_stop_signal: None,
             jsonl_watcher: None,
             history_store: history_store::HistoryStore::new(),
+            desktop_window_open: false,
         }
     }
 
@@ -296,6 +304,118 @@ fn minimize_window(window: tauri::Window) -> Result<(), String> {
 #[tauri::command]
 fn close_window(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn toggle_maximize(window: tauri::Window) -> Result<(), String> {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn set_min_size(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
+    use tauri::Size;
+    window.set_min_size(Some(Size::Logical(tauri::LogicalSize { width: width as f64, height: height as f64 })))
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn set_resizable(window: tauri::Window, resizable: bool) -> Result<(), String> {
+    window.set_resizable(resizable).map_err(|e| e.to_string())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn get_window_label(window: tauri::Window) -> String {
+    window.label().to_string()
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn open_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
+    // Check if desktop window already exists
+    if let Some(window) = app.get_webview_window("desktop") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        // Update state
+        let mut state = SHARED_STATE.write();
+        state.desktop_window_open = true;
+        // Emit state change
+        let _ = app.emit("desktop-window-state", true);
+        return Ok(());
+    }
+
+    // Create new desktop window
+    let window = WebviewWindowBuilder::new(&app, "desktop", WebviewUrl::App("index.html".into()))
+        .title("CC-Island Desktop")
+        .inner_size(960.0, 640.0)
+        .min_inner_size(640.0, 480.0)
+        .resizable(true)
+        .decorations(false)
+        .always_on_top(false)
+        .skip_taskbar(false)
+        .center()
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Open devtools in debug mode
+    #[cfg(debug_assertions)]
+    window.open_devtools();
+
+    // Clone app handle for event handler
+    let app_clone = app.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let window = app_clone.get_webview_window("desktop").unwrap();
+            let _ = window.hide();
+            let mut state = SHARED_STATE.write();
+            state.desktop_window_open = false;
+            let _ = app_clone.emit("desktop-window-state", false);
+        }
+    });
+
+    // Update state
+    let mut state = SHARED_STATE.write();
+    state.desktop_window_open = true;
+    let _ = app.emit("desktop-window-state", true);
+
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn close_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("desktop") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    let mut state = SHARED_STATE.write();
+    state.desktop_window_open = false;
+    let _ = app.emit("desktop-window-state", false);
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
+fn get_desktop_window_state() -> bool {
+    let state = SHARED_STATE.read();
+    state.desktop_window_open
 }
 
 #[cfg(feature = "desktop")]
@@ -1028,8 +1148,12 @@ pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                // When second instance tries to start, focus the existing window
+                // When second instance tries to start, focus both existing windows
                 let _ = app.get_webview_window("main").map(|w| {
+                    w.set_focus().ok();
+                    w.show().ok();
+                });
+                let _ = app.get_webview_window("desktop").map(|w| {
                     w.set_focus().ok();
                     w.show().ok();
                 });
@@ -1041,6 +1165,14 @@ pub fn run() {
                 set_skip_taskbar,
                 minimize_window,
                 close_window,
+                toggle_maximize,
+                set_min_size,
+                set_resizable,
+                get_window_label,
+                open_desktop_window,
+                close_desktop_window,
+                show_main_window,
+                get_desktop_window_state,
                 get_instances,
                 get_popups,
                 get_recent_activities,

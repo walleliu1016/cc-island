@@ -2,7 +2,7 @@
   "$schema": "https://schemas.tauri.app/config/2/capability",
   "identifier": "default",
   "description": "Default capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "desktop"],
   "permissions": [
     "core:window:default",
     "core:window:allow-outer-position",
@@ -11,8 +11,16 @@
     "core:window:allow-primary-monitor",
     "core:window:allow-start-dragging",
     "core:window:allow-scale-factor",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-unminimize",
+    "core:window:allow-show",
+    "core:window:allow-hide",
     "core:webview:default",
     "core:app:default",
+    "core:event:default",
     "shell:allow-open"
   ]
 }
