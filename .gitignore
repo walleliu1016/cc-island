@@ -55,5 +55,9 @@ coverage/
 *.temp
 .cache/
 
+# Worktrees
+.worktrees/
+worktrees/
+
 # Debug files
 /tmp/

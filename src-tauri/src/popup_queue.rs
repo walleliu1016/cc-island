@@ -104,6 +104,7 @@ pub struct WaitingContext {
     pub popup_id: String,
     pub responder: oneshot::Sender<PopupResponse>,
     pub timeout: std::time::Instant,
+    pub created_at: std::time::Instant,
 }
 
 /// Manages popup queue
@@ -114,6 +115,11 @@ pub struct PopupQueue {
 }
 
 use std::collections::HashMap;
+
+/// Minimum age before a popup can be cancelled by non-blocking events.
+/// Prevents race conditions where PreToolUse arrives milliseconds after
+/// PermissionRequest and cancels the just-created popup.
+const CANCEL_GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10);
 
 impl PopupQueue {
     pub fn new() -> Self {
@@ -168,11 +174,17 @@ impl PopupQueue {
 
     /// Register a waiter for blocking response
     pub fn register_waiter(&mut self, popup_id: String, responder: oneshot::Sender<PopupResponse>, timeout_secs: u64) {
-        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+        let now = std::time::Instant::now();
+        let timeout = now + std::time::Duration::from_secs(timeout_secs);
+        tracing::info!(
+            "Popup registered: id={}, timeout_secs={}",
+            popup_id, timeout_secs
+        );
         self.waiting.insert(popup_id.clone(), WaitingContext {
             popup_id,
             responder,
             timeout,
+            created_at: now,
         });
     }
 
@@ -180,6 +192,10 @@ impl PopupQueue {
     pub fn resolve(&mut self, response: PopupResponse) -> bool {
 
         if let Some(waiting) = self.waiting.remove(&response.popup_id) {
+            tracing::info!(
+                "Popup explicitly resolved by user: id={}, decision={:?}",
+                response.popup_id, response.decision
+            );
             // Update popup status
             if let Some(popup) = self.get_mut(&response.popup_id) {
                 popup.status = PopupStatus::Resolved;
@@ -204,6 +220,10 @@ impl PopupQueue {
 
         for id in &timed_out {
             if let Some(waiting) = self.waiting.remove(id) {
+                tracing::warn!(
+                    "Popup TIMEOUT: id={}, timeout was at {:?}, now={:?}",
+                    id, waiting.timeout, now
+                );
                 // Auto-deny permission, empty answer for ask
                 let auto_response = PopupResponse {
                     popup_id: id.clone(),
@@ -242,12 +262,39 @@ impl PopupQueue {
     }
 
     /// Cancel all pending popups for a session (when session ends)
+    /// Skips popups created less than GRACE_PERIOD ago to avoid cancelling
+    /// freshly created PermissionRequest popups when non-blocking events
+    /// (e.g. PreToolUse) arrive for the same session.
+    const CANCEL_GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10);
+
     pub fn cancel_session_popups(&mut self, session_id: &str) -> Vec<String> {
+        let now = std::time::Instant::now();
         let cancelled_ids: Vec<String> = self.queue
             .iter()
             .filter(|p| p.session_id == session_id && p.status == PopupStatus::Pending)
+            .filter(|p| {
+                // Skip recently created popups to avoid race conditions
+                if let Some(w) = self.waiting.get(&p.id) {
+                    let age = now - w.created_at;
+                    if age < CANCEL_GRACE_PERIOD {
+                        tracing::warn!(
+                            "cancel_session_popups: SKIPPING popup {} (age={}ms < grace={}ms)",
+                            p.id, age.as_millis(), CANCEL_GRACE_PERIOD.as_millis()
+                        );
+                        return false;
+                    }
+                }
+                true
+            })
             .map(|p| p.id.clone())
             .collect();
+
+        if !cancelled_ids.is_empty() {
+            tracing::warn!(
+                "cancel_session_popups: session={}, cancelling {} popups: {:?}",
+                session_id, cancelled_ids.len(), cancelled_ids
+            );
+        }
 
         for id in &cancelled_ids {
             // Send deny response to waiting hooks

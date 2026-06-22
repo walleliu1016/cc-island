@@ -143,6 +143,10 @@ async fn handle_hook(
             let mut state_guard = state.write();
 
             // Cancel any old pending popups for this session (prevent duplicate popups)
+            tracing::info!(
+                "Blocking event '{}': cancelling old popups for session {} before creating new one",
+                hook_event, input.session_id
+            );
             state_guard.popups.cancel_session_popups(&input.session_id);
 
             // Create popup item
@@ -201,6 +205,10 @@ async fn handle_hook(
 
             state_guard.popups.add(popup);
             state_guard.popups.register_waiter(popup_id.clone(), tx, timeout_secs);
+            tracing::info!(
+                "Blocking popup created: id={}, session={}, event={}, timeout_secs={}",
+                popup_id, input.session_id, hook_event, timeout_secs
+            );
 
             (questions, input.hook_event_name.clone(), elicitation_questions, tool_name, tool_input, popup_for_broadcast)
         };
@@ -212,6 +220,10 @@ async fn handle_hook(
         // Wait for response (with timeout handled in popup_queue)
         match rx.await {
             Ok(response) => {
+                tracing::info!(
+                    "Blocking popup RESOLVED: id={}, decision={:?}, answer={:?}",
+                    popup_id, response.decision, response.answer
+                );
                 // Build hook output per docs/hook-reference.md format
                 let output = build_hook_output(
                     &hook_event_name,
@@ -236,6 +248,10 @@ async fn handle_hook(
             }
             Err(_) => {
                 // Timeout - return deny decision
+                tracing::warn!(
+                    "Blocking popup TIMEOUT (channel closed): id={}, session={}, event={}",
+                    popup_id, input.session_id, hook_event
+                );
                 build_timeout_output(&hook_event_name)
             }
         }
