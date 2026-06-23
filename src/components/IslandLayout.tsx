@@ -12,6 +12,7 @@ import { ChatView } from './ChatView';
 import { ClaudeCrabIcon, ProcessingSpinner, PermissionIndicatorIcon, MenuIcon } from './StatusIcons';
 import { getCornerRadii, generateNotchPath } from './NotchShape';
 import { ClaudeInstance, PopupItem, HooksCheckResult, SessionNotification } from '../types';
+import { getTheme } from '../theme';
 
 const COLLAPSED_WIDTH = 300;
 const COLLAPSED_HEIGHT = 38;
@@ -30,6 +31,8 @@ export function IslandLayout() {
     isDesktopWindowOpen, setDesktopWindowOpen,
   } = useAppStore();
   const { headerDisplay, updateDisplays } = useDisplayStore();
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const [showSettings, setShowSettings] = useState(false);
   const [hooksCheckResult, setHooksCheckResult] = useState<HooksCheckResult | null>(null);
   const [showHooksSetup, setShowHooksSetup] = useState(false);
@@ -271,7 +274,7 @@ export function IslandLayout() {
           className="absolute inset-0 pointer-events-none" style={{ zIndex: -1 }}
         >
           <motion.path
-            d={notchPath} fill="black"
+            d={notchPath} fill={colors.bgApp}
             initial={false}
             animate={{ d: notchPath }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
@@ -291,15 +294,15 @@ export function IslandLayout() {
 
           <div className="flex-1 flex items-center justify-center overflow-hidden mx-2 min-w-0">
             {showChatView ? (
-              <span className="text-white/70 text-xs font-medium truncate">
+              <span className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>
                 {selectedInstance?.project_name || 'Chat'}
               </span>
             ) : headerText ? (
-              <span className="text-white/70 text-xs font-medium truncate">{headerText}</span>
+              <span className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>{headerText}</span>
             ) : showExpanded ? (
-              <span className="text-white/70 text-xs font-medium truncate">{productName}</span>
+              <span className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>{productName}</span>
             ) : sessionNotification ? (
-              <span className="text-white/70 text-xs font-medium truncate">
+              <span className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>
                 {sessionNotification.notification_type === 'started'
                   ? `${sessionNotification.project_name}已启动`
                   : `${sessionNotification.project_name}已停止`}
@@ -318,20 +321,25 @@ export function IslandLayout() {
                 >
                   {cloudStatus.connected ? <span className="text-green-400 text-xs">☁</span>
                   : cloudStatus.connecting ? <span className="text-yellow-400 text-xs animate-pulse">☁</span>
-                  : <span className="text-white/30 text-xs">☁</span>}
+                  : <span className="text-xs" style={{ color: colors.textMuted }}>☁</span>}
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="text-white/40 hover:text-white/70 transition-colors p-1"
+                  className="transition-colors p-1"
+                  style={{ color: colors.textMuted }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
                 ><MenuIcon size={14} /></button>
                 {/* Desktop window button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleOpenDesktop(); }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="text-white/40 hover:text-white/70 transition-colors p-1"
+                  className="transition-colors p-1"
                   title="打开桌面窗口"
-                  style={{ color: isDesktopWindowOpen ? '#a855f7' : undefined }}
+                  style={{ color: isDesktopWindowOpen ? '#a855f7' : colors.textMuted }}
+                  onMouseEnter={e => { if (!isDesktopWindowOpen) e.currentTarget.style.color = colors.textPrimary; }}
+                  onMouseLeave={e => { if (!isDesktopWindowOpen) e.currentTarget.style.color = colors.textMuted; }}
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                     <rect x="1" y="1" width="12" height="10" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
@@ -377,7 +385,7 @@ export function IslandLayout() {
                   />
                 )}
                 {activeInstances.length === 0 && useAppStore.getState().historySessions.length === 0 && (
-                  <div className="text-white/30 text-xs text-center py-4">No active sessions</div>
+                  <div className="text-xs text-center py-4" style={{ color: colors.textMuted }}>No active sessions</div>
                 )}
               </div>
             </motion.div>

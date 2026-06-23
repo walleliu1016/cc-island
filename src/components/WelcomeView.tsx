@@ -87,7 +87,13 @@ export function CreateSessionModal({
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>新建 Claude 会话</h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
+          >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
               <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
             </svg>
@@ -136,7 +142,7 @@ export function CreateSessionModal({
             className="w-full px-3 py-2 rounded-md text-sm outline-none transition-colors resize-none"
             style={{ background: colors.bgInput, border: `1px solid ${colors.bgInputBorder}`, color: colors.textPrimary }}
             onFocus={e => (e.target.style.borderColor = 'rgba(124,58,237,0.4)')}
-            onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
+            onBlur={e => (e.target.style.borderColor = colors.bgInputBorder)}
           />
         </div>
 
@@ -153,8 +159,8 @@ export function CreateSessionModal({
                   <option key={m} value={m} style={{ background: colors.selectOptionBg, color: colors.selectOptionText }}>{m}</option>
                 ))}
               </select>
-              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
-                <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ color: colors.textMuted }}>
+                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
             </div>
           </div>
@@ -169,8 +175,8 @@ export function CreateSessionModal({
                   <option key={m.value} value={m.value} style={{ background: colors.selectOptionBg, color: colors.selectOptionText }}>{m.label}</option>
                 ))}
               </select>
-              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
-                <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+              <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ color: colors.textMuted }}>
+                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
             </div>
           </div>
@@ -202,7 +208,7 @@ export function CreateSessionModal({
           className="w-full py-2 rounded-md text-sm font-semibold transition-all"
           style={{
             background: creating || !projectPath.trim() ? 'rgba(124,58,237,0.2)' : 'linear-gradient(135deg, #7c3aed, #8b5cf6)',
-            color: creating || !projectPath.trim() ? '#64748b' : '#f1f5f9',
+            color: creating || !projectPath.trim() ? colors.textMuted : '#f1f5f9',
             cursor: creating || !projectPath.trim() ? 'not-allowed' : 'pointer',
             boxShadow: creating || !projectPath.trim() ? 'none' : '0 4px 16px rgba(124,58,237,0.25)',
           }}
@@ -225,7 +231,13 @@ function HistoryModal({ sessions, onSelect, onClose }: { sessions: ClaudeInstanc
       >
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>全部历史会话 ({sessions.length})</h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
+          >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
               <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
             </svg>
@@ -237,19 +249,19 @@ function HistoryModal({ sessions, onSelect, onClose }: { sessions: ClaudeInstanc
               onClick={() => { onSelect(session.session_id); onClose(); }}
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left group"
               style={{ background: 'transparent' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+              onMouseEnter={e => (e.currentTarget.style.background = colors.bgCardHover)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <div className="flex items-center justify-center font-bold text-white flex-shrink-0 rounded-md"
-                style={{ width: 24, height: 24, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11 }}
+              <div className="flex items-center justify-center font-bold flex-shrink-0 rounded-md"
+                style={{ width: 24, height: 24, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11, color: '#f1f5f9' }}
               >{(session.project_name || '?').charAt(0).toUpperCase()}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs truncate" style={{ color: colors.textPrimary }}>{session.project_name || 'Unknown'}</div>
-                {session.first_prompt && (
-                  <div className="text-[10px] truncate mt-0.5" style={{ color: colors.textMuted }}>{session.first_prompt}</div>
+                {(session.ai_title || session.first_prompt) && (
+                  <div className="text-[10px] truncate mt-0.5" style={{ color: colors.textMuted }}>{session.ai_title || session.first_prompt}</div>
                 )}
               </div>
-              <span className="text-[10px] text-[#64748b] flex-shrink-0">
+              <span className="text-[10px] flex-shrink-0" style={{ color: colors.textMuted }}>
                 {session.ended_at ? new Date(session.ended_at * 1000).toLocaleDateString() : ''}
               </span>
             </button>
@@ -276,8 +288,8 @@ export function WelcomeView({ productName, models, historySessions, onSelectSess
         {/* Logo + Title */}
         <div className="flex items-center gap-4 mb-8 justify-center">
           <div
-            className="flex items-center justify-center font-extrabold text-white flex-shrink-0"
-            style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', fontSize: 22, boxShadow: '0 8px 24px rgba(124,58,237,0.25)' }}
+            className="flex items-center justify-center font-extrabold flex-shrink-0"
+            style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', fontSize: 22, boxShadow: '0 8px 24px rgba(124,58,237,0.25)', color: '#f1f5f9' }}
           >{initials}</div>
           <div>
             <div className="text-xl font-bold" style={{ color: colors.textPrimary }}>{productName || 'CC-Island'}</div>
@@ -321,19 +333,19 @@ export function WelcomeView({ productName, models, historySessions, onSelectSess
                   onMouseEnter={e => (e.currentTarget.style.background = colors.bgCard)}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div className="flex items-center justify-center font-bold text-white flex-shrink-0 rounded-md"
-                    style={{ width: 24, height: 24, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11 }}
+                  <div className="flex items-center justify-center font-bold flex-shrink-0 rounded-md"
+                    style={{ width: 24, height: 24, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11, color: '#f1f5f9' }}
                   >{(session.project_name || '?').charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs truncate" style={{ color: colors.textPrimary }}>{session.project_name || 'Unknown'}</div>
-                    {session.first_prompt && (
-                      <div className="text-xs text-[#64748b] truncate mt-0.5">{session.first_prompt}</div>
+                    {(session.ai_title || session.first_prompt) && (
+                      <div className="text-xs truncate mt-0.5" style={{ color: colors.textMuted }}>{(session.ai_title || session.first_prompt)}</div>
                     )}
                   </div>
                   <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: colors.textMuted }}>
                     {session.ended_at ? new Date(session.ended_at * 1000).toLocaleDateString() : ''}
                   </span>
-                  <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" className="text-white/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: colors.textMuted }}>
                     <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
@@ -355,7 +367,7 @@ export function WelcomeView({ productName, models, historySessions, onSelectSess
             )}
           </div>
         ) : (
-          <div className="text-center py-6 text-xs text-[#64748b]">
+          <div className="text-center py-6 text-xs" style={{ color: colors.textMuted }}>
             暂无历史会话
           </div>
         )}

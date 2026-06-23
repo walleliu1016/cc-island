@@ -168,6 +168,27 @@ impl JsonlWatcherManager {
             }
         }
 
+        // Extract ai_title from new messages (first assistant text block)
+        {
+            let needs_title = {
+                let state = app_state.read();
+                state.instances.get_instance(&session_id.to_string())
+                    .map(|i| i.ai_title.is_none())
+                    .unwrap_or(false)
+            };
+            if needs_title {
+                if let Some(title) = ConversationParser::extract_ai_title_from_messages(&new_messages) {
+                    let mut state = app_state.write();
+                    if let Some(instance) = state.instances.get_instance_mut(&session_id.to_string()) {
+                        if instance.ai_title.is_none() {
+                            instance.ai_title = Some(title);
+                            info!("📁 Extracted ai_title for session {}: {}", session_id, instance.ai_title.as_deref().unwrap_or("?"));
+                        }
+                    }
+                }
+            }
+        }
+
         // Convert and push
         let chat_messages = ConversationParser::to_chat_messages(new_messages);
         let msg_count = chat_messages.len();

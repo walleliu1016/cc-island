@@ -6,6 +6,8 @@ import { ClaudeInstance } from '../types';
 import { calculateDisplayName } from '../utils/displayName';
 import { formatTimeAgo } from '../utils/timeFormat';
 import { RestartDialog } from './RestartDialog';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 interface HistorySessionsProps {
   instances: ClaudeInstance[];
@@ -14,10 +16,12 @@ interface HistorySessionsProps {
 
 export function HistorySessions({ instances, onViewChat }: HistorySessionsProps) {
   const [restartTarget, setRestartTarget] = useState<ClaudeInstance | null>(null);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   if (instances.length === 0) {
     return (
-      <div className="text-white/30 text-xs text-center py-4">
+      <div className="text-xs text-center py-4" style={{ color: colors.textMuted }}>
         暂无历史会话
       </div>
     );
@@ -61,36 +65,41 @@ function HistorySessionRow({ instance, allInstances, onClick, onRestart }: Histo
   const displayName = calculateDisplayName(instance, allInstances);
   const timeAgo = formatTimeAgo(instance.ended_at || instance.last_activity_at);
   const firstPrompt = instance.first_prompt;
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={onClick}
-      className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/[0.04] transition-colors"
+      className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors"
+      style={{ background: 'transparent' }}
+      onMouseEnter={e => (e.currentTarget.style.background = colors.bgCardHover)}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       {/* Gray status dot */}
-      <div className="w-3 h-3 rounded-full bg-white/20 flex-shrink-0" />
+      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: colors.bgInputBorder }} />
 
       {/* Display name */}
-      <span className="text-white/50 text-xs truncate flex-1 min-w-0">
+      <span className="text-xs truncate flex-1 min-w-0" style={{ color: colors.textMuted }}>
         {displayName}
       </span>
 
       {/* First prompt snippet */}
       {firstPrompt && (
-        <span className="text-white/30 text-xs truncate max-w-[120px] hidden sm:block">
+        <span className="text-xs truncate max-w-[120px] hidden sm:block" style={{ color: colors.textMuted }}>
           {firstPrompt}
         </span>
       )}
 
       {/* Time ago */}
-      <span className="text-white/30 text-xs shrink-0">
+      <span className="text-xs shrink-0" style={{ color: colors.textMuted }}>
         {timeAgo}
       </span>
 
       {/* Ended badge */}
-      <span className="px-1.5 py-0.5 rounded text-xs text-white/30 bg-white/[0.06] shrink-0">
+      <span className="px-1.5 py-0.5 rounded text-xs shrink-0" style={{ color: colors.textMuted, background: colors.bgCardHover }}>
         已结束
       </span>
 
@@ -100,7 +109,10 @@ function HistorySessionRow({ instance, allInstances, onClick, onRestart }: Histo
           e.stopPropagation();
           onRestart();
         }}
-        className="px-2 py-0.5 text-xs text-white/60 hover:text-white bg-white/[0.06] hover:bg-purple-600/80 rounded transition-colors shrink-0"
+        className="px-2 py-0.5 text-xs rounded transition-colors shrink-0"
+        style={{ color: colors.textMuted, background: colors.bgCardHover }}
+        onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = 'rgba(124,58,237,0.6)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = colors.bgCardHover; }}
       >
         ↻ 重启
       </button>

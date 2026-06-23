@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ClaudeInstance, PopupItem } from '../types';
 import { calculateDisplayName, calculateTooltip } from '../utils/displayName';
 import { formatTimeAgo } from '../utils/timeFormat';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 interface FoldedSessionsProps {
   instances: ClaudeInstance[];
@@ -24,6 +26,8 @@ export function FoldedSessions({
   onContextMenu,
 }: FoldedSessionsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   if (instances.length === 0) return null;
 
@@ -32,7 +36,10 @@ export function FoldedSessions({
       {/* Folded header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-3 py-1.5 text-xs text-white/40 hover:text-white/60 hover:bg-white/[0.04] rounded-lg transition-colors flex items-center justify-between"
+        className="w-full px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center justify-between"
+        style={{ color: colors.textMuted }}
+        onMouseEnter={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = colors.bgCardHover; }}
+        onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
       >
         <span>空闲会话 ({instances.length})</span>
         <motion.span
@@ -95,6 +102,8 @@ function FoldedInstanceRow({
   const displayName = calculateDisplayName(instance, allInstances);
   const tooltip = calculateTooltip(instance);
   const pendingPopup = popups.find(p => p.session_id === instance.session_id && p.status === 'pending');
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   return (
     <motion.div
@@ -102,18 +111,21 @@ function FoldedInstanceRow({
       animate={{ opacity: 1, y: 0 }}
       onContextMenu={(e) => onContextMenu?.(e, instance)}
       title={tooltip}
-      className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/[0.04] transition-colors"
+      className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors"
+      style={{ background: 'transparent' }}
+      onMouseEnter={e => (e.currentTarget.style.background = colors.bgCardHover)}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       {/* Status indicator */}
-      <div className="w-3 h-3 rounded-full bg-white/20 flex-shrink-0" />
+      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: colors.bgInputBorder }} />
 
       {/* Name */}
-      <span className="text-white/50 text-xs truncate flex-1">
+      <span className="text-xs truncate flex-1" style={{ color: colors.textMuted }}>
         {displayName}
       </span>
 
       {/* Time ago */}
-      <span className="text-white/30 text-xs">
+      <span className="text-xs" style={{ color: colors.textMuted }}>
         {formatTimeAgo(instance.last_activity_at)}
       </span>
 
@@ -128,7 +140,10 @@ function FoldedInstanceRow({
               onRespond?.(pendingPopup.id, 'allow');
             }
           }}
-          className="px-2 py-0.5 text-xs text-black bg-white hover:bg-white/90 rounded transition-colors"
+          className="px-2 py-0.5 text-xs rounded transition-colors"
+          style={{ background: colors.bgApp, color: colors.textPrimary }}
+          onMouseEnter={e => (e.currentTarget.style.background = colors.bgCardHover)}
+          onMouseLeave={e => (e.currentTarget.style.background = colors.bgApp)}
         >
           {pendingPopup.type === 'ask' ? '回答' : '允许'}
         </button>

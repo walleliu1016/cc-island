@@ -839,6 +839,24 @@ impl ConversationParser {
         }
         result
     }
+
+    /// Extract AI title from first assistant text block (not thinking/tool use)
+    pub fn extract_ai_title_from_messages(messages: &[ConversationMessage]) -> Option<String> {
+        for msg in messages {
+            if msg.role != MessageRole::Assistant {
+                continue;
+            }
+            for block in &msg.content {
+                if let MessageBlock::Text { text } = block {
+                    let cleaned = text.trim();
+                    if !cleaned.is_empty() && cleaned.len() > 5 {
+                        return Some(Self::truncate_chars(cleaned, 60));
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 impl Default for ConversationParser {

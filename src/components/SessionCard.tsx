@@ -6,6 +6,8 @@ import { ClaudeInstance, PopupItem, InstanceStatus } from '../types';
 import { calculateDisplayName, calculateTooltip } from '../utils/displayName';
 import { formatTimeAgo, formatRunningDuration } from '../utils/timeFormat';
 import { getStatusColor, hexToRgba } from '../utils/statusColors';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 // ActivityPopup imported for expand button functionality
 import { ActivityPopup } from './ActivityPopup';
@@ -127,6 +129,8 @@ export function SessionCard({
   const [isHovered, setIsHovered] = useState(false);
   const [showActivityPopup, setShowActivityPopup] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   // Get status color config
   const statusColor = getStatusColor(instance.status);
@@ -186,15 +190,32 @@ export function SessionCard({
       <div className="flex items-center gap-2 px-3 py-2 ml-1">
         {/* Project name + first_prompt subtitle */}
         <div className="flex-1 min-w-0 flex items-baseline gap-2 overflow-hidden">
-          <span className="text-white text-sm font-medium truncate shrink-0 max-w-[60%]">
+          <span className="text-sm font-medium truncate shrink-0 max-w-[60%]" style={{ color: colors.textPrimary }}>
             {displayName}
           </span>
-          {instance.first_prompt && (
+          {instance.ai_title && (
             <span
-              className="text-white/45 text-xs truncate transition-all duration-200 hover:text-white/70"
+              className="text-xs truncate transition-all duration-200"
               style={{
                 maxWidth: isHovered ? '320px' : '160px',
+                color: colors.textMuted,
               }}
+              onMouseEnter={e => (e.currentTarget.style.color = colors.textSecondary)}
+              onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}
+              title={instance.ai_title}
+            >
+              · {instance.ai_title}
+            </span>
+          )}
+          {!instance.ai_title && instance.first_prompt && (
+            <span
+              className="text-xs truncate transition-all duration-200"
+              style={{
+                maxWidth: isHovered ? '320px' : '160px',
+                color: colors.textMuted,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = colors.textSecondary)}
+              onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}
               title={instance.first_prompt}
             >
               · {instance.first_prompt}
@@ -208,7 +229,7 @@ export function SessionCard({
         </div>
 
         {/* Running duration (for active) or start time ago (for ended) */}
-        <span className="text-white/50 text-xs">
+        <span className="text-xs" style={{ color: colors.textMuted }}>
           {isEnded ? startTimeAgo : runningDuration}
         </span>
       </div>
@@ -226,7 +247,7 @@ export function SessionCard({
               }}
             >
               <span style={{ color: statusColor.border }}>⚡</span>
-              <span className="text-white/80 truncate max-w-[120px]">
+              <span className="truncate max-w-[120px]" style={{ color: colors.textPrimary }}>
                 {formatToolName(currentCommand)}
                 {toolInput && `: ${truncateContent(toolInput, 20)}`}
               </span>
@@ -235,7 +256,7 @@ export function SessionCard({
 
           {/* Separator if both exist */}
           {currentCommand && displayHistory.length > 0 && (
-            <span className="text-white/30 shrink-0">|</span>
+            <span className="shrink-0" style={{ color: colors.textMuted }}>|</span>
           )}
 
           {/* Tool chips using CSS class */}
@@ -256,7 +277,10 @@ export function SessionCard({
           {hasMoreHistory && (
             <button
               onClick={() => setShowActivityPopup(!showActivityPopup)}
-              className="px-1.5 py-0.5 rounded text-white/50 hover:text-white/70 hover:bg-white/[0.08] transition-colors flex items-center gap-0.5 shrink-0"
+              className="px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5 shrink-0"
+              style={{ color: colors.textMuted }}
+              onMouseEnter={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = colors.bgCardHover; }}
+              onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
             >
               <span>+{extraCount}</span>
               <span className="text-[10px]">▾</span>
@@ -272,7 +296,10 @@ export function SessionCard({
               // Ask question button
               <button
                 onClick={() => onViewAsk?.(instance.session_id)}
-                className="px-2.5 py-1 text-xs font-medium text-white bg-[#7c3aed] hover:bg-[#6d28d9] rounded-lg transition-colors"
+                className="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
+                style={{ background: '#7c3aed', color: '#f1f5f9' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#6d28d9')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#7c3aed')}
               >
                 去回答
               </button>
@@ -281,13 +308,19 @@ export function SessionCard({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => onRespond?.(pendingPopup.id, 'deny')}
-                  className="px-2.5 py-1 text-xs font-medium text-white/80 bg-white/[0.06] hover:bg-red-500/80 hover:text-white rounded-lg transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
+                  style={{ background: colors.bgCardHover, color: colors.textPrimary }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#f1f5f9'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = colors.bgCardHover; e.currentTarget.style.color = colors.textPrimary; }}
                 >
                   Deny
                 </button>
                 <button
                   onClick={() => onRespond?.(pendingPopup.id, 'allow')}
-                  className="px-2.5 py-1 text-xs font-medium text-white bg-[#10b981] hover:bg-[#059669] rounded-lg transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
+                  style={{ background: '#10b981', color: '#f1f5f9' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#059669')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
                 >
                   Allow
                 </button>
@@ -300,7 +333,10 @@ export function SessionCard({
               {buttonStyle === 'compact' ? (
                 <button
                   onClick={() => onViewChat?.(instance.session_id)}
-                  className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                  className="p-1.5 rounded transition-colors"
+                  style={{ color: colors.textMuted }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = colors.bgCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
                   title="View chat"
                 >
                   💬
@@ -308,7 +344,10 @@ export function SessionCard({
               ) : (
                 <button
                   onClick={() => onViewChat?.(instance.session_id)}
-                  className="flex items-center gap-1 px-2 py-1 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded transition-colors"
+                  style={{ color: colors.textMuted }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
                   title="View chat"
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -323,7 +362,10 @@ export function SessionCard({
                 buttonStyle === 'compact' ? (
                   <button
                     onClick={() => onJump(instance.session_id)}
-                    className="p-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.08] rounded transition-colors"
+                    className="p-1.5 rounded transition-colors"
+                    style={{ color: colors.textMuted }}
+                    onMouseEnter={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = colors.bgCardHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
                     title="Jump to terminal"
                   >
                     ⌨️
@@ -331,7 +373,10 @@ export function SessionCard({
                 ) : (
                   <button
                     onClick={() => onJump(instance.session_id)}
-                    className="p-1.5 text-white/60 hover:text-white/80 hover:bg-white/[0.08] rounded transition-colors"
+                    className="p-1.5 rounded transition-colors"
+                    style={{ color: colors.textMuted }}
+                    onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
                     title="Jump to terminal"
                   >
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">

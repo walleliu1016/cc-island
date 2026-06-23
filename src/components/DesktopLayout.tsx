@@ -291,7 +291,8 @@ export function DesktopLayout() {
     const q = searchQuery.toLowerCase();
     return list.filter(i =>
       i.project_name.toLowerCase().includes(q) ||
-      (i.first_prompt && i.first_prompt.toLowerCase().includes(q))
+      (i.first_prompt && i.first_prompt.toLowerCase().includes(q)) ||
+      (i.ai_title && i.ai_title.toLowerCase().includes(q))
     );
   };
 
@@ -342,10 +343,11 @@ export function DesktopLayout() {
           <div
             className={`w-1.5 h-1.5 rounded-full ${
               cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
-              cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : 'bg-white/20'
+              cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : ''
             }`}
+            style={(!cloudStatus.connected && !cloudStatus.connecting) ? { background: colors.bgCardHover } : undefined}
           />
-          <span className="text-[10px]" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : '#64748b' }}>
+          <span className="text-[10px]" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : colors.textMuted }}>
             {cloudStatus.connected ? '已连接' : cloudStatus.connecting ? '连接中...' : '未连接'}
           </span>
         </div>
@@ -372,7 +374,10 @@ export function DesktopLayout() {
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={async () => { try { await invoke('toggle_cloud_connection'); } catch (e) { /* noop */ } }}
-          className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs mr-1"
+          className="h-7 px-2 rounded-md transition-colors text-xs mr-1"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
           title="切换云连接"
         >
           ☁
@@ -401,7 +406,10 @@ export function DesktopLayout() {
         {/* Settings */}
         <button
           onMouseDown={(e) => { e.stopPropagation(); setSelectedSessionId(null); setMainView('settings'); }}
-          className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors text-xs mr-1"
+          className="h-7 px-2 rounded-md transition-colors text-xs mr-1"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
           title="设置"
         >
           ⚙ 设置
@@ -411,14 +419,20 @@ export function DesktopLayout() {
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleMinimize}
-          className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          className="h-7 px-2 rounded-md transition-colors"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="6" width="8" height="2" rx="0.5"/></svg>
         </button>
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleMaximize}
-          className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          className="h-7 px-2 rounded-md transition-colors"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
         >
           {isMaximized ? (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -432,7 +446,10 @@ export function DesktopLayout() {
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleClose}
-          className="h-7 px-2 rounded-md text-white/50 hover:text-white hover:bg-red-500/80 transition-colors"
+          className="h-7 px-2 rounded-md transition-colors"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = 'rgba(239,68,68,0.6)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
         </button>
@@ -449,7 +466,10 @@ export function DesktopLayout() {
           >
             <button
               onClick={() => setSidebarCollapsed(false)}
-              className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+              className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+              style={{ color: colors.textMuted }}
+              onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+              onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
               title="展开侧边栏"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -509,7 +529,10 @@ export function DesktopLayout() {
             })}
             <button
               onClick={() => setSidebarCollapsed(true)}
-              className="w-7 h-7 rounded-md flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors flex-shrink-0"
+              className="w-7 h-7 rounded-md flex items-center justify-center transition-colors flex-shrink-0"
+              style={{ color: colors.textMuted, opacity: 0.6 }}
+              onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = colors.bgCardHover; }}
+              onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'transparent'; }}
               title="收起侧边栏"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -520,7 +543,7 @@ export function DesktopLayout() {
 
           {/* Search */}
           <div className="relative mx-2 mt-1.5 mb-1">
-            <svg className="absolute left-2 top-1/2 -translate-y-1/2 text-white/30" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted, opacity: 0.5 }} width="12" height="12" viewBox="0 0 12 12" fill="none">
               <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.2"/>
               <path d="M7.5 7.5L10.5 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
             </svg>
@@ -563,7 +586,7 @@ export function DesktopLayout() {
 
             {activeTab === 'active' && (
               filteredActive.length === 0 ? (
-                <div className="text-white/30 text-xs text-center py-8">{searchQuery ? '无匹配会话' : '暂无活动会话'}</div>
+                <div className="text-xs text-center py-8" style={{ color: colors.textMuted }}>{searchQuery ? '无匹配会话' : '暂无活动会话'}</div>
               ) : (
                 filteredActive.map((instance, idx) => (
                   <SidebarSessionItem
@@ -584,7 +607,7 @@ export function DesktopLayout() {
 
             {activeTab === 'idle' && (
               filteredIdle.length === 0 ? (
-                <div className="text-white/30 text-xs text-center py-8">{searchQuery ? '无匹配会话' : '暂无空闲会话'}</div>
+                <div className="text-xs text-center py-8" style={{ color: colors.textMuted }}>{searchQuery ? '无匹配会话' : '暂无空闲会话'}</div>
               ) : (
                 filteredIdle.map((instance, idx) => (
                   <SidebarSessionItem
@@ -605,7 +628,7 @@ export function DesktopLayout() {
 
             {activeTab === 'history' && (
               filteredHistory.length === 0 ? (
-                <div className="text-white/30 text-xs text-center py-8">{searchQuery ? '无匹配会话' : '暂无历史会话'}</div>
+                <div className="text-xs text-center py-8" style={{ color: colors.textMuted }}>{searchQuery ? '无匹配会话' : '暂无历史会话'}</div>
               ) : (
                 filteredHistory.map((instance, idx) => (
                   <SidebarSessionItem
@@ -626,21 +649,21 @@ export function DesktopLayout() {
           </div>
 
           {/* Sidebar footer */}
-          <div className="flex items-center gap-2 px-2.5 py-2 border-t border-white/5">
+          <div className="flex items-center gap-2 px-2.5 py-2 border-t" style={{ borderColor: colors.borderLight }}>
             <div
-              className="flex items-center justify-center font-bold text-white"
-              style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11 }}
+              className="flex items-center justify-center font-bold"
+              style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #a855f7)', fontSize: 11, color: '#f1f5f9' }}
             >
               {(productName || 'C').charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs text-white/40">{productName || 'CC-Island'}</span>
-            <span className="text-[10px] text-white/20 ml-auto">v0.3.9</span>
+            <span className="text-xs" style={{ color: colors.textMuted }}>{productName || 'CC-Island'}</span>
+            <span className="text-[10px] ml-auto" style={{ color: colors.textMuted, opacity: 0.5 }}>v0.3.9</span>
           </div>
         </div>
         )}
 
         {/* Main Area */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#0d0d14' }}>
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: colors.bgMain }}>
           {mainView === 'welcome' && (
             <WelcomeView
               productName={productName}
@@ -702,7 +725,9 @@ export function DesktopLayout() {
                 className="flex items-center px-3.5 gap-2.5 flex-shrink-0"
                 style={{ height: 46, borderBottom: `1px solid ${colors.borderLight}` }}
               >
-                <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors">
+                <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 transition-colors" style={{ color: colors.textMuted }}
+                  onMouseEnter={e => (e.currentTarget.style.color = colors.textPrimary)}
+                  onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}>
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
                   </svg>
@@ -723,7 +748,9 @@ export function DesktopLayout() {
                 className="flex items-center px-3.5 gap-2.5 flex-shrink-0"
                 style={{ height: 46, borderBottom: `1px solid ${colors.borderLight}` }}
               >
-                <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors">
+                <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 transition-colors" style={{ color: colors.textMuted }}
+                  onMouseEnter={e => (e.currentTarget.style.color = colors.textPrimary)}
+                  onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}>
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
                   </svg>
@@ -801,7 +828,10 @@ function ChatWithTimeline({
         {pendingPopup && (
           <button
             onClick={onDismissPerm}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
             title="关闭（在终端中回答）"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -824,30 +854,36 @@ function ChatWithTimeline({
         {activities.length > 0 && (
           timelineCollapsed ? (
             <div
-              className="flex-shrink-0 flex flex-col items-center pt-2.5 border-l border-white/5 select-none"
-              style={{ width: 30, background: 'rgba(0,0,0,0.12)' }}
+              className="flex-shrink-0 flex flex-col items-center pt-2.5 border-l select-none"
+              style={{ width: 30, background: colors.statsBarBg, borderColor: colors.borderLight }}
             >
               <button
                 onClick={() => setTimelineCollapsed(false)}
-                className="w-6 h-6 rounded flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors"
+                className="w-6 h-6 rounded flex items-center justify-center transition-colors"
+                style={{ color: colors.textMuted, opacity: 0.5 }}
+                onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = colors.bgCardHover; }}
+                onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.background = 'transparent'; }}
                 title="展开命令历史"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
                   <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-              <span className="text-[9px] text-white/20 mt-2" style={{ writingMode: 'vertical-rl' }}>历史</span>
+              <span className="text-[9px] mt-2" style={{ writingMode: 'vertical-rl', color: colors.textMuted, opacity: 0.4 }}>历史</span>
             </div>
           ) : (
             <div
-              className="flex-shrink-0 overflow-y-auto border-l border-white/5"
-              style={{ width: 200, background: colors.statsBarBg, scrollbarWidth: 'thin' }}
+              className="flex-shrink-0 overflow-y-auto border-l"
+              style={{ width: 200, background: colors.statsBarBg, scrollbarWidth: 'thin', borderColor: colors.borderLight }}
             >
               <div className="text-[10px] font-semibold uppercase tracking-wider px-3 py-2.5 flex items-center gap-1.5" style={{ color: colors.textMuted }}>
                 📋 命令历史
                 <button
                   onClick={() => setTimelineCollapsed(true)}
-                  className="ml-auto w-5 h-5 rounded flex items-center justify-center text-white/20 hover:text-white/50 hover:bg-white/10 transition-colors"
+                  className="ml-auto w-5 h-5 rounded flex items-center justify-center transition-colors"
+                  style={{ color: colors.textMuted, opacity: 0.3 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = colors.bgCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.opacity = '0.3'; e.currentTarget.style.background = 'transparent'; }}
                   title="收起命令历史"
                 >
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -988,16 +1024,16 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
         onMouseLeave={e => { setShowPopover(false); e.currentTarget.style.background = 'transparent'; }}
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-[#64748b] flex-shrink-0 w-6">{time.slice(0, 5)}</span>
+          <span className="text-[10px] flex-shrink-0 w-6" style={{ color: colors.textMuted }}>{time.slice(0, 5)}</span>
           <span className="text-xs flex-shrink-0">{icon}</span>
           <span className="text-[#f59e0b] font-medium truncate">{activity.tool_name}</span>
           {durationText && (
-            <span className="text-[10px] text-[#64748b] flex-shrink-0 ml-auto mr-1">{durationText}</span>
+            <span className="text-[10px] flex-shrink-0 ml-auto mr-1" style={{ color: colors.textMuted }}>{durationText}</span>
           )}
           <span className="text-[10px] flex-shrink-0" style={{ color: statusColor }}>{statusIcon}</span>
         </div>
         {activity.content && (
-          <div className="text-[#94a3b8] truncate" style={{ paddingLeft: 56 }}>{activity.content.slice(0, 40)}</div>
+          <div className="truncate" style={{ paddingLeft: 56, color: colors.textSecondary }}>{activity.content.slice(0, 40)}</div>
         )}
       </div>
 
@@ -1016,7 +1052,7 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
           onMouseEnter={() => setShowPopover(true)}
           onMouseLeave={() => setShowPopover(false)}
         >
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5">
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b" style={{ borderColor: colors.borderLight }}>
             <span className="text-base">{icon}</span>
             <span className="text-[#f59e0b] font-semibold text-xs">{activity.tool_name}</span>
             <span className="text-[10px] ml-auto" style={{ color: statusColor }}>
@@ -1028,9 +1064,9 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
             {durationText && (
               <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>耗时</span><span className="text-[#f59e0b] font-mono">{durationText}</span></div>
             )}
-            <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>内容</span><span className="text-[#94a3b8] break-all leading-relaxed">{activity.content || '无'}</span></div>
+            <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>内容</span><span className="break-all leading-relaxed" style={{ color: colors.textSecondary }}>{activity.content || '无'}</span></div>
             {activity.result && (
-              <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>结果</span><span className={`break-all leading-relaxed font-mono text-[10px] ${activity.status === 'error' ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`} style={{ whiteSpace: 'pre-wrap', maxHeight: 100, overflowY: 'auto' }}>{activity.result}</span></div>
+              <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>结果</span><span className="break-all leading-relaxed font-mono text-[10px]" style={{ whiteSpace: 'pre-wrap', maxHeight: 100, overflowY: 'auto', color: activity.status === 'error' ? '#ef4444' : colors.textSecondary }}>{activity.result}</span></div>
             )}
           </div>
         </div>
@@ -1097,8 +1133,10 @@ function PermissionCard({
           </div>
           <button
             onClick={onDismiss}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 transition-colors flex-shrink-0"
-            style={{ background: colors.bgCardHover }}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-colors flex-shrink-0"
+            style={{ color: colors.textMuted, background: colors.bgCardHover }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
             title="关闭（在终端中回答）"
           >✕</button>
         </div>
@@ -1144,7 +1182,7 @@ function PermissionCard({
         </div>
 
         {/* Dismiss hint */}
-        <div className="text-center mt-3 text-[11px] text-[#64748b]">
+        <div className="text-center mt-3 text-[11px]" style={{ color: colors.textMuted }}>
           已在终端中回答？
           <span onClick={onDismiss} className="text-[#60a5fa] cursor-pointer underline ml-1">关闭此提示</span>
         </div>
@@ -1234,9 +1272,9 @@ function SidebarSessionItem({
           <span className="text-xs font-medium truncate" style={{ color: isSelected ? colors.textPrimary : colors.textSecondary }}>
             {instance.project_name || 'Unknown'}
           </span>
-          {instance.first_prompt && (
-            <span className="text-[10px] text-white/30 truncate hidden sm:inline" title={instance.first_prompt}>
-              · {instance.first_prompt}
+          {(instance.ai_title || instance.first_prompt) && (
+            <span className="text-[10px] truncate hidden sm:inline" style={{ color: colors.textMuted }} title={instance.ai_title || instance.first_prompt}>
+              · {instance.ai_title || instance.first_prompt}
             </span>
           )}
           {notifyCount > 0 && (
@@ -1252,7 +1290,7 @@ function SidebarSessionItem({
       </div>
 
       {/* Time - hidden on hover */}
-      <span className="text-[10px] text-[#64748b] flex-shrink-0 group-hover:hidden">
+      <span className="text-[10px] flex-shrink-0 group-hover:hidden" style={{ color: colors.textMuted }}>
         {relativeTime(instance.last_activity_at)}
       </span>
 
@@ -1260,13 +1298,22 @@ function SidebarSessionItem({
       <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
         <button
           onClick={e => { e.stopPropagation(); onTogglePin(); }}
-          className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${isPinned ? 'text-[#8b5cf6] bg-[rgba(124,58,237,0.15)]' : 'text-white/40 hover:text-[#8b5cf6] hover:bg-[rgba(124,58,237,0.2)]'}`}
+          className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors`}
+          style={{
+            color: isPinned ? '#8b5cf6' : colors.textMuted,
+            background: isPinned ? 'rgba(124,58,237,0.15)' : 'transparent',
+          }}
+          onMouseEnter={e => { if (!isPinned) { e.currentTarget.style.color = '#8b5cf6'; e.currentTarget.style.background = 'rgba(124,58,237,0.2)'; } }}
+          onMouseLeave={e => { if (!isPinned) { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; } }}
           title={isPinned ? '取消置顶' : '置顶'}
         >📌</button>
         {!isEnded && (
           <button
             onClick={e => { e.stopPropagation(); onJump(instance.session_id); }}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-blue-400 hover:bg-blue-500/20 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
             title="跳转终端"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -1277,7 +1324,10 @@ function SidebarSessionItem({
         )}
         <button
           onClick={e => { e.stopPropagation(); onClose(); }}
-          className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-red-500/20 transition-colors"
+          className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
+          style={{ color: colors.textMuted }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
           title="关闭"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">

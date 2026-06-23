@@ -84,6 +84,9 @@ pub struct ClaudeInstance {
     /// multiple Claude instances within the same project)
     #[serde(default)]
     pub first_prompt: Option<String>,
+    /// AI-generated title extracted from first assistant text response
+    #[serde(default)]
+    pub ai_title: Option<String>,
     /// When the session ended (Unix timestamp in seconds)
     #[serde(default)]
     pub ended_at: Option<u64>,
@@ -122,6 +125,9 @@ pub struct ClaudeInstanceDisplay {
     /// multiple Claude instances within the same project)
     #[serde(default)]
     pub first_prompt: Option<String>,
+    /// AI-generated title from first assistant text response
+    #[serde(default)]
+    pub ai_title: Option<String>,
     /// Tool activity history for display
     #[serde(default)]
     pub activities: Vec<crate::activity_store::ToolActivityDetail>,
@@ -147,6 +153,7 @@ impl ClaudeInstance {
             started_at: now,
             last_activity_at: now,
             first_prompt: None,
+            ai_title: None,
             ended_at: None,
             activities: vec![],
             display_status_until: None,
@@ -250,6 +257,7 @@ impl ClaudeInstance {
             started_at: self.started_at,
             last_activity_at: self.last_activity_at,
             first_prompt: self.first_prompt.clone(),
+            ai_title: self.ai_title.clone(),
             activities: vec![], // Activities will be filled by lib.rs get_instances
         }
     }

@@ -555,7 +555,10 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
               </div>
               <button
                 onClick={() => setShowQRModal(false)}
-                className="mt-3 w-full py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm"
+                className="mt-3 w-full py-2 rounded-lg text-sm transition-colors"
+                style={{ background: colors.bgCardHover, color: colors.textSecondary }}
+                onMouseEnter={e => { e.currentTarget.style.background = colors.bgCard; e.currentTarget.style.color = colors.textPrimary; }}
+                onMouseLeave={e => { e.currentTarget.style.background = colors.bgCardHover; e.currentTarget.style.color = colors.textSecondary; }}
               >
                 关闭
               </button>

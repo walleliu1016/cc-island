@@ -6,6 +6,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage, PopupItem, AskQuestion, AskOption, AppSettings } from '../types';
 import { ProcessingSpinner } from './StatusIcons';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 // Message type colors (purple theme)
 const MessageColors = {
@@ -58,6 +60,8 @@ function QuestionWizard({
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQuestion = questions[currentIndex];
   const currentAnswers = selectedAnswers[currentIndex] || [];
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   const handleToggle = (label: string) => {
     if (readOnly) return;
@@ -82,8 +86,8 @@ function QuestionWizard({
   return (
     <div className="flex flex-col h-full">
       {/* Header - Progress */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <div className="text-xs text-white/50">
+      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: colors.borderLight }}>
+        <div className="text-xs" style={{ color: colors.textMuted }}>
           问题 {currentIndex + 1} / {questions.length}
         </div>
         <div className="flex items-center gap-1">
@@ -91,10 +95,11 @@ function QuestionWizard({
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
-              className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                idx === currentIndex ? 'bg-white' :
-                idx < currentIndex ? 'bg-white/50' : 'bg-white/20'
-              }`}
+              className="w-1.5 h-1.5 rounded-full transition-colors"
+              style={{
+                background: idx === currentIndex ? colors.textPrimary :
+                  idx < currentIndex ? colors.textMuted : colors.bgCardHover,
+              }}
             />
           ))}
         </div>
@@ -103,9 +108,9 @@ function QuestionWizard({
       {/* Question Content */}
       <div className="flex-1 px-3 py-3 overflow-y-auto">
         {currentQuestion.header && (
-          <div className="text-xs text-white/40 mb-1">{currentQuestion.header}</div>
+          <div className="text-xs mb-1" style={{ color: colors.textMuted }}>{currentQuestion.header}</div>
         )}
-        <div className="text-sm text-white/90 mb-4">{currentQuestion.question}</div>
+        <div className="text-sm mb-4" style={{ color: colors.textPrimary }}>{currentQuestion.question}</div>
 
         {/* Options */}
         <div className="space-y-1.5">
@@ -116,35 +121,43 @@ function QuestionWizard({
                 key={option.label}
                 onClick={() => handleToggle(option.label)}
                 disabled={readOnly}
-                className={`w-full text-left p-2.5 rounded-lg text-xs transition-all flex items-start gap-2.5 ${
-                  isSelected
-                    ? 'bg-white/20 text-white border border-white/30'
-                    : 'bg-white/5 text-white/70 hover:bg-white/10 border border-transparent'
-                } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                className={`w-full text-left p-2.5 rounded-lg text-xs transition-all flex items-start gap-2.5 border ${
+                  readOnly ? 'cursor-default' : 'cursor-pointer'
+                }`}
+                style={{
+                  background: isSelected ? colors.bgCard : colors.bgCardHover,
+                  color: isSelected ? colors.textPrimary : colors.textSecondary,
+                  borderColor: isSelected ? colors.borderMedium : 'transparent',
+                }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = colors.bgCard; }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = colors.bgCardHover; }}
               >
                 <span className="mt-0.5 flex-shrink-0">
                   {currentQuestion.multiSelect ? (
-                    <span className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                      isSelected ? 'border-white bg-white/40' : 'border-white/30 bg-transparent'
-                    }`}>
+                    <span className="w-4 h-4 border flex items-center justify-center transition-colors"
+                      style={{
+                        borderColor: isSelected ? colors.textPrimary : colors.borderMedium,
+                        background: isSelected ? colors.accentPrimary : 'transparent',
+                      }}
+                    >
                       {isSelected && (
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke={colors.textInverse} strokeWidth="2">
                           <path d="M1.5 5.5L3.5 7.5L8.5 2.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       )}
                     </span>
                   ) : (
-                    <span className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                      isSelected ? 'border-white' : 'border-white/30'
-                    }`}>
-                      {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+                    <span className="w-4 h-4 rounded-full border flex items-center justify-center transition-colors"
+                      style={{ borderColor: isSelected ? colors.textPrimary : colors.borderMedium }}
+                    >
+                      {isSelected && <span className="w-2 h-2 rounded-full" style={{ background: colors.textPrimary }} />}
                     </span>
                   )}
                 </span>
                 <span className="flex-1">
                   <span className="font-medium">{option.label}</span>
                   {option.description && (
-                    <span className="text-white/50 ml-1">{option.description}</span>
+                    <span className="ml-1" style={{ color: colors.textMuted }}>{option.description}</span>
                   )}
                 </span>
               </button>
@@ -154,13 +167,16 @@ function QuestionWizard({
       </div>
 
       {/* Navigation Footer */}
-      <div className="px-3 py-3 border-t border-white/10">
+      <div className="px-3 py-3 border-t" style={{ borderColor: colors.borderLight }}>
         <div className="flex items-center justify-between">
           <div>
             {currentIndex > 0 ? (
               <button
                 onClick={() => setCurrentIndex(currentIndex - 1)}
-                className="px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+                onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = 'transparent'; }}
               >
                 ← 上一题
               </button>
@@ -169,7 +185,10 @@ function QuestionWizard({
             ) : (
               <button
                 onClick={onCancel}
-                className="px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
+                onMouseLeave={e => { e.currentTarget.style.color = colors.textSecondary; e.currentTarget.style.background = 'transparent'; }}
               >
                 取消
               </button>
@@ -180,12 +199,15 @@ function QuestionWizard({
               currentIndex < questions.length - 1 ? (
                 <button
                   onClick={() => setCurrentIndex(currentIndex + 1)}
-                  className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
+                  className="px-4 py-1.5 text-xs font-medium rounded-lg transition-all"
+                  style={{ color: colors.textInverse, background: colors.textPrimary }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
                 >
                   下一题 →
                 </button>
               ) : (
-                <div className="px-4 py-1.5 text-xs font-medium text-white/50">
+                <div className="px-4 py-1.5 text-xs font-medium" style={{ color: colors.textMuted }}>
                   已结束
                 </div>
               )
@@ -193,7 +215,10 @@ function QuestionWizard({
               <button
                 onClick={() => setCurrentIndex(currentIndex + 1)}
                 disabled={currentAnswers.length === 0}
-                className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 disabled:bg-white/40 rounded-lg transition-all"
+                className="px-4 py-1.5 text-xs font-medium rounded-lg transition-all"
+                style={{ color: colors.textInverse, background: colors.textPrimary, opacity: currentAnswers.length === 0 ? 0.4 : 1 }}
+                onMouseEnter={e => { if (currentAnswers.length > 0) e.currentTarget.style.opacity = '0.9'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = currentAnswers.length === 0 ? '0.4' : '1'; }}
               >
                 下一题 →
               </button>
@@ -201,7 +226,10 @@ function QuestionWizard({
               <button
                 onClick={onSubmit}
                 disabled={!canSubmit}
-                className="px-4 py-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 disabled:bg-white/40 rounded-lg transition-all"
+                className="px-4 py-1.5 text-xs font-medium rounded-lg transition-all"
+                style={{ color: colors.textInverse, background: colors.textPrimary, opacity: !canSubmit ? 0.4 : 1 }}
+                onMouseEnter={e => { if (canSubmit) e.currentTarget.style.opacity = '0.9'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = canSubmit ? '1' : '0.4'; }}
               >
                 提交
               </button>
@@ -234,6 +262,8 @@ function Truncatable({ content, maxHeight = 150 }: { content: React.ReactNode; m
   const [expanded, setExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [needsTruncate, setNeedsTruncate] = useState(false);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   useEffect(() => {
     if (contentRef.current) {
@@ -251,12 +281,15 @@ function Truncatable({ content, maxHeight = 150 }: { content: React.ReactNode; m
         {content}
       </div>
       {!expanded && needsTruncate && (
-        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none" style={{ background: `linear-gradient(to top, ${colors.bgMain}, transparent)` }} />
       )}
       {needsTruncate && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full mt-1 py-1.5 text-xs text-white/50 hover:text-white/70 bg-white/5 rounded transition-colors"
+          className="w-full mt-1 py-1.5 text-xs rounded transition-colors"
+          style={{ color: colors.textMuted, background: colors.bgCard }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
         >
           {expanded ? '收起' : '展开更多'}
         </button>
@@ -267,13 +300,15 @@ function Truncatable({ content, maxHeight = 150 }: { content: React.ReactNode; m
 
 // Bash tool card
 function BashToolCard({ command, description }: { command?: string; description?: string }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.bash.bg, borderLeft: `3px solid ${MessageColors.bash.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-semibold" style={{ color: MessageColors.bash.text }}>$ Bash</span>
       </div>
       {description && (
-        <div className="text-xs text-white/50 mb-2 italic">{description}</div>
+        <div className="text-xs mb-2 italic" style={{ color: colors.textMuted }}>{description}</div>
       )}
       {command && (
         <Truncatable content={
@@ -288,22 +323,24 @@ function BashToolCard({ command, description }: { command?: string; description?
 
 // Write tool card
 function WriteToolCard({ filePath, content }: { filePath?: string; content?: string }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const filename = filePath?.split('/').pop() || filePath;
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.write.bg, borderLeft: `3px solid ${MessageColors.write.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">📝</span>
         <span className="text-xs font-semibold" style={{ color: MessageColors.write.text }}>Write</span>
-        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded" style={{ color: MessageColors.write.text }}>
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: MessageColors.write.text }}>
           {filename}
         </span>
       </div>
       {filePath && filePath !== filename && (
-        <div className="text-xs text-white/40 font-mono mb-2 truncate">{filePath}</div>
+        <div className="text-xs font-mono mb-2 truncate" style={{ color: colors.textMuted }}>{filePath}</div>
       )}
       {content && (
         <Truncatable content={
-          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-white/80 whitespace-pre-wrap overflow-x-auto">
+          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textPrimary }}>
             {content.slice(0, 500)}{content.length > 500 && '...'}
           </pre>
         } />
@@ -314,19 +351,21 @@ function WriteToolCard({ filePath, content }: { filePath?: string; content?: str
 
 // Edit tool card with diff style
 function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath?: string; oldString?: string; newString?: string; replaceAll?: boolean }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const filename = filePath?.split('/').pop() || filePath;
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.edit.bg, borderLeft: `3px solid ${MessageColors.edit.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">✏️</span>
         <span className="text-xs font-semibold" style={{ color: MessageColors.edit.text }}>Edit</span>
-        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded" style={{ color: MessageColors.edit.text }}>
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: MessageColors.edit.text }}>
           {filename}
         </span>
-        {replaceAll && <span className="text-xs text-white/40">(全部替换)</span>}
+        {replaceAll && <span className="text-xs" style={{ color: colors.textMuted }}>(全部替换)</span>}
       </div>
       {filePath && filePath !== filename && (
-        <div className="text-xs text-white/40 font-mono mb-2 truncate">{filePath}</div>
+        <div className="text-xs font-mono mb-2 truncate" style={{ color: colors.textMuted }}>{filePath}</div>
       )}
       {oldString && (
         <div className="space-y-1">
@@ -350,21 +389,23 @@ function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath
 
 // Read tool card
 function ReadToolCard({ filePath, offset, limit }: { filePath?: string; offset?: number; limit?: number }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const filename = filePath?.split('/').pop() || filePath;
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">📄</span>
         <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>Read</span>
-        <span className="text-xs font-mono bg-white/10 px-1.5 py-0.5 rounded text-white/70">
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: colors.textSecondary }}>
           {filename}
         </span>
       </div>
       {filePath && filePath !== filename && (
-        <div className="text-xs text-white/40 font-mono mb-1 truncate">{filePath}</div>
+        <div className="text-xs font-mono mb-1 truncate" style={{ color: colors.textMuted }}>{filePath}</div>
       )}
       {(offset || limit) && (
-        <div className="text-xs text-white/40">
+        <div className="text-xs" style={{ color: colors.textMuted }}>
           行 {offset || 1} - {limit ? (offset || 1) + limit - 1 : '末尾'}
         </div>
       )}
@@ -374,6 +415,8 @@ function ReadToolCard({ filePath, offset, limit }: { filePath?: string; offset?:
 
 // Generic tool card
 function ToolCard({ toolName, description, input }: { toolName: string; description?: string; input?: unknown }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
       <div className="flex items-center gap-2 mb-1">
@@ -381,11 +424,11 @@ function ToolCard({ toolName, description, input }: { toolName: string; descript
         <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>{toolName}</span>
       </div>
       {description && (
-        <div className="text-xs text-white/50 mb-2 italic">{description}</div>
+        <div className="text-xs mb-2 italic" style={{ color: colors.textMuted }}>{description}</div>
       )}
       {input !== undefined && input !== null && (
         <Truncatable content={
-          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-white/70 whitespace-pre-wrap overflow-x-auto">
+          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textSecondary }}>
             {JSON.stringify(input, null, 2)}
           </pre>
         } />
@@ -396,16 +439,18 @@ function ToolCard({ toolName, description, input }: { toolName: string; descript
 
 // Tool result card
 function ToolResultCard({ content, isError }: { content: string; isError?: boolean }) {
-  const colors = isError ? MessageColors.toolError : MessageColors.toolResult;
+  const msgColors = isError ? MessageColors.toolError : MessageColors.toolResult;
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   return (
-    <div className="rounded-lg p-3 mb-2 ml-3" style={{ background: colors.bg, borderLeft: `3px solid ${colors.border}` }}>
+    <div className="rounded-lg p-3 mb-2 ml-3" style={{ background: msgColors.bg, borderLeft: `3px solid ${msgColors.border}` }}>
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-semibold" style={{ color: colors.text }}>
+        <span className="text-xs font-semibold" style={{ color: msgColors.text }}>
           {isError ? '❌ Error' : '✓ Result'}
         </span>
       </div>
       <Truncatable content={
-        <pre className="text-xs text-white/70 font-mono whitespace-pre-wrap overflow-x-auto">
+        <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textSecondary }}>
           {content.slice(0, 500)}{content.length > 500 && '...'}
         </pre>
       } />
@@ -415,12 +460,14 @@ function ToolResultCard({ content, isError }: { content: string; isError?: boole
 
 // Thinking block
 function ThinkingBlock({ content }: { content: string }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   return (
     <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.thinking.bg, borderLeft: `3px solid ${MessageColors.thinking.border}` }}>
       <div className="text-xs font-semibold mb-2" style={{ color: MessageColors.thinking.text }}>
         💭 Thinking
       </div>
-      <div className="text-xs text-white/60 italic whitespace-pre-wrap">
+      <div className="text-xs italic whitespace-pre-wrap" style={{ color: colors.textMuted }}>
         {content.slice(0, 300)}{content.length > 300 && '...'}
       </div>
     </div>
@@ -433,13 +480,15 @@ function MessageHeader({ role, timestamp }: { role: string; timestamp: number })
   const timeStr = time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   const dateStr = time.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const isToday = time.toDateString() === new Date().toDateString();
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-t-lg">
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MessageColors[role as keyof typeof MessageColors]?.text || '#fff' }}>
+    <div className="flex items-center justify-between px-3 py-2 rounded-t-lg" style={{ background: colors.bgCard }}>
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MessageColors[role as keyof typeof MessageColors]?.text || colors.textPrimary }}>
         {role === 'user' ? 'YOU' : role === 'assistant' ? 'CLAUDE' : role}
       </span>
-      <span className="text-xs text-white/40">
+      <span className="text-xs" style={{ color: colors.textMuted }}>
         {isToday ? timeStr : `${dateStr} ${timeStr}`}
       </span>
     </div>
@@ -488,6 +537,8 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   const [askAnswers, setAskAnswers] = useState<string[][]>([]);
   const [showThinking, setShowThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   // Load settings on mount
   useEffect(() => {
@@ -606,22 +657,25 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0f0f23] w-full rounded-b-xl">
+    <div className="flex flex-col h-full w-full rounded-b-xl" style={{ background: colors.bgMain }}>
       {/* Top Navigation Bar - only shown when onClose provided (Island mode) */}
       {onClose && (
-        <div className="flex items-center px-3 py-2 border-b border-white/10">
+        <div className="flex items-center px-3 py-2 border-b" style={{ borderColor: colors.borderLight }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClose();
             }}
-            className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
+            className="flex items-center justify-center w-8 h-8 transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; }}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
             </svg>
           </button>
-          <span className="ml-2 text-sm font-medium text-white/80 truncate">
+          <span className="ml-2 text-sm font-medium truncate" style={{ color: colors.textSecondary }}>
             {projectName}
           </span>
         </div>
@@ -640,7 +694,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
           pendingPopup.ask_data?.questions &&
           pendingPopup.ask_data.questions.length > 0 &&
           !filteredMessages.some(m => m.toolName === 'AskUserQuestion') && (
-            <div className="mb-3 bg-white/5 rounded-lg overflow-hidden">
+            <div className="mb-3 rounded-lg overflow-hidden" style={{ background: colors.bgCard }}>
               <QuestionWizard
                 questions={pendingPopup.ask_data.questions}
                 selectedAnswers={askAnswers}
@@ -660,7 +714,8 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
             return (
               <div
                 key={msg.id}
-                className="mb-3 bg-white/5 rounded-lg overflow-hidden"
+                className="mb-3 rounded-lg overflow-hidden"
+                style={{ background: colors.bgCard }}
               >
                 <QuestionWizard
                   questions={askQuestions}
@@ -692,11 +747,11 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
                   <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
                     <MessageHeader role="user" timestamp={msg.timestamp} />
                     <div className="p-3">
-                      <div className="text-xs text-white/50 mb-2">Your Answers</div>
+                      <div className="text-xs mb-2" style={{ color: colors.textMuted }}>Your Answers</div>
                       <div className="space-y-1">
                         {answerData.map((answer, idx) => (
-                          <div key={idx} className="text-sm text-white/90">
-                            <span className="text-white/60">Q{idx + 1}:</span> {answer.join(', ')}
+                          <div key={idx} className="text-sm" style={{ color: colors.textPrimary }}>
+                            <span style={{ color: colors.textMuted }}>Q{idx + 1}:</span> {answer.join(', ')}
                           </div>
                         ))}
                       </div>
@@ -708,7 +763,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
             return (
               <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
                 <MessageHeader role="user" timestamp={msg.timestamp} />
-                <div className="p-3 text-sm text-white/90">
+                <div className="p-3 text-sm" style={{ color: colors.textPrimary }}>
                   {msg.content}
                 </div>
               </div>
@@ -737,7 +792,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
             return (
               <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.assistant.bg, borderLeft: `3px solid ${MessageColors.assistant.border}` }}>
                 <MessageHeader role="assistant" timestamp={msg.timestamp} />
-                <div className="p-3 text-sm text-white/90 markdown-content">
+                <div className="p-3 text-sm markdown-content" style={{ color: colors.textPrimary }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
                 </div>
               </div>
@@ -772,17 +827,17 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
         {/* Processing indicator */}
         {isProcessing && (
-          <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-white/5">
+          <div className="flex items-center gap-2 py-2 px-3 rounded-lg" style={{ background: colors.bgCard }}>
             <ProcessingSpinner size={10} />
-            <span className="text-white/40 text-xs">Processing...</span>
+            <span className="text-xs" style={{ color: colors.textMuted }}>Processing...</span>
           </div>
         )}
 
         {/* Empty state */}
         {messages.length === 0 && !isProcessing && (
-          <div className="text-white/30 text-xs text-center py-8">
+          <div className="text-xs text-center py-8" style={{ color: colors.textMuted }}>
             <div className="mb-2">暂无消息</div>
-            <div className="text-white/20 text-[10px]">
+            <div className="text-[10px]" style={{ color: colors.textMuted, opacity: 0.7 }}>
               Chat history shows user input and tool calls.<br/>
               AI responses are displayed in the terminal.
             </div>
@@ -792,13 +847,13 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
 
       {/* Bottom Action Bar - Permission Buttons */}
       {pendingPopup?.type === 'permission' && (
-        <div className="px-3 py-3 border-t border-white/10">
+        <div className="px-3 py-3 border-t" style={{ borderColor: colors.borderLight }}>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-semibold" style={{ color: MessageColors.toolCall.text }}>
               {pendingPopup.permission_data?.tool_name}
             </span>
             {pendingPopup.permission_data?.action && (
-              <span className="text-xs text-white/40 truncate">
+              <span className="text-xs truncate" style={{ color: colors.textMuted }}>
                 {pendingPopup.permission_data.action}
               </span>
             )}
@@ -806,13 +861,19 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
           <div className="flex items-center justify-end gap-2">
             <button
               onClick={() => handleRespond('deny')}
-              className="px-4 py-2 text-xs font-medium text-white/70 bg-white/10 hover:bg-red-500/80 hover:text-white rounded-lg transition-all"
+              className="px-4 py-2 text-xs font-medium rounded-lg transition-all"
+              style={{ color: colors.textSecondary, background: colors.bgCardHover }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.6)'; e.currentTarget.style.color = colors.textPrimary; }}
+              onMouseLeave={e => { e.currentTarget.style.background = colors.bgCardHover; e.currentTarget.style.color = colors.textSecondary; }}
             >
               Deny
             </button>
             <button
               onClick={() => handleRespond('allow')}
-              className="px-4 py-2 text-xs font-medium text-black bg-white hover:bg-white/90 rounded-lg transition-all"
+              className="px-4 py-2 text-xs font-medium rounded-lg transition-all"
+              style={{ color: colors.textInverse, background: colors.textPrimary }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
             >
               Allow
             </button>

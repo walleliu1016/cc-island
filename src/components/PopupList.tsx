@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PopupItem, AskQuestion } from '../types';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 // Maximum length for command/details before truncation
 const MAX_DETAILS_LENGTH = 150;
@@ -37,6 +39,9 @@ interface PopupCardProps {
 }
 
 export function PopupCard({ popup, onRespond }: PopupCardProps) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
+
   if (popup.type === 'permission') {
     const toolName = popup.permission_data?.tool_name || 'Unknown';
     const action = popup.permission_data?.action || 'Permission request';
@@ -46,22 +51,23 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
       <motion.div
         initial={{ opacity: 0, y: -5 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-2 p-3 rounded-lg bg-white/[0.06]"
+        className="flex flex-col gap-2 p-3 rounded-lg"
+        style={{ background: colors.bgCardHover }}
       >
         {/* Header */}
         <div className="flex items-center gap-2">
-          <span className="text-white text-sm font-medium">{toolName}</span>
-          <span className="text-white/40 text-xs">{truncateText(popup.project_name, 10)}</span>
+          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>{toolName}</span>
+          <span className="text-xs" style={{ color: colors.textMuted }}>{truncateText(popup.project_name, 10)}</span>
         </div>
 
         {/* Description */}
-        <div className="text-white/60 text-xs">
+        <div className="text-xs" style={{ color: colors.textSecondary }}>
           {truncateText(action, 80)}
         </div>
 
         {/* Details */}
         {details && (
-          <div className="bg-black/40 rounded px-2 py-1.5 text-xs font-mono text-white/50 overflow-hidden">
+          <div className="rounded px-2 py-1.5 text-xs font-mono overflow-hidden" style={{ background: colors.bgInput, color: colors.textMuted }}>
             {truncateText(details, MAX_DETAILS_LENGTH)}
           </div>
         )}
@@ -70,13 +76,15 @@ export function PopupCard({ popup, onRespond }: PopupCardProps) {
         <div className="flex gap-2">
           <button
             onClick={() => onRespond(popup.id, 'deny')}
-            className="px-3 py-1.5 text-xs text-white/90 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs rounded-lg transition-colors"
+            style={{ background: '#ef4444', color: '#f1f5f9' }}
           >
             Deny
           </button>
           <button
             onClick={() => onRespond(popup.id, 'allow')}
-            className="px-3 py-1.5 text-xs text-white bg-purple-500 hover:bg-purple-400 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs rounded-lg transition-colors"
+            style={{ background: '#8b5cf6', color: '#f1f5f9' }}
           >
             Allow
           </button>
@@ -112,6 +120,8 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
     questions.map(() => [])
   );
   const [textInput, setTextInput] = useState<string>('');
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   const totalQuestions = questions.length;
   const isLastPage = currentPage >= totalQuestions - 1;
@@ -171,22 +181,27 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
       <motion.div
         initial={{ opacity: 0, y: -5 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-2 p-3 rounded-lg bg-white/[0.06]"
+        className="flex flex-col gap-2 p-3 rounded-lg"
+        style={{ background: colors.bgCardHover }}
       >
         <div className="flex items-center gap-2">
-          <span className="text-white text-sm font-medium">Question</span>
-          <span className="text-white/40 text-xs">{truncateText(popup.project_name, 10)}</span>
+          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Question</span>
+          <span className="text-xs" style={{ color: colors.textMuted }}>{truncateText(popup.project_name, 10)}</span>
         </div>
         <input
           type="text"
           placeholder="Enter answer..."
           value={textInput}
           onChange={(e) => setTextInput(e.target.value)}
-          className="w-full px-2.5 py-1.5 text-sm bg-white/[0.08] border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-white/25"
+          className="w-full px-2.5 py-1.5 text-sm rounded-lg focus:outline-none"
+          style={{ background: colors.bgInput, border: `1px solid ${colors.bgInputBorder}`, color: colors.textPrimary }}
+          onFocus={e => (e.target.style.borderColor = colors.accentPrimary)}
+          onBlur={e => (e.target.style.borderColor = colors.bgInputBorder)}
         />
         <button
           onClick={handleSubmit}
-          className="px-3 py-1.5 text-xs text-white bg-purple-500 hover:bg-purple-400 rounded-lg transition-colors"
+          className="px-3 py-1.5 text-xs rounded-lg transition-colors"
+          style={{ background: '#8b5cf6', color: '#f1f5f9' }}
         >
           Submit
         </button>
@@ -198,14 +213,15 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
     <motion.div
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-2 p-3 rounded-lg bg-white/[0.06]"
+      className="flex flex-col gap-2 p-3 rounded-lg"
+      style={{ background: colors.bgCardHover }}
     >
       {/* Header */}
       <div className="flex items-center gap-2">
-        <span className="text-white text-sm font-medium">
+        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
           {totalQuestions > 1 ? `Q ${currentPage + 1}/${totalQuestions}` : 'Question'}
         </span>
-        <span className="text-white/40 text-xs">{truncateText(popup.project_name, 10)}</span>
+        <span className="text-xs" style={{ color: colors.textMuted }}>{truncateText(popup.project_name, 10)}</span>
       </div>
 
       {/* Question content */}
@@ -221,12 +237,12 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
             <>
               {/* Header chip */}
               {currentQuestion.header && (
-                <span className="inline-block px-2 py-0.5 mb-2 text-xs text-white/60 bg-white/[0.08] rounded-full">
+                <span className="inline-block px-2 py-0.5 mb-2 text-xs rounded-full" style={{ color: colors.textSecondary, background: colors.bgInput }}>
                   {currentQuestion.header}
                 </span>
               )}
               {/* Question text */}
-              <div className="text-white/80 text-sm mb-2">{currentQuestion.question}</div>
+              <div className="text-sm mb-2" style={{ color: colors.textPrimary }}>{currentQuestion.question}</div>
 
               {/* Options */}
               {currentQuestion.options.length > 0 ? (
@@ -237,18 +253,21 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
                       <button
                         key={optIndex}
                         onClick={() => handleSelect(opt.label, currentQuestion.multiSelect)}
-                        className={`px-2.5 py-1.5 text-sm rounded-lg transition-colors text-left ${
-                          isSelected
-                            ? 'bg-white/[0.15] text-white border border-white/20'
-                            : 'bg-white/[0.05] text-white/60 hover:bg-white/[0.08] border border-transparent'
-                        }`}
+                        className="px-2.5 py-1.5 text-sm rounded-lg transition-colors text-left border"
+                        style={{
+                          background: isSelected ? `${colors.accentPrimary}22` : colors.bgInput,
+                          color: isSelected ? colors.textPrimary : colors.textSecondary,
+                          borderColor: isSelected ? `${colors.accentPrimary}44` : 'transparent',
+                        }}
+                        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = colors.bgCardHover; }}
+                        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = colors.bgInput; }}
                       >
                         {currentQuestion.multiSelect && (
                           <span className="mr-1.5">{isSelected ? '☑' : '☐'}</span>
                         )}
                         <span className="font-medium">{opt.label}</span>
                         {opt.description && (
-                          <span className="ml-2 text-white/40 text-xs">{opt.description}</span>
+                          <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>{opt.description}</span>
                         )}
                       </button>
                     );
@@ -264,7 +283,10 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
                     updated[currentPage] = e.target.value ? [e.target.value] : [];
                     return updated;
                   })}
-                  className="w-full px-2.5 py-1.5 text-sm bg-white/[0.08] border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-white/25"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-lg focus:outline-none"
+                  style={{ background: colors.bgInput, border: `1px solid ${colors.bgInputBorder}`, color: colors.textPrimary }}
+                  onFocus={e => (e.target.style.borderColor = colors.accentPrimary)}
+                  onBlur={e => (e.target.style.borderColor = colors.bgInputBorder)}
                 />
               )}
             </>
@@ -277,11 +299,8 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <button
           onClick={handlePrev}
           disabled={isFirstPage}
-          className={`px-2 py-1 text-xs rounded transition-colors ${
-            isFirstPage
-              ? 'text-white/30'
-              : 'text-white/50 hover:text-white/70'
-          }`}
+          className="px-2 py-1 text-xs rounded transition-colors"
+          style={{ color: isFirstPage ? colors.textMuted : colors.textSecondary }}
         >
           ← Prev
         </button>
@@ -292,9 +311,8 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
             {questions.map((_, i) => (
               <span
                 key={i}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                  i === currentPage ? 'bg-white/60' : 'bg-white/20'
-                }`}
+                className="w-1.5 h-1.5 rounded-full transition-colors"
+                style={{ background: i === currentPage ? colors.textSecondary : colors.bgInputBorder }}
               />
             ))}
           </div>
@@ -303,11 +321,11 @@ function AskPopup({ popup, questions, onRespond }: AskPopupProps) {
         <button
           onClick={handleNext}
           disabled={!isCurrentAnswered}
-          className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
-            !isCurrentAnswered
-              ? 'bg-white/[0.05] text-white/30'
-              : 'bg-purple-500 text-white hover:bg-purple-400'
-          }`}
+          className="px-2.5 py-1 text-xs rounded-lg transition-colors"
+          style={{
+            background: !isCurrentAnswered ? colors.bgInput : '#8b5cf6',
+            color: !isCurrentAnswered ? colors.textMuted : '#f1f5f9',
+          }}
         >
           {isLastPage ? 'Submit' : 'Next →'}
         </button>

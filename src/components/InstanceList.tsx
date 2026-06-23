@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ClaudeInstance, PopupItem } from '../types';
 import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 import { SessionCard, getPhasePriority } from './SessionCard';
 import { HistorySessions } from './HistorySessions';
 
@@ -47,6 +48,8 @@ interface InstanceListProps {
 export function InstanceList({ instances, popups = [], onJump, onViewChat, onRespond, onViewAsk }: InstanceListProps) {
   const [activeTab, setActiveTab] = useState<TabType>('active');
   const historySessions = useAppStore(s => s.historySessions);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   // Split into active and idle
   const { active, idle } = splitByState(instances);
@@ -78,8 +81,8 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
             onClick={() => setActiveTab(tab)}
             className="flex-1 px-2 py-1.5 text-xs rounded-lg font-medium transition-colors"
             style={{
-              background: activeTab === tab ? 'rgba(255,255,255,0.12)' : 'transparent',
-              color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.4)',
+              background: activeTab === tab ? colors.bgCardHover : 'transparent',
+              color: activeTab === tab ? colors.textPrimary : colors.textMuted,
             }}
             whileHover={{ scale: 1.02 }}
           >
@@ -115,7 +118,7 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
                 />
               ))
             ) : (
-              <div className="text-white/30 text-xs text-center py-4">
+              <div className="text-xs text-center py-4" style={{ color: colors.textMuted }}>
                 暂无活动会话
               </div>
             )}
@@ -146,7 +149,7 @@ export function InstanceList({ instances, popups = [], onJump, onViewChat, onRes
                 ))}
               </div>
             ) : (
-              <div className="text-white/30 text-xs text-center py-4">
+              <div className="text-xs text-center py-4" style={{ color: colors.textMuted }}>
                 暂无空闲会话
               </div>
             )}

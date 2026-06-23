@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 interface ContextMenuProps {
   isOpen: boolean;
@@ -12,6 +14,8 @@ interface ContextMenuProps {
 
 export function ContextMenu({ isOpen, position, onRename, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   // Close on click outside
   useEffect(() => {
@@ -62,8 +66,10 @@ export function ContextMenu({ isOpen, position, onRename, onClose }: ContextMenu
             left: position.x,
             top: position.y,
             zIndex: 1000,
+            background: colors.bgModal,
+            border: `1px solid ${colors.borderMedium}`,
           }}
-          className="bg-black/90 border border-white/10 rounded-lg shadow-lg py-1 min-w-[120px]"
+          className="rounded-lg shadow-lg py-1 min-w-[120px]"
         >
           <button
             onClick={(e) => {
@@ -71,9 +77,12 @@ export function ContextMenu({ isOpen, position, onRename, onClose }: ContextMenu
               onRename();
               onClose();
             }}
-            className="w-full px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+            className="w-full px-3 py-2 text-sm transition-colors flex items-center gap-2"
+            style={{ color: colors.textPrimary }}
+            onMouseEnter={e => { e.currentTarget.style.background = colors.bgCardHover; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="text-white/60">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" style={{ color: colors.textMuted }}>
               <path d="M2 3h8v1H2V3zm0 3h6v1H2V6zm0 3h4v1H2V9z"/>
               <path d="M10 2l2 2-5 5H5v-2l5-5z" fill="none" stroke="currentColor" strokeWidth="1"/>
             </svg>

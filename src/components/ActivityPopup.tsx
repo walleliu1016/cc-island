@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { ToolActivityDetail } from '../types';
+import { useAppStore } from '../stores/appStore';
+import { getTheme } from '../theme';
 
 interface ActivityPopupProps {
   activities: ToolActivityDetail[];
@@ -13,6 +15,8 @@ interface ActivityPopupProps {
 
 export function ActivityPopup({ activities, onClose, anchorRef }: ActivityPopupProps) {
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 300, placement: 'below' as 'below' | 'above' });
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   const updatePosition = useCallback(() => {
     if (!anchorRef.current) return;
@@ -90,8 +94,8 @@ export function ActivityPopup({ activities, onClose, anchorRef }: ActivityPopupP
           top: position.top,
           left: position.left,
           width: position.width,
-          background: 'rgba(30,30,30,0.95)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: colors.bgModal,
+          border: `1px solid ${colors.borderMedium}`,
           borderRadius: '8px',
           padding: '6px',
           maxHeight: `${position.maxHeight}px`,
@@ -100,13 +104,15 @@ export function ActivityPopup({ activities, onClose, anchorRef }: ActivityPopupP
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1 px-1">
-          <span className="text-white/60" style={{ fontSize: 10 }}>
+          <span style={{ fontSize: 10, color: colors.textSecondary }}>
             最近{activities.length}条活动
           </span>
           <button
             onClick={onClose}
-            className="text-white/40 hover:text-white/70 transition-colors"
-            style={{ fontSize: 10 }}
+            className="transition-colors"
+            style={{ fontSize: 10, color: colors.textMuted }}
+            onMouseEnter={e => (e.currentTarget.style.color = colors.textPrimary)}
+            onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}
           >
             关闭
           </button>
@@ -128,6 +134,8 @@ function ActivityRow({ activity }: { activity: ToolActivityDetail }) {
     hour: '2-digit',
     minute: '2-digit',
   });
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   // Status styles with clear differentiation
   const statusConfig = {
@@ -147,8 +155,10 @@ function ActivityRow({ activity }: { activity: ToolActivityDetail }) {
 
   return (
     <div
-      className="flex items-center gap-1.5 px-1.5 py-1 rounded cursor-default hover:bg-white/[0.05] transition-colors"
+      className="flex items-center gap-1.5 px-1.5 py-1 rounded cursor-default transition-colors"
       style={{ background: style.bg, fontSize: 11 }}
+      onMouseEnter={e => (e.currentTarget.style.background = colors.bgCardHover)}
+      onMouseLeave={e => (e.currentTarget.style.background = style.bg)}
       title={tooltip}
     >
       {/* Status icon */}
@@ -160,12 +170,12 @@ function ActivityRow({ activity }: { activity: ToolActivityDetail }) {
       </span>
 
       {/* Content - use full width */}
-      <span className="text-white/70 truncate flex-1" style={{ minWidth: 0 }}>
+      <span className="truncate flex-1" style={{ minWidth: 0, color: colors.textPrimary }}>
         {activity.content || ''}
       </span>
 
       {/* Time */}
-      <span className="text-white/40 shrink-0" style={{ fontSize: 10 }}>{time}</span>
+      <span className="shrink-0" style={{ fontSize: 10, color: colors.textMuted }}>{time}</span>
     </div>
   );
 }
