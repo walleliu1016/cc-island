@@ -86,9 +86,12 @@ export function DesktopLayout() {
   const [permDismissed, setPermDismissed] = useState<Set<string>>(new Set());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Check hooks on startup
+  // Check hooks + request notification permission on startup
   useEffect(() => {
     invoke<HooksCheckResult>('check_claude_hooks').then(setHooksCheckResult).catch(console.error);
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, []);
 
   // Track maximize state for window control button icon
@@ -168,9 +171,16 @@ export function DesktopLayout() {
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
-  // Clear session notification after 3s
+  // System notification + auto-clear
   useEffect(() => {
     if (sessionNotification) {
+      const { project_name, notification_type } = sessionNotification;
+      if (Notification.permission === 'granted') {
+        new Notification(
+          notification_type === 'started' ? `${project_name} 已启动` : `${project_name} 已停止`,
+          { body: notification_type === 'started' ? '新会话已开始' : '会话已结束', icon: '/icon.png' }
+        );
+      }
       const timer = setTimeout(() => setSessionNotification(null), 3000);
       return () => clearTimeout(timer);
     }
@@ -562,17 +572,6 @@ export function DesktopLayout() {
 
           {/* Session list */}
           <div className="flex-1 overflow-y-auto px-1.5 py-1" style={{ scrollbarWidth: 'thin' }}>
-            {sessionNotification && (
-              <div
-                className="mx-1 my-1 px-2 py-1.5 rounded text-xs"
-                style={{
-                  background: sessionNotification.notification_type === 'started' ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)',
-                  color: sessionNotification.notification_type === 'started' ? '#4caf50' : '#f44336',
-                }}
-              >
-                {sessionNotification.notification_type === 'started' ? `🚀 ${sessionNotification.project_name}已启动` : `⏹ ${sessionNotification.project_name}已停止`}
-              </div>
-            )}
 
             {activeTab === 'active' && (
               filteredActive.length === 0 ? (
@@ -1304,7 +1303,12 @@ function SidebarSessionItem({
           onMouseEnter={e => { if (!isPinned) { e.currentTarget.style.color = '#8b5cf6'; e.currentTarget.style.background = 'rgba(124,58,237,0.2)'; } }}
           onMouseLeave={e => { if (!isPinned) { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; } }}
           title={isPinned ? '取消置顶' : '置顶'}
-        >📌</button>
+        >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+              <path d="M7.5 1.5L10.5 4.5 4 11l-3-3L7.5 1.5z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round"/>
+              <circle cx="7.5" cy="1.5" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
         {!isEnded && (
           <button
             onClick={e => { e.stopPropagation(); onJump(instance.session_id); }}
@@ -1338,11 +1342,9 @@ function SidebarSessionItem({
       {tooltip && itemRef.current && createPortal(
         (() => {
           const rect = itemRef.current.getBoundingClientRect();
-          const sid = instance.session_id;
-          const shortSid = sid.length > 20 ? `${sid.slice(0, 12)}…${sid.slice(-6)}` : sid;
           return (
         <div
-          className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+          className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 select-text"
           style={{
             position: 'fixed',
             left: rect.right + 8,
@@ -1352,6 +1354,8 @@ function SidebarSessionItem({
             border: `1px solid ${colors.borderMedium}`,
             color: colors.textPrimary,
             width: 320,
+            userSelect: 'text',
+            WebkitUserSelect: 'text',
           }}
         >
           {/* Header: project name */}
@@ -1378,11 +1382,7 @@ function SidebarSessionItem({
             )}
             <div className="flex gap-3">
               <span className="text-[10px] flex-shrink-0 w-12 text-right" style={{ color: colors.textMuted }}>会话ID</span>
-              <span
-                className="font-mono text-[10px] leading-relaxed"
-                style={{ color: colors.textSecondary }}
-                title={sid}
-              >{shortSid}</span>
+              <span className="font-mono text-[10px] break-all leading-relaxed" style={{ color: colors.textSecondary }}>{instance.session_id}</span>
             </div>
             {(instance.ai_title || instance.first_prompt) && (
               <div className="flex gap-3">

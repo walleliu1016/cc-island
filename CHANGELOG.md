@@ -20,6 +20,29 @@ All notable changes to this project will be documented in this file.
 - 活动项 hover 弹窗：自适应方向（右/左），显示详情 + 执行耗时
 - 最大/最小/关闭窗口控件，最大化图标切换
 - 云连接状态指示器
+- Session 列表 hover 弹窗：Portal 渲染，表格式布局，显示项目名/目录/SessionID/AI标题/创建时间，支持文本选择复制
+
+### Fixes
+
+#### ChatView 浅色主题对比度优化
+- `MessageColors` 改为主题感知函数 `getMessageColors(isDark)`，浅色模式使用深色文字 + 浅色背景
+- Bash 代码块适配主题：浅色模式绿底黑字（`#166534`），暗色模式黑底绿字（`#4ade80`）
+- Diff 颜色主题感知：删除行红底红字，新增行绿底绿字
+- Markdown CSS 变量化：`html.theme-light` 选择器覆盖 `var(--md-*)` 变量
+- 字体加大：代码块 `text-xs`(12px) → `text-sm`(14px)，消息体 `text-sm` → `text-base`(16px)
+
+#### 标题栏云连接状态去重
+- 移除无效的 ☁ 云连接切换按钮（`toggle_cloud_connection` 命令不存在于后端）
+- 保留状态圆点 + "未连接/已连接" 文字（只读）
+
+#### stdin 标签移除
+- 底部输入栏移除 `stdin → {projectName}` 标签，清理 `StdinInputBar` 不再使用的 `projectName` prop
+
+#### 置顶按钮图标统一
+- 📌 emoji → 12x12 SVG 图钉图标，与跳转终端/关闭按钮大小一致
+
+#### 历史 session 数量限制
+- `history_store.rs`: `MAX_HISTORY_SESSIONS = 200`，`save()` 中按时间排序，超出限制的 ended 记录不再写入
 
 ### Fixes
 
