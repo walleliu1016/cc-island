@@ -11,6 +11,7 @@ import { SettingsModal, HooksSetupModal } from './Settings';
 import { getPhasePriority } from './SessionCard';
 import { WelcomeView, CreateSessionModal } from './WelcomeView';
 import { ClaudeCrabIcon } from './StatusIcons';
+import { getTheme } from '../theme';
 
 const SIDEBAR_WIDTH = 260;
 const POLL_INTERVAL = 500;
@@ -61,6 +62,8 @@ type MainView = 'welcome' | 'chat' | 'settings' | 'hooksSetup';
 
 export function DesktopLayout() {
   const { setDesktopWindowOpen, setHistorySessions, historySessions } = useAppStore();
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
 
   const [instances, setInstances] = useState<ClaudeInstance[]>([]);
   const [popups, setPopups] = useState<PopupItem[]>([]);
@@ -326,16 +329,16 @@ export function DesktopLayout() {
   const showPermCard = selectedPopup && selectedSessionId && !permDismissed.has(selectedSessionId) && selectedInstance;
 
   return (
-    <div className="h-screen w-screen flex flex-col" style={{ background: '#0a0a0f' }}>
+    <div className="h-screen w-screen flex flex-col" style={{ background: colors.bgApp }}>
       {/* Titlebar */}
       <div
         className="flex items-center px-3.5 select-none flex-shrink-0"
-        style={{ height: 42, background: 'rgba(28,28,30,0.98)', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: 'default' }}
+        style={{ height: 42, background: colors.bgTitlebar, borderBottom: `1px solid ${colors.borderLight}`, cursor: 'default' }}
         onMouseDown={handleTitleBarMouseDown}
       >
         {/* Left: Hostname + Cloud status */}
         <div className="flex items-center gap-2.5" style={{ flex: 1 }}>
-          <span className="text-sm font-semibold text-[#f1f5f9]">{hostname || '...'}</span>
+          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{hostname || '...'}</span>
           <div
             className={`w-1.5 h-1.5 rounded-full ${
               cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
@@ -442,7 +445,7 @@ export function DesktopLayout() {
         {sidebarCollapsed ? (
           <div
             className="flex flex-col items-center py-2.5 gap-2 flex-shrink-0 select-none"
-            style={{ width: 36, background: 'rgba(22,22,26,0.98)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ width: 36, background: colors.bgSidebar, borderRight: `1px solid ${colors.borderLight}` }}
           >
             <button
               onClick={() => setSidebarCollapsed(false)}
@@ -456,26 +459,26 @@ export function DesktopLayout() {
             <button
               onClick={() => { setActiveTab('active'); setSidebarCollapsed(false); }}
               className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
-              style={{ color: activeTab === 'active' ? '#8b5cf6' : '#64748b' }}
+              style={{ color: activeTab === 'active' ? colors.accentHover : colors.textMuted }}
               title="活跃"
             >{sortedActive.length}</button>
             <button
               onClick={() => { setActiveTab('idle'); setSidebarCollapsed(false); }}
               className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
-              style={{ color: activeTab === 'idle' ? '#8b5cf6' : '#64748b' }}
+              style={{ color: activeTab === 'idle' ? colors.accentHover : colors.textMuted }}
               title="空闲"
             >{idle.length}</button>
             <button
               onClick={() => { setActiveTab('history'); setSidebarCollapsed(false); }}
               className="w-6 h-6 rounded flex items-center justify-center text-[9px] font-semibold transition-colors"
-              style={{ color: activeTab === 'history' ? '#8b5cf6' : '#64748b' }}
+              style={{ color: activeTab === 'history' ? colors.accentHover : colors.textMuted }}
               title="历史"
             >{historySessions.length}</button>
           </div>
         ) : (
         <div
           className="flex flex-col flex-shrink-0"
-          style={{ width: SIDEBAR_WIDTH, background: 'rgba(22,22,26,0.98)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ width: SIDEBAR_WIDTH, background: colors.bgSidebar, borderRight: `1px solid ${colors.borderLight}` }}
         >
           {/* Tabs */}
           <div className="flex gap-1 px-2 pt-2.5">
@@ -487,9 +490,9 @@ export function DesktopLayout() {
                   onClick={() => { setActiveTab(tab); setKbNavIndex(-1); }}
                   className="flex-1 h-7 rounded-md text-xs font-medium flex items-center justify-center gap-1 transition-colors"
                   style={{
-                    color: activeTab === tab ? '#f1f5f9' : '#64748b',
-                    background: activeTab === tab ? 'rgba(255,255,255,0.06)' : 'transparent',
-                    boxShadow: activeTab === tab ? 'inset 0 -2px 0 #7c3aed' : undefined,
+                    color: activeTab === tab ? colors.textPrimary : colors.textMuted,
+                    background: activeTab === tab ? colors.bgCardHover : 'transparent',
+                    boxShadow: activeTab === tab ? `inset 0 -2px 0 ${colors.accentPrimary}` : undefined,
                     borderRadius: activeTab === tab ? '7px 7px 0 0' : '7px',
                   }}
                 >
@@ -497,8 +500,8 @@ export function DesktopLayout() {
                   <span
                     className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
                     style={{
-                      background: activeTab === tab ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.08)',
-                      color: activeTab === tab ? '#8b5cf6' : '#64748b',
+                      background: activeTab === tab ? `${colors.accentPrimary}33` : colors.bgCardHover,
+                      color: activeTab === tab ? colors.accentHover : colors.textMuted,
                     }}
                   >{count}</span>
                 </button>
@@ -529,16 +532,16 @@ export function DesktopLayout() {
               onChange={e => { setSearchQuery(e.target.value); setKbNavIndex(-1); }}
               className="w-full pl-7 pr-10 py-1.5 rounded-md text-xs outline-none transition-colors"
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                color: '#f1f5f9',
+                background: colors.bgInput,
+                border: `1px solid ${colors.bgInputBorder}`,
+                color: colors.textPrimary,
               }}
-              onFocus={e => (e.target.style.borderColor = 'rgba(124,58,237,0.4)')}
-              onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.06)')}
+              onFocus={e => (e.target.style.borderColor = colors.accentPrimary)}
+              onBlur={e => (e.target.style.borderColor = colors.bgInputBorder)}
             />
             <span
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1 py-0.5 rounded"
-              style={{ color: '#64748b', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.06)' }}
+              style={{ color: colors.textMuted, background: colors.bgInput, border: `1px solid ${colors.bgInputBorder}` }}
             >
               {navigator.platform.includes('Mac') ? '⌘F' : 'Ctrl+F'}
             </span>
@@ -697,14 +700,14 @@ export function DesktopLayout() {
             <div className="flex-1 flex flex-col overflow-hidden">
               <div
                 className="flex items-center px-3.5 gap-2.5 flex-shrink-0"
-                style={{ height: 46, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                style={{ height: 46, borderBottom: `1px solid ${colors.borderLight}` }}
               >
                 <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors">
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
                   </svg>
                 </button>
-                <span className="text-sm font-semibold text-[#f1f5f9]">设置</span>
+                <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>设置</span>
               </div>
               <div className="flex-1 overflow-hidden flex flex-col">
                 <SettingsModal isOpen={true} onClose={() => setMainView('welcome')} className="flex-1 min-h-0" hideHeader onSettingsChange={() => {
@@ -718,14 +721,14 @@ export function DesktopLayout() {
             <div className="flex-1 flex flex-col overflow-hidden">
               <div
                 className="flex items-center px-3.5 gap-2.5 flex-shrink-0"
-                style={{ height: 46, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                style={{ height: 46, borderBottom: `1px solid ${colors.borderLight}` }}
               >
                 <button onClick={() => setMainView('welcome')} className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors">
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
                   </svg>
                 </button>
-                <span className="text-sm font-semibold text-[#f1f5f9]">Hooks 配置</span>
+                <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>Hooks 配置</span>
               </div>
               <div className="flex-1 overflow-hidden flex flex-col">
                 <HooksSetupModal result={hooksCheckResult} onComplete={() => setMainView('welcome')} className="flex-1 min-h-0" hideHeader />
@@ -757,6 +760,8 @@ function ChatWithTimeline({
   onJump: (sessionId: string) => void;
   onDismissPerm: () => void;
 }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const activities = instance.activities || [];
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const st = instance.status.type;
@@ -770,13 +775,13 @@ function ChatWithTimeline({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Chat header - project name + status + actions */}
-      <div className="flex items-center px-3.5 gap-2.5 flex-shrink-0" style={{ height: 46, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <span className="text-sm font-semibold text-[#f1f5f9]">{instance.project_name || 'Chat'}</span>
+      <div className="flex items-center px-3.5 gap-2.5 flex-shrink-0" style={{ height: 46, borderBottom: `1px solid ${colors.borderLight}` }}>
+        <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{instance.project_name || 'Chat'}</span>
         <span
           className="text-[11px] px-2 py-0.5 rounded-full"
           style={{
-            background: st === 'working' ? 'rgba(245,158,11,0.12)' : st === 'thinking' || st === 'compacting' ? 'rgba(139,92,246,0.12)' : st === 'waitingforapproval' ? 'rgba(239,68,68,0.12)' : st === 'ended' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)',
-            color: st === 'working' ? '#f59e0b' : st === 'thinking' || st === 'compacting' ? '#8b5cf6' : st === 'waitingforapproval' ? '#ef4444' : st === 'ended' ? '#64748b' : '#64748b',
+            background: st === 'working' ? 'rgba(245,158,11,0.12)' : st === 'thinking' || st === 'compacting' ? 'rgba(139,92,246,0.12)' : st === 'waitingforapproval' ? 'rgba(239,68,68,0.12)' : st === 'ended' ? colors.bgCard : colors.bgCardHover,
+            color: st === 'working' ? '#f59e0b' : st === 'thinking' || st === 'compacting' ? '#8b5cf6' : st === 'waitingforapproval' ? '#ef4444' : st === 'ended' ? colors.textMuted : colors.textMuted,
           }}
         >
           {stText[st] || ''}
@@ -836,9 +841,9 @@ function ChatWithTimeline({
           ) : (
             <div
               className="flex-shrink-0 overflow-y-auto border-l border-white/5"
-              style={{ width: 200, background: 'rgba(0,0,0,0.12)', scrollbarWidth: 'thin' }}
+              style={{ width: 200, background: colors.statsBarBg, scrollbarWidth: 'thin' }}
             >
-              <div className="text-[10px] text-[#64748b] font-semibold uppercase tracking-wider px-3 py-2.5 flex items-center gap-1.5">
+              <div className="text-[10px] font-semibold uppercase tracking-wider px-3 py-2.5 flex items-center gap-1.5" style={{ color: colors.textMuted }}>
                 📋 命令历史
                 <button
                   onClick={() => setTimelineCollapsed(true)}
@@ -867,6 +872,8 @@ function ChatWithTimeline({
 }
 
 function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<'idle' | 'sent' | 'error'>('idle');
@@ -892,17 +899,17 @@ function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string 
   return (
     <div
       className="flex items-center gap-2 px-3.5 py-2 flex-shrink-0"
-      style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}
+      style={{ borderTop: `1px solid ${colors.borderLight}`, background: colors.statsBarBg }}
     >
-      <span className="text-[10px] text-[#64748b] flex-shrink-0">stdin → {projectName}</span>
+      <span className="text-[10px] flex-shrink-0" style={{ color: colors.textMuted }}>stdin → {projectName}</span>
       <input
         type="text" value={text} onChange={e => setText(e.target.value)}
         placeholder="输入内容发送到 Claude..."
         className="flex-1 px-3 py-1.5 rounded-md text-xs outline-none"
         style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          color: '#f1f5f9',
+          background: colors.bgInput,
+          border: `1px solid ${colors.bgInputBorder}`,
+          color: colors.textPrimary,
         }}
         onKeyDown={e => { if (e.key === 'Enter') send(); }}
       />
@@ -924,6 +931,8 @@ function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string 
 }
 
 function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const [showPopover, setShowPopover] = useState(false);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
   const itemRef = useRef<HTMLDivElement>(null);
@@ -973,9 +982,10 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
     <>
       <div
         ref={itemRef}
-        className="flex flex-col gap-0.5 px-2 py-1.5 text-[11px] border-b border-white/[0.02] cursor-default hover:bg-white/[0.04] transition-colors"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setShowPopover(false)}
+        className="flex flex-col gap-0.5 px-2 py-1.5 text-[11px] cursor-default transition-colors"
+        style={{ borderBottom: `1px solid ${colors.borderLight}` }}
+        onMouseEnter={e => { handleMouseEnter(); e.currentTarget.style.background = colors.bgCard; }}
+        onMouseLeave={e => { setShowPopover(false); e.currentTarget.style.background = 'transparent'; }}
       >
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-[#64748b] flex-shrink-0 w-6">{time.slice(0, 5)}</span>
@@ -995,8 +1005,8 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
         <div
           className="pointer-events-none rounded-lg p-3"
           style={{
-            background: 'rgba(18,18,18,0.98)',
-            border: '1px solid rgba(255,255,255,0.15)',
+            background: colors.bgTitlebar,
+            border: `1px solid ${colors.borderMedium}`,
             boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
             fontSize: 11,
             minWidth: 280,
@@ -1014,13 +1024,13 @@ function ActivityTimelineItem({ activity }: { activity: ToolActivityDetail }) {
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <div className="flex gap-2.5"><span className="text-[#64748b] flex-shrink-0 w-8 text-right text-[10px]">时间</span><span className="text-[#94a3b8]">{time}</span></div>
+            <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>时间</span><span style={{ color: colors.textSecondary }}>{time}</span></div>
             {durationText && (
-              <div className="flex gap-2.5"><span className="text-[#64748b] flex-shrink-0 w-8 text-right text-[10px]">耗时</span><span className="text-[#f59e0b] font-mono">{durationText}</span></div>
+              <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>耗时</span><span className="text-[#f59e0b] font-mono">{durationText}</span></div>
             )}
-            <div className="flex gap-2.5"><span className="text-[#64748b] flex-shrink-0 w-8 text-right text-[10px]">内容</span><span className="text-[#94a3b8] break-all leading-relaxed">{activity.content || '无'}</span></div>
+            <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>内容</span><span className="text-[#94a3b8] break-all leading-relaxed">{activity.content || '无'}</span></div>
             {activity.result && (
-              <div className="flex gap-2.5"><span className="text-[#64748b] flex-shrink-0 w-8 text-right text-[10px]">结果</span><span className={`break-all leading-relaxed font-mono text-[10px] ${activity.status === 'error' ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`} style={{ whiteSpace: 'pre-wrap', maxHeight: 100, overflowY: 'auto' }}>{activity.result}</span></div>
+              <div className="flex gap-2.5"><span className="flex-shrink-0 w-8 text-right text-[10px]" style={{ color: colors.textMuted }}>结果</span><span className={`break-all leading-relaxed font-mono text-[10px] ${activity.status === 'error' ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`} style={{ whiteSpace: 'pre-wrap', maxHeight: 100, overflowY: 'auto' }}>{activity.result}</span></div>
             )}
           </div>
         </div>
@@ -1039,6 +1049,8 @@ function PermissionCard({
   onDeny: () => void;
   onDismiss: () => void;
 }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const toolName = popup.permission_data?.tool_name || 'Unknown';
   const action = popup.permission_data?.action || '执行操作';
 
@@ -1079,14 +1091,14 @@ function PermissionCard({
               style={{ background: 'rgba(239,68,68,0.15)' }}
             >⏳</div>
             <div>
-              <div className="text-[13px] font-semibold text-[#f1f5f9]">权限请求</div>
-              <div className="text-[11px] text-[#64748b]">{projectName} · {toolName}</div>
+              <div className="text-[13px] font-semibold" style={{ color: colors.textPrimary }}>权限请求</div>
+              <div className="text-[11px]" style={{ color: colors.textMuted }}>{projectName} · {toolName}</div>
             </div>
           </div>
           <button
             onClick={onDismiss}
             className="w-7 h-7 rounded-md flex items-center justify-center text-white/40 hover:text-white/80 transition-colors flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.06)' }}
+            style={{ background: colors.bgCardHover }}
             title="关闭（在终端中回答）"
           >✕</button>
         </div>
@@ -1098,8 +1110,8 @@ function PermissionCard({
 
         {/* Body */}
         <div
-          className="rounded-md px-3 py-2 mb-2.5 font-mono text-[11px] text-[#94a3b8]"
-          style={{ background: 'rgba(0,0,0,0.25)', whiteSpace: 'pre-wrap' }}
+          className="rounded-md px-3 py-2 mb-2.5 font-mono text-[11px]"
+          style={{ color: colors.textSecondary, background: 'rgba(0,0,0,0.25)', whiteSpace: 'pre-wrap' }}
         >
           {'工具: ' + toolName + '\n操作: ' + action}
           {popup.permission_data?.details ? `\n详情: ${popup.permission_data.details}` : ''}
@@ -1124,7 +1136,7 @@ function PermissionCard({
         </div>
 
         {/* Expiry bar */}
-        <div className="h-1 rounded-sm mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="h-1 rounded-sm mt-2 overflow-hidden" style={{ background: colors.bgCardHover }}>
           <div
             className="h-full rounded-sm transition-[width] duration-1000 ease-linear"
             style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${timeLeft > 150 ? '#f59e0b' : '#ef4444'}, #ef4444)` }}
@@ -1155,14 +1167,16 @@ function SidebarSessionItem({
   onTogglePin: () => void;
   onClose: () => void;
 }) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const getStatusDot = () => {
     if (pendingPopup) return { bg: '#ef4444', shadow: '0 0 6px rgba(239,68,68,0.5)', cls: 'approval' };
     switch (instance.status.type) {
       case 'working': return { bg: '#f59e0b', shadow: '0 0 6px rgba(245,158,11,0.5)', cls: 'working' };
       case 'thinking': case 'compacting': return { bg: '#8b5cf6', shadow: '0 0 6px rgba(139,92,246,0.5)', cls: 'thinking' };
       case 'waiting': case 'waitingforapproval': return { bg: '#60a5fa', shadow: undefined, cls: 'waiting' };
-      case 'idle': return { bg: 'rgba(255,255,255,0.2)', shadow: undefined, cls: 'idle' };
-      default: return { bg: 'rgba(255,255,255,0.07)', shadow: undefined, cls: 'ended' };
+      case 'idle': return { bg: colors.textMuted, shadow: undefined, cls: 'idle' };
+      default: return { bg: colors.bgCardHover, shadow: undefined, cls: 'ended' };
     }
   };
   const dot = getStatusDot();
@@ -1183,7 +1197,7 @@ function SidebarSessionItem({
   const metaColor = pendingPopup ? '#ef4444'
     : instance.status.type === 'working' ? '#f59e0b'
     : instance.status.type === 'thinking' || instance.status.type === 'compacting' ? '#8b5cf6'
-    : '#64748b';
+    : colors.textMuted;
 
   // Notification count from pending popups
   const notifyCount = pendingPopup ? 1 : 0;
@@ -1193,13 +1207,13 @@ function SidebarSessionItem({
       onClick={onClick}
       className="flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer transition-colors mb-px relative group"
       style={{
-        background: isSelected ? 'rgba(124,58,237,0.12)' : isKbActive ? 'rgba(124,58,237,0.12)' : isPinned ? 'rgba(124,58,237,0.04)' : 'transparent',
-        borderLeft: isSelected ? '2px solid #7c3aed' : '2px solid transparent',
-        outline: isKbActive ? '1px solid rgba(124,58,237,0.3)' : undefined,
+        background: isSelected ? `${colors.accentPrimary}22` : isKbActive ? `${colors.accentPrimary}22` : isPinned ? `${colors.accentPrimary}11` : 'transparent',
+        borderLeft: isSelected ? `2px solid ${colors.accentPrimary}` : '2px solid transparent',
+        outline: isKbActive ? `1px solid ${colors.accentPrimary}55` : undefined,
         outlineOffset: -1,
       }}
-      onMouseEnter={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-      onMouseLeave={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = isPinned ? 'rgba(124,58,237,0.04)' : 'transparent'; }}
+      onMouseEnter={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = colors.bgCardHover; }}
+      onMouseLeave={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = isPinned ? `${colors.accentPrimary}11` : 'transparent'; }}
     >
       {pendingPopup && (
         <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />
@@ -1217,7 +1231,7 @@ function SidebarSessionItem({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-xs font-medium truncate" style={{ color: isSelected ? '#f1f5f9' : '#94a3b8' }}>
+          <span className="text-xs font-medium truncate" style={{ color: isSelected ? colors.textPrimary : colors.textSecondary }}>
             {instance.project_name || 'Unknown'}
           </span>
           {instance.first_prompt && (

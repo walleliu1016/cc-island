@@ -13,6 +13,7 @@ interface AppState {
   isDesktopWindowOpen: boolean;
   showArchiveTab: boolean;
   historySessions: ClaudeInstance[];
+  theme: string;
   setIsExpanded: (expanded: boolean) => void;
   setInstances: (instances: ClaudeInstance[]) => void;
   setPopups: (popups: PopupItem[]) => void;
@@ -22,6 +23,7 @@ interface AppState {
   setDesktopWindowOpen: (open: boolean) => void;
   setShowArchiveTab: (show: boolean) => void;
   setHistorySessions: (historySessions: ClaudeInstance[]) => void;
+  setTheme: (theme: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -34,6 +36,7 @@ export const useAppStore = create<AppState>((set) => ({
   isDesktopWindowOpen: false,
   showArchiveTab: false,
   historySessions: [],
+  theme: 'dark',
   setIsExpanded: (isExpanded) => set({ isExpanded }),
   setInstances: (instances) => set({ instances }),
   setPopups: (popups) => set({ popups }),
@@ -43,4 +46,5 @@ export const useAppStore = create<AppState>((set) => ({
   setDesktopWindowOpen: (isDesktopWindowOpen) => set({ isDesktopWindowOpen }),
   setShowArchiveTab: (show: boolean) => set({ showArchiveTab: show }),
   setHistorySessions: (historySessions) => set({ historySessions }),
+  setTheme: (theme) => set({ theme }),
 }));

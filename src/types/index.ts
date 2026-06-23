@@ -132,6 +132,7 @@ export interface AppSettings {
   cloud_server_url: string | null;
   device_name: string | null;
   show_thinking_messages: boolean;  // show thinking messages in ChatView
+  theme: string;                   // UI theme: "dark", "warm", "light"
 }
 
 // Tool activity for display

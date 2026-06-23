@@ -63,6 +63,7 @@ pub struct AppSettings {
     pub cloud_server_url: Option<String>, // e.g., "wss://cloud.example.com:17528"
     pub device_name: Option<String>,   // user-defined device name (optional)
     pub show_thinking_messages: bool,  // show thinking messages in ChatView
+    pub theme: String,                // UI theme: "dark", "warm", "light"
 }
 
 impl Default for AppSettings {
@@ -86,6 +87,7 @@ impl Default for AppSettings {
             cloud_server_url: None,
             device_name: None,
             show_thinking_messages: false,  // hide thinking messages by default
+            theme: "dark".to_string(),
         }
     }
 }

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { HooksCheckResult, AppSettings } from '../types';
+import { useAppStore } from '../stores/appStore';
+import { THEME_LABELS, ThemeId } from '../theme';
 
 // Cloud connection status type
 type CloudConnectionStatus =
@@ -134,6 +136,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
     try {
       const s = await invoke<AppSettings>('get_settings');
       setSettings(s);
+      useAppStore.getState().setTheme(s.theme || 'dark');
     } catch (e) {
       console.error('Failed to load settings:', e);
     }
@@ -425,6 +428,31 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
                     <span className="text-white/40 text-xs ml-2">(ChatView中显示thinking内容)</span>
                   </div>
                 </label>
+              </div>
+
+              {/* Theme Selector */}
+              <div className="border-t border-white/10 pt-3">
+                <label className="text-white/60 text-xs block mb-2">界面主题</label>
+                <div className="relative">
+                  <select
+                    value={settings.theme || 'dark'}
+                    onChange={e => {
+                      const newTheme = e.target.value;
+                      setSettings({ ...settings, theme: newTheme });
+                      useAppStore.getState().setTheme(newTheme);
+                    }}
+                    className="w-full px-3 py-2 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-sm focus:outline-none focus:border-[rgba(124,58,237,0.35)] appearance-none cursor-pointer"
+                  >
+                    {(Object.keys(THEME_LABELS) as ThemeId[]).map(id => (
+                      <option key={id} value={id} style={{ background: '#1a1a26', color: '#f1f5f9' }}>
+                        {THEME_LABELS[id]}
+                      </option>
+                    ))}
+                  </select>
+                  <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
+                    <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </div>
               </div>
 
               {/* Numeric Inputs */}
