@@ -1096,6 +1096,8 @@ async fn spawn_claude(
 ) -> Result<(), String> {
     use tokio::process::Command;
 
+    tracing::info!("spawn_claude: path={}, prompt={:?}", project_path, prompt);
+
     let mut cmd = Command::new("claude");
     cmd.current_dir(&project_path);
 
@@ -1118,11 +1120,39 @@ async fn spawn_claude(
     }
 
     cmd.stdin(std::process::Stdio::piped());
-    cmd.stdout(std::process::Stdio::null());
-    cmd.stderr(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
 
     let mut child = cmd.spawn().map_err(|e| format!("Failed to start Claude: {}", e))?;
     let child_stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
+    let child_stdout = child.stdout.take();
+    let child_stderr = child.stderr.take();
+
+    // Log stderr for debugging
+    if let Some(stderr) = child_stderr {
+        let cwd_dbg = project_path.clone();
+        tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt;
+            let reader = tokio::io::BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tracing::info!("[claude stderr {}] {}", cwd_dbg, line);
+            }
+        });
+    }
+
+    // Log stdout for debugging
+    if let Some(stdout) = child_stdout {
+        let cwd_dbg = project_path.clone();
+        tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt;
+            let reader = tokio::io::BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tracing::info!("[claude stdout {}] {}", cwd_dbg, line);
+            }
+        });
+    }
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
