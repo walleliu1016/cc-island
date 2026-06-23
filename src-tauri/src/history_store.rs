@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 const HISTORY_FILE: &str = "sessions.json";
 const DEFAULT_MAX_AGE_DAYS: u32 = 30;
+const MAX_HISTORY_SESSIONS: usize = 200;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct HistoryData {
@@ -61,8 +62,28 @@ impl HistoryStore {
         if !dir.exists() {
             let _ = fs::create_dir_all(dir);
         }
+
+        // Trim excess ended sessions to MAX_HISTORY_SESSIONS
+        let mut sorted: Vec<_> = self.sessions.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        sorted.sort_by_key(|(_, s)| std::cmp::Reverse(s.last_activity_at));
+
+        let mut trimmed_sessions: HashMap<SessionId, ClaudeInstance> = HashMap::new();
+        let mut ended_count = 0usize;
+        for (id, inst) in sorted {
+            let is_ended = matches!(inst.status, crate::instance_manager::InstanceStatus::Ended);
+            if is_ended {
+                if ended_count >= MAX_HISTORY_SESSIONS {
+                    continue; // skip excess ended sessions
+                }
+                ended_count += 1;
+            }
+            trimmed_sessions.insert(id, inst);
+        }
+
         let data = HistoryData {
-            sessions: self.sessions.clone(),
+            sessions: trimmed_sessions,
         };
         match serde_json::to_string_pretty(&data) {
             Ok(content) => {
@@ -107,6 +128,7 @@ impl HistoryStore {
             .cloned()
             .collect();
         sessions.sort_by_key(|s| std::cmp::Reverse(s.last_activity_at));
+        sessions.truncate(MAX_HISTORY_SESSIONS);
         sessions
     }
 

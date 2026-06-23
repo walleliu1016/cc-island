@@ -1,6 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -340,16 +341,18 @@ export function DesktopLayout() {
         {/* Left: Hostname + Cloud status */}
         <div className="flex items-center gap-2.5" style={{ flex: 1 }}>
           <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{hostname || '...'}</span>
-          <div
-            className={`w-1.5 h-1.5 rounded-full ${
-              cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
-              cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : ''
-            }`}
-            style={(!cloudStatus.connected && !cloudStatus.connecting) ? { background: colors.bgCardHover } : undefined}
-          />
-          <span className="text-[10px]" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : colors.textMuted }}>
-            {cloudStatus.connected ? '已连接' : cloudStatus.connecting ? '连接中...' : '未连接'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                cloudStatus.connected ? 'bg-green-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' :
+                cloudStatus.connecting ? 'bg-yellow-500 animate-pulse' : ''
+              }`}
+              style={(!cloudStatus.connected && !cloudStatus.connecting) ? { background: colors.bgCardHover } : undefined}
+            />
+            <span className="text-[10px]" style={{ color: cloudStatus.connected ? '#10b981' : cloudStatus.connecting ? '#f59e0b' : colors.textMuted }}>
+              {cloudStatus.connected ? '已连接' : cloudStatus.connecting ? '连接中...' : '未连接'}
+            </span>
+          </div>
         </div>
 
         {/* Center: Crab icon */}
@@ -368,19 +371,6 @@ export function DesktopLayout() {
           onMouseLeave={e => (e.currentTarget.style.background = 'rgba(16,185,129,0.1)')}
         >
           ◉ 灵动岛
-        </button>
-
-        {/* Cloud toggle */}
-        <button
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={async () => { try { await invoke('toggle_cloud_connection'); } catch (e) { /* noop */ } }}
-          className="h-7 px-2 rounded-md transition-colors text-xs mr-1"
-          style={{ color: colors.textMuted }}
-          onMouseEnter={e => { e.currentTarget.style.color = colors.textPrimary; e.currentTarget.style.background = colors.bgCardHover; }}
-          onMouseLeave={e => { e.currentTarget.style.color = colors.textMuted; e.currentTarget.style.background = 'transparent'; }}
-          title="切换云连接"
-        >
-          ☁
         </button>
 
         {/* New Session */}
@@ -901,13 +891,13 @@ function ChatWithTimeline({
 
       {/* Stdin input bar — only for active sessions */}
       {!instance.status.type.includes('ended') && (
-        <StdinInputBar cwd={instance.session_cwd || ''} projectName={instance.project_name} />
+        <StdinInputBar cwd={instance.session_cwd || ''} />
       )}
     </div>
   );
 }
 
-function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string }) {
+function StdinInputBar({ cwd }: { cwd: string }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
   const [text, setText] = useState('');
@@ -937,7 +927,6 @@ function StdinInputBar({ cwd, projectName }: { cwd: string; projectName: string 
       className="flex items-center gap-2 px-3.5 py-2 flex-shrink-0"
       style={{ borderTop: `1px solid ${colors.borderLight}`, background: colors.statsBarBg }}
     >
-      <span className="text-[10px] flex-shrink-0" style={{ color: colors.textMuted }}>stdin → {projectName}</span>
       <input
         type="text" value={text} onChange={e => setText(e.target.value)}
         placeholder="输入内容发送到 Claude..."
@@ -1207,6 +1196,8 @@ function SidebarSessionItem({
 }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const itemRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState(false);
   const getStatusDot = () => {
     if (pendingPopup) return { bg: '#ef4444', shadow: '0 0 6px rgba(239,68,68,0.5)', cls: 'approval' };
     switch (instance.status.type) {
@@ -1242,16 +1233,23 @@ function SidebarSessionItem({
 
   return (
     <div
+      ref={itemRef}
       onClick={onClick}
       className="flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer transition-colors mb-px relative group"
+      onMouseEnter={e => {
+        if (!isSelected && !isKbActive) e.currentTarget.style.background = colors.bgCardHover;
+        setTooltip(true);
+      }}
+      onMouseLeave={e => {
+        if (!isSelected && !isKbActive) e.currentTarget.style.background = isPinned ? `${colors.accentPrimary}11` : 'transparent';
+        setTooltip(false);
+      }}
       style={{
         background: isSelected ? `${colors.accentPrimary}22` : isKbActive ? `${colors.accentPrimary}22` : isPinned ? `${colors.accentPrimary}11` : 'transparent',
         borderLeft: isSelected ? `2px solid ${colors.accentPrimary}` : '2px solid transparent',
         outline: isKbActive ? `1px solid ${colors.accentPrimary}55` : undefined,
         outlineOffset: -1,
       }}
-      onMouseEnter={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = colors.bgCardHover; }}
-      onMouseLeave={e => { if (!isSelected && !isKbActive) e.currentTarget.style.background = isPinned ? `${colors.accentPrimary}11` : 'transparent'; }}
     >
       {pendingPopup && (
         <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />
@@ -1335,6 +1333,73 @@ function SidebarSessionItem({
           </svg>
         </button>
       </div>
-    </div>
-  );
-}
+
+      {/* Portal tooltip */}
+      {tooltip && itemRef.current && createPortal(
+        (() => {
+          const rect = itemRef.current.getBoundingClientRect();
+          const sid = instance.session_id;
+          const shortSid = sid.length > 20 ? `${sid.slice(0, 12)}…${sid.slice(-6)}` : sid;
+          return (
+        <div
+          className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+          style={{
+            position: 'fixed',
+            left: rect.right + 8,
+            top: rect.top,
+            zIndex: 9999,
+            background: colors.bgModal,
+            border: `1px solid ${colors.borderMedium}`,
+            color: colors.textPrimary,
+            width: 320,
+          }}
+        >
+          {/* Header: project name */}
+          <div
+            className="px-4 py-3 flex items-center gap-2"
+            style={{ borderBottom: `1px solid ${colors.borderLight}` }}
+          >
+            <div
+              className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#f1f5f9' }}
+            >
+              {(instance.project_name || '?').charAt(0).toUpperCase()}
+            </div>
+            <span className="font-semibold text-sm truncate">{instance.project_name || 'Unknown'}</span>
+          </div>
+
+          {/* Body: table */}
+          <div className="px-4 py-3 space-y-2 text-xs">
+            {instance.session_cwd && (
+              <div className="flex gap-3">
+                <span className="text-[10px] flex-shrink-0 w-12 text-right" style={{ color: colors.textMuted }}>目录</span>
+                <span className="break-all leading-relaxed" style={{ color: colors.textSecondary }}>{instance.session_cwd}</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <span className="text-[10px] flex-shrink-0 w-12 text-right" style={{ color: colors.textMuted }}>会话ID</span>
+              <span
+                className="font-mono text-[10px] leading-relaxed"
+                style={{ color: colors.textSecondary }}
+                title={sid}
+              >{shortSid}</span>
+            </div>
+            {(instance.ai_title || instance.first_prompt) && (
+              <div className="flex gap-3">
+                <span className="text-[10px] flex-shrink-0 w-12 text-right" style={{ color: colors.textMuted }}>标题</span>
+                <span className="leading-relaxed" style={{ color: colors.textSecondary }}>{instance.ai_title || instance.first_prompt}</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <span className="text-[10px] flex-shrink-0 w-12 text-right" style={{ color: colors.textMuted }}>创建</span>
+              <span style={{ color: colors.textSecondary }}>{new Date(instance.started_at * 1000).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+          );
+        })(),
+        document.body
+      )}
+      </div>
+    );
+  }
