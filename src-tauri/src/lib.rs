@@ -446,7 +446,7 @@ fn get_instances() -> Vec<instance_manager::ClaudeInstanceDisplay> {
     let instances = state.instances.get_all_instances_display();
     // Fill activities for each instance from ACTIVITY_STORE
     instances.into_iter().map(|inst| {
-        let activities = ACTIVITY_STORE.get_activities(&inst.session_id, 10).unwrap_or_default();
+        let activities = ACTIVITY_STORE.get_activities(&inst.session_id, 200).unwrap_or_default();
         instance_manager::ClaudeInstanceDisplay {
             activities,
             ..inst
@@ -838,7 +838,7 @@ fn get_all_aliases() -> HashMap<String, String> {
 #[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_activities(session_id: String, limit: Option<i64>) -> Vec<activity_store::ToolActivityDetail> {
-    let limit = limit.unwrap_or(10);
+    let limit = limit.unwrap_or(200);
     ACTIVITY_STORE.get_activities(&session_id, limit).unwrap_or_default()
 }
 
@@ -876,7 +876,7 @@ fn get_stats() -> StatsResponse {
 fn get_history_sessions() -> Vec<instance_manager::ClaudeInstance> {
     let mut sessions = SHARED_STATE.read().history_store.get_ended();
     for session in &mut sessions {
-        session.activities = ACTIVITY_STORE.get_activities(&session.session_id, 10).unwrap_or_default();
+        session.activities = ACTIVITY_STORE.get_activities(&session.session_id, 200).unwrap_or_default();
     }
     sessions
 }

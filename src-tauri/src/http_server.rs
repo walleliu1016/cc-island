@@ -814,7 +814,7 @@ async fn get_instances(
     let instances = state_guard.instances.get_all_instances_display();
     // Fill activities for each instance from ACTIVITY_STORE
     let instances_with_activities = instances.into_iter().map(|inst| {
-        let activities = crate::ACTIVITY_STORE.get_activities(&inst.session_id, 10).unwrap_or_default();
+        let activities = crate::ACTIVITY_STORE.get_activities(&inst.session_id, 200).unwrap_or_default();
         ClaudeInstanceDisplay {
             activities,
             ..inst
