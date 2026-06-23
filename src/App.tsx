@@ -9,6 +9,12 @@ import { DesktopLayout } from './components/DesktopLayout';
 function App() {
   const [windowLabel, setWindowLabel] = useState<string>('');
   const setTheme = useAppStore(s => s.setTheme);
+  const theme = useAppStore(s => s.theme);
+
+  // Sync theme class on <html> for CSS variable overrides
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-light', theme === 'light');
+  }, [theme]);
 
   useEffect(() => {
     invoke<string>('get_window_label').then(setWindowLabel).catch(() => setWindowLabel('main'));

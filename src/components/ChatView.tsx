@@ -9,19 +9,40 @@ import { ProcessingSpinner } from './StatusIcons';
 import { useAppStore } from '../stores/appStore';
 import { getTheme } from '../theme';
 
-// Message type colors (purple theme)
-const MessageColors = {
-  user: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
-  assistant: { bg: 'rgba(255,255,255,0.06)', border: '#9e9e9e', text: '#e0e0e0' },
-  thinking: { bg: 'rgba(255, 193, 7, 0.08)', border: '#ffc107', text: '#ffc107' },
-  toolCall: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
-  toolResult: { bg: 'rgba(76, 175, 80, 0.08)', border: '#4caf50', text: '#4caf50' },
-  toolError: { bg: 'rgba(244, 67, 54, 0.08)', border: '#f44336', text: '#f44336' },
-  write: { bg: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(76, 175, 80, 0.08) 100%)', border: '#4caf50', text: '#7c3aed' },
-  edit: { bg: 'linear-gradient(135deg, rgba(255, 152, 0, 0.08) 0%, rgba(244, 67, 54, 0.08) 100%)', border: '#ff9800', text: '#e65100' },
-  bash: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
-  todo: { bg: 'linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(139, 195, 74, 0.08) 100%)', border: '#81c784', text: '#2e7d32' },
-};
+interface MsgColorSet {
+  bg: string;
+  border: string;
+  text: string;
+}
+
+function getMessageColors(isDark: boolean): Record<string, MsgColorSet> {
+  if (isDark) {
+    return {
+      user: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
+      assistant: { bg: 'rgba(255,255,255,0.06)', border: '#9e9e9e', text: '#e0e0e0' },
+      thinking: { bg: 'rgba(255,193,7,0.08)', border: '#ffc107', text: '#ffc107' },
+      toolCall: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
+      toolResult: { bg: 'rgba(76,175,80,0.08)', border: '#4caf50', text: '#4caf50' },
+      toolError: { bg: 'rgba(244,67,54,0.08)', border: '#f44336', text: '#f44336' },
+      write: { bg: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(76,175,80,0.08) 100%)', border: '#4caf50', text: '#7c3aed' },
+      edit: { bg: 'linear-gradient(135deg, rgba(255,152,0,0.08) 0%, rgba(244,67,54,0.08) 100%)', border: '#ff9800', text: '#e65100' },
+      bash: { bg: 'rgba(124,58,237,0.12)', border: '#7c3aed', text: '#7c3aed' },
+      todo: { bg: 'linear-gradient(135deg, rgba(76,175,80,0.08) 0%, rgba(139,195,74,0.08) 100%)', border: '#81c784', text: '#2e7d32' },
+    };
+  }
+  return {
+    user: { bg: 'rgba(109,40,217,0.08)', border: '#6d28d9', text: '#6d28d9' },
+    assistant: { bg: 'rgba(0,0,0,0.04)', border: '#9ca3af', text: '#374151' },
+    thinking: { bg: 'rgba(180,130,0,0.08)', border: '#b8860b', text: '#92600a' },
+    toolCall: { bg: 'rgba(109,40,217,0.08)', border: '#6d28d9', text: '#6d28d9' },
+    toolResult: { bg: 'rgba(22,163,74,0.08)', border: '#16a34a', text: '#15803d' },
+    toolError: { bg: 'rgba(220,38,38,0.08)', border: '#dc2626', text: '#b91c1c' },
+    write: { bg: 'linear-gradient(135deg, rgba(109,40,217,0.06) 0%, rgba(22,163,74,0.06) 100%)', border: '#16a34a', text: '#6d28d9' },
+    edit: { bg: 'linear-gradient(135deg, rgba(217,119,6,0.06) 0%, rgba(220,38,38,0.06) 100%)', border: '#d97706', text: '#b45309' },
+    bash: { bg: 'rgba(109,40,217,0.08)', border: '#6d28d9', text: '#6d28d9' },
+    todo: { bg: 'linear-gradient(135deg, rgba(22,163,74,0.06) 0%, rgba(132,204,22,0.06) 100%)', border: '#4ade80', text: '#166534' },
+  };
+}
 
 // Parse AskUserQuestion content
 function parseAskQuestions(content: string): AskQuestion[] | null {
@@ -302,17 +323,21 @@ function Truncatable({ content, maxHeight = 150 }: { content: React.ReactNode; m
 function BashToolCard({ command, description }: { command?: string; description?: string }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
+  const isDark = theme === 'dark';
+  const codeBg = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.06)';
+  const codeText = isDark ? '#4ade80' : '#166534';
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.bash.bg, borderLeft: `3px solid ${MessageColors.bash.border}` }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.bash.bg, borderLeft: `3px solid ${msgColors.bash.border}` }}>
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-semibold" style={{ color: MessageColors.bash.text }}>$ Bash</span>
+        <span className="text-xs font-semibold" style={{ color: msgColors.bash.text }}>$ Bash</span>
       </div>
       {description && (
         <div className="text-xs mb-2 italic" style={{ color: colors.textMuted }}>{description}</div>
       )}
       {command && (
         <Truncatable content={
-          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs text-green-400/90 whitespace-pre-wrap overflow-x-auto">
+          <pre className="rounded px-2 py-1.5 font-mono text-sm whitespace-pre-wrap overflow-x-auto" style={{ background: codeBg, color: codeText }}>
             {command}
           </pre>
         } />
@@ -325,13 +350,16 @@ function BashToolCard({ command, description }: { command?: string; description?
 function WriteToolCard({ filePath, content }: { filePath?: string; content?: string }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
+  const isDark = theme === 'dark';
+  const codeBg = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.06)';
   const filename = filePath?.split('/').pop() || filePath;
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.write.bg, borderLeft: `3px solid ${MessageColors.write.border}` }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.write.bg, borderLeft: `3px solid ${msgColors.write.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">📝</span>
-        <span className="text-xs font-semibold" style={{ color: MessageColors.write.text }}>Write</span>
-        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: MessageColors.write.text }}>
+        <span className="text-xs font-semibold" style={{ color: msgColors.write.text }}>Write</span>
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: msgColors.write.text }}>
           {filename}
         </span>
       </div>
@@ -340,7 +368,7 @@ function WriteToolCard({ filePath, content }: { filePath?: string; content?: str
       )}
       {content && (
         <Truncatable content={
-          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textPrimary }}>
+          <pre className="rounded px-2 py-1.5 font-mono text-sm whitespace-pre-wrap overflow-x-auto" style={{ background: codeBg, color: colors.textPrimary }}>
             {content.slice(0, 500)}{content.length > 500 && '...'}
           </pre>
         } />
@@ -353,13 +381,19 @@ function WriteToolCard({ filePath, content }: { filePath?: string; content?: str
 function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath?: string; oldString?: string; newString?: string; replaceAll?: boolean }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
+  const isDark = theme === 'dark';
+  const diffRemovedBg = isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.08)';
+  const diffRemovedText = isDark ? '#fca5a5' : '#b91c1c';
+  const diffAddedBg = isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.08)';
+  const diffAddedText = isDark ? '#86efac' : '#166534';
   const filename = filePath?.split('/').pop() || filePath;
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.edit.bg, borderLeft: `3px solid ${MessageColors.edit.border}` }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.edit.bg, borderLeft: `3px solid ${msgColors.edit.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">✏️</span>
-        <span className="text-xs font-semibold" style={{ color: MessageColors.edit.text }}>Edit</span>
-        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: MessageColors.edit.text }}>
+        <span className="text-xs font-semibold" style={{ color: msgColors.edit.text }}>Edit</span>
+        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: msgColors.edit.text }}>
           {filename}
         </span>
         {replaceAll && <span className="text-xs" style={{ color: colors.textMuted }}>(全部替换)</span>}
@@ -369,15 +403,15 @@ function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath
       )}
       {oldString && (
         <div className="space-y-1">
-          <div className="flex items-start gap-2 bg-red-500/10 rounded px-2 py-1.5">
-            <span className="text-xs font-bold text-red-400/80 flex-shrink-0">−</span>
-            <pre className="text-xs text-red-300/80 font-mono whitespace-pre-wrap flex-1 overflow-x-auto">
+          <div className="flex items-start gap-2 rounded px-2 py-1.5" style={{ background: diffRemovedBg }}>
+            <span className="text-xs font-bold flex-shrink-0" style={{ color: diffRemovedText }}>−</span>
+            <pre className="text-sm font-mono whitespace-pre-wrap flex-1 overflow-x-auto" style={{ color: diffRemovedText }}>
               {oldString.slice(0, 200)}{oldString.length > 200 && '...'}
             </pre>
           </div>
-          <div className="flex items-start gap-2 bg-green-500/10 rounded px-2 py-1.5">
-            <span className="text-xs font-bold text-green-400/80 flex-shrink-0">+</span>
-            <pre className="text-xs text-green-300/80 font-mono whitespace-pre-wrap flex-1 overflow-x-auto">
+          <div className="flex items-start gap-2 rounded px-2 py-1.5" style={{ background: diffAddedBg }}>
+            <span className="text-xs font-bold flex-shrink-0" style={{ color: diffAddedText }}>+</span>
+            <pre className="text-sm font-mono whitespace-pre-wrap flex-1 overflow-x-auto" style={{ color: diffAddedText }}>
               {newString?.slice(0, 200)}{newString && newString.length > 200 && '...'}
             </pre>
           </div>
@@ -391,12 +425,13 @@ function EditToolCard({ filePath, oldString, newString, replaceAll }: { filePath
 function ReadToolCard({ filePath, offset, limit }: { filePath?: string; offset?: number; limit?: number }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
   const filename = filePath?.split('/').pop() || filePath;
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.toolCall.bg, borderLeft: `3px solid ${msgColors.toolCall.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">📄</span>
-        <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>Read</span>
+        <span className="text-xs font-semibold" style={{ color: msgColors.toolCall.text }}>Read</span>
         <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: colors.bgCardHover, color: colors.textSecondary }}>
           {filename}
         </span>
@@ -417,18 +452,21 @@ function ReadToolCard({ filePath, offset, limit }: { filePath?: string; offset?:
 function ToolCard({ toolName, description, input }: { toolName: string; description?: string; input?: unknown }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
+  const isDark = theme === 'dark';
+  const codeBg = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.06)';
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.toolCall.bg, borderLeft: `3px solid ${MessageColors.toolCall.border}` }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.toolCall.bg, borderLeft: `3px solid ${msgColors.toolCall.border}` }}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs">⚙️</span>
-        <span className="text-xs font-semibold" style={{ color: MessageColors.toolCall.text }}>{toolName}</span>
+        <span className="text-xs font-semibold" style={{ color: msgColors.toolCall.text }}>{toolName}</span>
       </div>
       {description && (
         <div className="text-xs mb-2 italic" style={{ color: colors.textMuted }}>{description}</div>
       )}
       {input !== undefined && input !== null && (
         <Truncatable content={
-          <pre className="bg-black/40 rounded px-2 py-1.5 font-mono text-xs whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textSecondary }}>
+          <pre className="rounded px-2 py-1.5 font-mono text-sm whitespace-pre-wrap overflow-x-auto" style={{ background: codeBg, color: colors.textSecondary }}>
             {JSON.stringify(input, null, 2)}
           </pre>
         } />
@@ -439,18 +477,19 @@ function ToolCard({ toolName, description, input }: { toolName: string; descript
 
 // Tool result card
 function ToolResultCard({ content, isError }: { content: string; isError?: boolean }) {
-  const msgColors = isError ? MessageColors.toolError : MessageColors.toolResult;
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
+  const mc = isError ? msgColors.toolError : msgColors.toolResult;
   return (
-    <div className="rounded-lg p-3 mb-2 ml-3" style={{ background: msgColors.bg, borderLeft: `3px solid ${msgColors.border}` }}>
+    <div className="rounded-lg p-3 mb-2 ml-3" style={{ background: mc.bg, borderLeft: `3px solid ${mc.border}` }}>
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-semibold" style={{ color: msgColors.text }}>
+        <span className="text-xs font-semibold" style={{ color: mc.text }}>
           {isError ? '❌ Error' : '✓ Result'}
         </span>
       </div>
       <Truncatable content={
-        <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textSecondary }}>
+        <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto" style={{ color: colors.textSecondary }}>
           {content.slice(0, 500)}{content.length > 500 && '...'}
         </pre>
       } />
@@ -462,9 +501,10 @@ function ToolResultCard({ content, isError }: { content: string; isError?: boole
 function ThinkingBlock({ content }: { content: string }) {
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
   return (
-    <div className="rounded-lg p-3 mb-2" style={{ background: MessageColors.thinking.bg, borderLeft: `3px solid ${MessageColors.thinking.border}` }}>
-      <div className="text-xs font-semibold mb-2" style={{ color: MessageColors.thinking.text }}>
+    <div className="rounded-lg p-3 mb-2" style={{ background: msgColors.thinking.bg, borderLeft: `3px solid ${msgColors.thinking.border}` }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: msgColors.thinking.text }}>
         💭 Thinking
       </div>
       <div className="text-xs italic whitespace-pre-wrap" style={{ color: colors.textMuted }}>
@@ -482,10 +522,11 @@ function MessageHeader({ role, timestamp }: { role: string; timestamp: number })
   const isToday = time.toDateString() === new Date().toDateString();
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
 
   return (
     <div className="flex items-center justify-between px-3 py-2 rounded-t-lg" style={{ background: colors.bgCard }}>
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MessageColors[role as keyof typeof MessageColors]?.text || colors.textPrimary }}>
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: msgColors[role]?.text || colors.textPrimary }}>
         {role === 'user' ? 'YOU' : role === 'assistant' ? 'CLAUDE' : role}
       </span>
       <span className="text-xs" style={{ color: colors.textMuted }}>
@@ -539,6 +580,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const theme = useAppStore(s => s.theme);
   const colors = getTheme(theme);
+  const msgColors = getMessageColors(theme === 'dark');
 
   // Load settings on mount
   useEffect(() => {
@@ -744,7 +786,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               const answerData = parseAskAnswers(msg.content);
               if (answerData) {
                 return (
-                  <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
+                  <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: msgColors.user.bg, borderLeft: `3px solid ${msgColors.user.border}` }}>
                     <MessageHeader role="user" timestamp={msg.timestamp} />
                     <div className="p-3">
                       <div className="text-xs mb-2" style={{ color: colors.textMuted }}>Your Answers</div>
@@ -761,9 +803,9 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
               }
             }
             return (
-              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.user.bg, borderLeft: `3px solid ${MessageColors.user.border}` }}>
+              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: msgColors.user.bg, borderLeft: `3px solid ${msgColors.user.border}` }}>
                 <MessageHeader role="user" timestamp={msg.timestamp} />
-                <div className="p-3 text-sm" style={{ color: colors.textPrimary }}>
+                <div className="p-3 text-base" style={{ color: colors.textPrimary }}>
                   {msg.content}
                 </div>
               </div>
@@ -790,9 +832,9 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
             }
 
             return (
-              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: MessageColors.assistant.bg, borderLeft: `3px solid ${MessageColors.assistant.border}` }}>
+              <div key={msg.id} className="mb-3 rounded-lg overflow-hidden" style={{ background: msgColors.assistant.bg, borderLeft: `3px solid ${msgColors.assistant.border}` }}>
                 <MessageHeader role="assistant" timestamp={msg.timestamp} />
-                <div className="p-3 text-sm markdown-content" style={{ color: colors.textPrimary }}>
+                <div className="p-3 text-base markdown-content" style={{ color: colors.textPrimary }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
                 </div>
               </div>
@@ -814,8 +856,8 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
           // Interrupted
           if (msg.messageType === 'interrupted') {
             return (
-              <div key={msg.id} className="mb-3 rounded-lg p-3" style={{ background: MessageColors.toolError.bg, borderLeft: `3px solid ${MessageColors.toolError.border}` }}>
-                <span className="text-xs font-semibold" style={{ color: MessageColors.toolError.text }}>
+              <div key={msg.id} className="mb-3 rounded-lg p-3" style={{ background: msgColors.toolError.bg, borderLeft: `3px solid ${msgColors.toolError.border}` }}>
+                <span className="text-xs font-semibold" style={{ color: msgColors.toolError.text }}>
                   ⚠️ Interrupted
                 </span>
               </div>
@@ -849,7 +891,7 @@ export function ChatView({ sessionId, projectName, onClose }: ChatViewProps) {
       {pendingPopup?.type === 'permission' && (
         <div className="px-3 py-3 border-t" style={{ borderColor: colors.borderLight }}>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-semibold" style={{ color: MessageColors.toolCall.text }}>
+            <span className="text-sm font-semibold" style={{ color: msgColors.toolCall.text }}>
               {pendingPopup.permission_data?.tool_name}
             </span>
             {pendingPopup.permission_data?.action && (
