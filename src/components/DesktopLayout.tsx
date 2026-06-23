@@ -804,15 +804,35 @@ function ChatWithTimeline({
         </span>
         <div style={{ flex: 1 }} />
         {!instance.status.type.includes('ended') && (
-          <button
-            onClick={() => onJump(sessionId)}
-            className="h-6 px-2.5 rounded-md text-xs transition-colors flex items-center gap-1"
-            style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.18)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.1)')}
-          >
-            ↗ 跳转终端
-          </button>
+          <>
+            {(instance as any).is_owned && (
+              <button
+                onClick={async () => {
+                  try {
+                    await invoke('end_owned_session_cmd', { cwd: instance.session_cwd || '' });
+                  } catch (e) {
+                    console.error('Failed to end owned session:', e);
+                  }
+                }}
+                className="h-6 px-2.5 rounded-md text-xs transition-colors flex items-center gap-1"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
+                title="结束多轮会话"
+              >
+                ⏹ 结束
+              </button>
+            )}
+            <button
+              onClick={() => onJump(sessionId)}
+              className="h-6 px-2.5 rounded-md text-xs transition-colors flex items-center gap-1"
+              style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(96,165,250,0.1)')}
+            >
+              ↗ 跳转终端
+            </button>
+          </>
         )}
         {pendingPopup && (
           <button

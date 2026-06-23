@@ -331,107 +331,146 @@ async fn handle_hook(
                     let project_name = extract_project_name(&input);
                     // Save session cwd at startup for JSONL file location
                     let session_cwd = input.cwd.clone();
-                    let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
-                    instance.session_cwd = session_cwd.clone();
 
-                    // Apply alias from aliases.json if cwd matches
-                    if let Some(cwd) = &session_cwd {
-                        if let Some(alias) = crate::alias_store::get_alias(cwd) {
-                            instance.alias = Some(alias.clone());
-                            tracing::info!("Applied alias '{}' for session {} (cwd: {})", alias, session_id, cwd);
+                    // Link cc-island-spawned Claude process to this session_id
+                    let is_cc_owned = session_cwd.as_ref()
+                        .map(|cwd| {
+                            crate::set_owned_session_id(cwd, &session_id);
+                            // Check if cwd is in CLAUDE_SESSIONS (was spawned by cc-island)
+                            true // set_owned_session_id only sets if cwd exists in map
+                        })
+                        .unwrap_or(false);
+
+                    // Check if this is a resume (session already exists in instances)
+                    let is_resume = state_guard.instances.get_instance(&session_id).is_some();
+
+                    if is_resume {
+                        tracing::info!("SessionStart (resume): {} - {}", session_id, project_name);
+                        if let Some(instance) = state_guard.instances.get_instance_mut(&session_id) {
+                            instance.update_activity();
+                            if let Some(ref cwd) = session_cwd {
+                                if let Some(process_info) = crate::platform::find_claude_process_by_cwd(cwd) {
+                                    instance.process_info = Some(process_info);
+                                }
+                            }
                         }
-                    }
+                    } else {
+                        let mut instance = ClaudeInstance::new(session_id.clone(), project_name.clone());
+                        instance.is_owned = crate::is_owned_session_by_cwd(session_cwd.as_deref().unwrap_or(""));
+                        instance.session_cwd = session_cwd.clone();
 
-                    // Try to find process info
-                    if let Some(cwd) = &input.cwd {
-                        if let Some(process_info) = crate::platform::find_claude_process_by_cwd(cwd) {
-                            instance.process_info = Some(process_info);
-                            tracing::info!("Found process info for session {}: pid={}",
-                                session_id, instance.process_info.as_ref().unwrap().pid);
+                        // Apply alias from aliases.json if cwd matches
+                        if let Some(ref cwd) = session_cwd {
+                            if let Some(alias) = crate::alias_store::get_alias(cwd) {
+                                instance.alias = Some(alias.clone());
+                                tracing::info!("Applied alias '{}' for session {} (cwd: {})", alias, session_id, cwd);
+                            }
                         }
-                    }
 
-                    // Fallback: try to find any claude process
-                    if instance.process_info.is_none() {
-                        if let Some(process_info) = crate::platform::find_any_claude_process() {
-                            instance.process_info = Some(process_info);
-                            tracing::info!("Found claude process for session {}: pid={}",
-                                session_id, instance.process_info.as_ref().unwrap().pid);
+                        // Try to find process info
+                        if let Some(ref cwd) = session_cwd {
+                            if let Some(process_info) = crate::platform::find_claude_process_by_cwd(cwd) {
+                                instance.process_info = Some(process_info);
+                                tracing::info!("Found process info for session {}: pid={}",
+                                    session_id, instance.process_info.as_ref().unwrap().pid);
+                            }
                         }
-                    }
 
-                    tracing::info!("New session: {} - {} (cwd: {:?})", instance.session_id, instance.project_name, instance.session_cwd);
-                    state_guard.instances.add_instance(instance.clone());
-                    state_guard.history_store.upsert(instance);
-
-                    // Start JSONL watcher for this session
-                    if let Some(ref mut watcher) = state_guard.jsonl_watcher {
-                        if let Some(cwd) = &session_cwd {
-                            watcher.watch_session(session_id.clone(), cwd.clone());
+                        // Fallback: try to find any claude process
+                        if instance.process_info.is_none() {
+                            if let Some(process_info) = crate::platform::find_any_claude_process() {
+                                instance.process_info = Some(process_info);
+                                tracing::info!("Found claude process for session {}: pid={}",
+                                    session_id, instance.process_info.as_ref().unwrap().pid);
+                            }
                         }
-                    }
 
-                    // Set session notification
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    let notification = crate::SessionNotification {
-                        project_name,
-                        notification_type: "started".to_string(),
-                        timestamp: now,
-                    };
-                    state_guard.set_session_notification(notification.clone());
-                }
-                "SessionEnd" => {
-                    // Get project name before removing
-                    let project_name = state_guard.instances.get_instance(&input.session_id)
-                        .map(|i| i.project_name.clone())
-                        .unwrap_or_else(|| "Unknown".to_string());
+                        tracing::info!("New session: {} - {} (cwd: {:?})", instance.session_id, instance.project_name, instance.session_cwd);
+                        state_guard.instances.add_instance(instance.clone());
+                        state_guard.history_store.upsert(instance);
 
-                    // Cancel any pending popups for this session
-                    let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
-                    if !cancelled.is_empty() {
-                        tracing::info!("Session {} ended, cancelled {} pending popups",
-                            input.session_id, cancelled.len());
-                    }
+                        // Start JSONL watcher for this session
+                        if let Some(ref mut watcher) = state_guard.jsonl_watcher {
+                            if let Some(ref cwd) = session_cwd {
+                                watcher.watch_session(session_id.clone(), cwd.clone());
+                            }
+                        }
 
-                    // Stop JSONL watcher for this session
-                    if let Some(ref mut watcher) = state_guard.jsonl_watcher {
-                        watcher.unwatch_session(&input.session_id);
-                    }
-
-                    // Save to history store before removing from active instances
-                    if let Some(mut instance) = state_guard.instances.get_instance(&input.session_id).cloned() {
+                        // Set session notification
                         let now = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_secs();
-                        instance.ended_at = Some(now);
-                        instance.status = crate::instance_manager::InstanceStatus::Ended;
-                        tracing::info!("SessionEnd: moving session {} ({}) to history", input.session_id, instance.project_name);
-                        state_guard.history_store.upsert(instance);
-                    } else {
-                        tracing::warn!("SessionEnd: session {} not found in InstanceManager, skipping history upsert", input.session_id);
+                        let notification = crate::SessionNotification {
+                            project_name,
+                            notification_type: "started".to_string(),
+                            timestamp: now,
+                        };
+                        state_guard.set_session_notification(notification.clone());
                     }
+                }
+                "SessionEnd" => {
+                    // Check if this is a cc-island-owned multi-turn session
+                    if crate::is_owned_session(&input.session_id) {
+                        tracing::info!("SessionEnd (owned): keeping session {} active for multi-turn", input.session_id);
+                        if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {
+                            instance.set_status(crate::instance_manager::InstanceStatus::Idle);
+                            instance.current_tool = None;
+                            instance.tool_input = None;
+                        }
+                        // Don't move to history, don't remove from instances, don't clear chat
+                        // Session stays active waiting for next user input
+                    } else {
+                        // External session: move to history (current behavior)
+                        // Get project name before removing
+                        let project_name = state_guard.instances.get_instance(&input.session_id)
+                            .map(|i| i.project_name.clone())
+                            .unwrap_or_else(|| "Unknown".to_string());
 
-                    // Remove from active instances
-                    state_guard.instances.remove_instance(&input.session_id);
+                        // Cancel any pending popups for this session
+                        let cancelled = state_guard.popups.cancel_session_popups(&input.session_id);
+                        if !cancelled.is_empty() {
+                            tracing::info!("Session {} ended, cancelled {} pending popups",
+                                input.session_id, cancelled.len());
+                        }
 
-                    // Clear chat history for this session
-                    state_guard.chat_history.clear_session(&input.session_id);
+                        // Stop JSONL watcher for this session
+                        if let Some(ref mut watcher) = state_guard.jsonl_watcher {
+                            watcher.unwatch_session(&input.session_id);
+                        }
 
-                    // Set session notification
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    let notification = crate::SessionNotification {
-                        project_name,
-                        notification_type: "ended".to_string(),
-                        timestamp: now,
-                    };
-                    state_guard.set_session_notification(notification.clone());
+                        // Save to history store before removing from active instances
+                        if let Some(mut instance) = state_guard.instances.get_instance(&input.session_id).cloned() {
+                            let now = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs();
+                            instance.ended_at = Some(now);
+                            instance.status = crate::instance_manager::InstanceStatus::Ended;
+                            tracing::info!("SessionEnd: moving session {} ({}) to history", input.session_id, instance.project_name);
+                            state_guard.history_store.upsert(instance);
+                        } else {
+                            tracing::warn!("SessionEnd: session {} not found in InstanceManager, skipping history upsert", input.session_id);
+                        }
+
+                        // Remove from active instances
+                        state_guard.instances.remove_instance(&input.session_id);
+
+                        // Clear chat history for this session
+                        state_guard.chat_history.clear_session(&input.session_id);
+
+                        // Set session notification
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+                        let notification = crate::SessionNotification {
+                            project_name,
+                            notification_type: "ended".to_string(),
+                            timestamp: now,
+                        };
+                        state_guard.set_session_notification(notification.clone());
+                    }
                 }
                 "Stop" => {
                     if let Some(instance) = state_guard.instances.get_instance_mut(&input.session_id) {

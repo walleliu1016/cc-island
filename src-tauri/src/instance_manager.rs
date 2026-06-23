@@ -104,6 +104,8 @@ pub struct ClaudeInstance {
     pub display_tool_input: Option<ToolInput>, // Tool input to display
     #[serde(skip)]
     pub pending_activity_id: Option<i64>, // For tracking PreToolUse to PostToolUse
+    #[serde(skip)]
+    pub is_owned: bool, // True if spawned by cc-island (multi-turn support)
 }
 
 /// Instance data for API response (includes effective display state)
@@ -131,6 +133,9 @@ pub struct ClaudeInstanceDisplay {
     /// Tool activity history for display
     #[serde(default)]
     pub activities: Vec<crate::activity_store::ToolActivityDetail>,
+    /// Whether this session is owned by cc-island (multi-turn support)
+    #[serde(default)]
+    pub is_owned: bool,
 }
 
 impl ClaudeInstance {
@@ -161,6 +166,7 @@ impl ClaudeInstance {
             display_tool: None,
             display_tool_input: None,
             pending_activity_id: None,
+            is_owned: false,
         }
     }
 
@@ -258,7 +264,8 @@ impl ClaudeInstance {
             last_activity_at: self.last_activity_at,
             first_prompt: self.first_prompt.clone(),
             ai_title: self.ai_title.clone(),
-            activities: vec![], // Activities will be filled by lib.rs get_instances
+            activities: vec![],
+            is_owned: self.is_owned,
         }
     }
 }
@@ -311,6 +318,13 @@ impl InstanceManager {
     /// Get all instances with display state applied (for API responses)
     pub fn get_all_instances_display(&self) -> Vec<ClaudeInstanceDisplay> {
         self.instances.values().map(|i| i.to_display()).collect()
+    }
+
+    pub fn get_instances_by_cwd(&self, cwd: &str) -> Vec<ClaudeInstance> {
+        self.instances.values()
+            .filter(|i| i.session_cwd.as_deref() == Some(cwd))
+            .cloned()
+            .collect()
     }
 
     pub fn count(&self) -> usize {

@@ -188,11 +188,41 @@ pub static SHARED_STATE: Lazy<Arc<RwLock<AppState>>> = Lazy::new(|| {
 /// Handle for sending stdin input to a spawned Claude process
 struct ClaudeSessionHandle {
     stdin_tx: tokio::sync::mpsc::UnboundedSender<String>,
+    session_id: Option<String>,
+    cwd: String,
 }
 
 /// Active Claude sessions with stdin bridges (keyed by cwd)
 static CLAUDE_SESSIONS: Lazy<std::sync::Mutex<HashMap<String, ClaudeSessionHandle>>> =
     Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+/// Set the session_id on a cc-island-owned Claude session (called from SessionStart hook)
+pub fn set_owned_session_id(cwd: &str, session_id: &str) {
+    let mut map = CLAUDE_SESSIONS.lock().unwrap();
+    if let Some(handle) = map.get_mut(cwd) {
+        handle.session_id = Some(session_id.to_string());
+        tracing::info!("Linked owned session cwd={} → session_id={}", cwd, session_id);
+    }
+}
+
+/// Check if a session_id belongs to a cc-island-owned Claude session
+pub fn is_owned_session(session_id: &str) -> bool {
+    CLAUDE_SESSIONS.lock().unwrap()
+        .values()
+        .any(|h| h.session_id.as_deref() == Some(session_id))
+}
+
+/// Check if a cwd has a cc-island-owned Claude session entry
+pub fn is_owned_session_by_cwd(cwd: &str) -> bool {
+    CLAUDE_SESSIONS.lock().unwrap().contains_key(cwd)
+}
+
+/// End a cc-island-owned session (removes from tracking, next SessionEnd will behave normally)
+pub fn end_owned_session(session_id: &str) {
+    let mut map = CLAUDE_SESSIONS.lock().unwrap();
+    map.retain(|_, h| h.session_id.as_deref() != Some(session_id));
+    tracing::info!("Ended owned session: {}", session_id);
+}
 
 /// SQLite activity store for tool history persistence
 pub static ACTIVITY_STORE: Lazy<Arc<activity_store::ActivityStore>> = Lazy::new(|| {
@@ -470,11 +500,12 @@ fn cleanup_dead_sessions() {
     }
     LAST_DEAD_CHECK.store(now, Ordering::Relaxed);
 
-    // Collect PIDs to check (read lock)
+    // Collect PIDs to check (read lock) — skip owned sessions (they exit between turns)
     let to_check: Vec<(String, u32)> = {
         let state = SHARED_STATE.read();
         state.instances.get_all_instances()
             .iter()
+            .filter(|inst| !inst.is_owned)
             .filter_map(|inst| {
                 inst.process_info.as_ref().map(|pi| (inst.session_id.clone(), pi.pid))
             })
@@ -1098,7 +1129,7 @@ async fn spawn_claude(
     let cwd = project_path.clone();
     CLAUDE_SESSIONS.lock().unwrap().insert(
         cwd.clone(),
-        ClaudeSessionHandle { stdin_tx: tx },
+        ClaudeSessionHandle { stdin_tx: tx, session_id: None, cwd: cwd.clone() },
     );
 
     tokio::spawn(async move {
@@ -1122,21 +1153,151 @@ async fn spawn_claude(
                 }
             }
         }
-        CLAUDE_SESSIONS.lock().unwrap().remove(&cwd);
+        // Keep entry in CLAUDE_SESSIONS for multi-turn — session_id stays
+        // so http_server can check ownership in SessionEnd handler
     });
 
     Ok(())
 }
 
 #[tauri::command]
-fn send_claude_input(cwd: String, text: String) -> Result<(), String> {
-    let map = CLAUDE_SESSIONS.lock().unwrap();
-    match map.get(&cwd) {
-        Some(handle) => {
-            handle.stdin_tx.send(text).map_err(|e| format!("Failed to send input: {}", e))
+async fn send_claude_input(cwd: String, text: String) -> Result<(), String> {
+    // Path 1: cc-island-owned session with active pipe
+    {
+        let map = CLAUDE_SESSIONS.lock().unwrap();
+        if let Some(handle) = map.get(&cwd) {
+            match handle.stdin_tx.send(text.clone()) {
+                Ok(()) => return Ok(()),
+                Err(_) => {
+                    // Pipe closed — Claude exited between turns. Respawn below.
+                    tracing::debug!("Pipe closed for {}, respawning Claude", cwd);
+                }
+            }
         }
+    }
+
+    // Path 2: cc-island-owned session, Claude exited — respawn with --resume
+    {
+        let (owned, session_id_opt) = {
+            let map = CLAUDE_SESSIONS.lock().unwrap();
+            match map.get(&cwd) {
+                Some(h) => (true, h.session_id.clone()),
+                None => (false, None),
+            }
+        };
+        if owned {
+            if let Some(sid) = session_id_opt {
+                return respawn_claude_for_turn(&cwd, &sid, &text).await;
+            }
+        }
+    }
+
+    // Path 3: externally-launched Claude — write to /proc/<pid>/fd/0
+    let state = SHARED_STATE.read();
+    let instance = state.instances.get_instances_by_cwd(&cwd)
+        .into_iter()
+        .find(|i| i.status != instance_manager::InstanceStatus::Ended);
+    match instance {
+        Some(inst) => match &inst.process_info {
+            Some(pi) => {
+                let stdin_path = format!("/proc/{}/fd/0", pi.pid);
+                std::fs::write(&stdin_path, text.as_bytes())
+                    .map_err(|e| format!("Failed to write to {}: {}", stdin_path, e))
+            }
+            None => Err("No process info for this session".into()),
+        },
         None => Err(format!("No active Claude session in {}", cwd)),
     }
+}
+
+/// Respawn Claude with --resume for the next turn in a multi-turn session
+async fn respawn_claude_for_turn(cwd: &str, session_id: &str, text: &str) -> Result<(), String> {
+    use tokio::process::Command;
+
+    let mut cmd = Command::new("claude");
+    cmd.current_dir(cwd);
+    cmd.arg("--resume").arg(session_id);
+    cmd.arg("-p").arg(text);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to respawn Claude: {}", e))?;
+    let child_stdin = child.stdin.take().ok_or("Failed to capture stdin")?;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let cwd_owned = cwd.to_string();
+
+    // Update the CLAUDE_SESSIONS entry with new pipe
+    {
+        let mut map = CLAUDE_SESSIONS.lock().unwrap();
+        if let Some(handle) = map.get_mut(&cwd_owned) {
+            handle.stdin_tx = tx;
+        }
+    }
+
+    tokio::spawn(async move {
+        let mut stdin = child_stdin;
+        loop {
+            tokio::select! {
+                text = rx.recv() => {
+                    match text {
+                        Some(t) => {
+                            use tokio::io::AsyncWriteExt;
+                            if stdin.write_all(t.as_bytes()).await.is_err() {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                status = child.wait() => {
+                    tracing::debug!("Claude session at {} (resume) exited: {:?}", cwd_owned, status.ok());
+                    break;
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn end_owned_session_cmd(cwd: String) -> Result<(), String> {
+    let session_id = {
+        let map = CLAUDE_SESSIONS.lock().unwrap();
+        map.get(&cwd).and_then(|h| h.session_id.clone())
+    };
+    match session_id {
+        Some(sid) => {
+            // Remove from owned tracking — next SessionEnd will behave normally
+            crate::end_owned_session(&sid);
+
+            // If Claude already exited (idle), manually move to history
+            let mut state = SHARED_STATE.write();
+            if let Some(instance) = state.instances.get_instance_mut(&sid) {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                instance.ended_at = Some(now);
+                instance.status = crate::instance_manager::InstanceStatus::Ended;
+                let clone_for_history = instance.clone();
+                state.history_store.upsert(clone_for_history);
+            }
+            state.instances.remove_instance(&sid);
+            if let Some(ref mut watcher) = state.jsonl_watcher {
+                watcher.unwatch_session(&sid);
+            }
+
+            Ok(())
+        }
+        None => Err("No owned session for this cwd".into()),
+    }
+}
+
+pub fn end_owned_session_by_id(session_id: &str) {
+    crate::end_owned_session(session_id);
 }
 
 /// Start cloud client with automatic reconnect
@@ -1355,6 +1516,7 @@ pub fn run() {
                 get_available_models,
                 spawn_claude,
                 send_claude_input,
+                end_owned_session_cmd,
                 remove_history_session,
                 get_available_terminals,
                 restart_session,
