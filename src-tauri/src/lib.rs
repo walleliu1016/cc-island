@@ -1096,6 +1096,7 @@ async fn spawn_claude(
 ) -> Result<(), String> {
     use tokio::process::Command;
 
+    eprintln!("[CC-ISLAND] spawn_claude CALLED: path={}, prompt={:?}", project_path, prompt);
     tracing::info!("spawn_claude: path={}, prompt={:?}", project_path, prompt);
 
     let mut cmd = Command::new("claude");
