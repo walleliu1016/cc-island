@@ -1210,14 +1210,13 @@ function SidebarSessionItem({
   const dot = getStatusDot();
   const isEnded = instance.status.type === 'ended';
 
-  // Status meta text (like "工作中", "思考中...")
+  // Status pill (only for non-idle states)
   const metaText = (() => {
     if (pendingPopup) return '⚠ 需要授权';
     switch (instance.status.type) {
       case 'working': return instance.current_tool || '工作中';
       case 'thinking': case 'compacting': return '思考中…';
       case 'waiting': case 'waitingforapproval': return '等待中';
-      case 'idle': return '就绪';
       default: return '';
     }
   })();
@@ -1265,14 +1264,15 @@ function SidebarSessionItem({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-xs font-medium truncate" style={{ color: isSelected ? colors.textPrimary : colors.textSecondary }}>
             {instance.project_name || 'Unknown'}
           </span>
-          {(instance.ai_title || instance.first_prompt) && (
-            <span className="text-[10px] truncate hidden sm:inline" style={{ color: colors.textMuted }} title={instance.ai_title || instance.first_prompt}>
-              · {instance.ai_title || instance.first_prompt}
-            </span>
+          {metaText && (
+            <span
+              className="text-[10px] px-1.5 py-px rounded-full flex-shrink-0"
+              style={{ color: metaColor, background: `${metaColor}18` }}
+            >{metaText}</span>
           )}
           {notifyCount > 0 && (
             <span
@@ -1281,8 +1281,12 @@ function SidebarSessionItem({
             >{notifyCount > 99 ? '99+' : notifyCount}</span>
           )}
         </div>
-        <div className="text-[10px] mt-0.5 flex items-center gap-1.5" style={{ minHeight: 15 }}>
-          {metaText ? <span style={{ color: metaColor, fontSize: 10 }}>{metaText}</span> : <span>&nbsp;</span>}
+        <div className="text-[10px] mt-0.5 min-w-0" style={{ minHeight: 15 }}>
+          {(instance.ai_title || instance.first_prompt) ? (
+            <span className="truncate block" style={{ color: colors.textMuted }} title={instance.ai_title || instance.first_prompt}>
+              {instance.ai_title || instance.first_prompt}
+            </span>
+          ) : null}
         </div>
       </div>
 
