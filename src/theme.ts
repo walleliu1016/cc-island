@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CC-Island Contributors
 // SPDX-License-Identifier: MIT
 
-export type ThemeId = 'dark' | 'warm' | 'light';
+export type ThemeId = 'dark' | 'light';
 
 export interface ThemeColors {
   // Layout backgrounds
@@ -72,37 +72,6 @@ const dark: ThemeColors = {
   selectOptionText: '#f1f5f9',
 };
 
-const warm: ThemeColors = {
-  bgApp: '#1a1410',
-  bgSidebar: '#1d1712',
-  bgMain: '#1f1a15',
-  bgTitlebar: '#18120e',
-  bgCard: 'rgba(180,140,100,0.08)',
-  bgCardHover: 'rgba(180,140,100,0.14)',
-  bgInput: 'rgba(180,140,100,0.06)',
-  bgInputBorder: 'rgba(180,140,100,0.12)',
-  bgModal: '#1f1a15',
-  bgOverlay: 'rgba(0,0,0,0.7)',
-  textPrimary: '#f5e6d8',
-  textSecondary: '#b8a090',
-  textMuted: '#8b7060',
-  textInverse: '#1a1410',
-  borderLight: 'rgba(180,140,100,0.08)',
-  borderMedium: 'rgba(180,140,100,0.14)',
-  accentPrimary: '#d4915a',
-  accentHover: '#e0a870',
-  accentGradient: 'linear-gradient(135deg, #d4915a, #c08040)',
-  statusGreen: '#5a9e6f',
-  statusRed: '#c06050',
-  statusYellow: '#c09050',
-  statusBlue: '#6090b0',
-  scrollbarThumb: 'rgba(180,140,100,0.18)',
-  scrollbarTrack: 'transparent',
-  statsBarBg: 'rgba(0,0,0,0.15)',
-  selectOptionBg: '#2a2018',
-  selectOptionText: '#f5e6d8',
-};
-
 const light: ThemeColors = {
   bgApp: '#f0f2f5',
   bgSidebar: '#f5f6f8',
@@ -134,11 +103,10 @@ const light: ThemeColors = {
   selectOptionText: '#1a1a2e',
 };
 
-export const THEMES: Record<ThemeId, ThemeColors> = { dark, warm, light };
+export const THEMES: Record<ThemeId, ThemeColors> = { dark, light };
 
 export const THEME_LABELS: Record<ThemeId, string> = {
   dark: '暗色',
-  warm: '暖色',
   light: '亮色',
 };
 

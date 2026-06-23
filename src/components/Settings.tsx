@@ -5,16 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { HooksCheckResult, AppSettings } from '../types';
 import { useAppStore } from '../stores/appStore';
-import { THEME_LABELS, ThemeId } from '../theme';
+import { THEME_LABELS, ThemeId, getTheme } from '../theme';
 
-// Cloud connection status type
 type CloudConnectionStatus =
   | { type: 'Disconnected' }
   | { type: 'Connecting' }
   | { type: 'Connected' }
   | { type: 'Failed'; message: string };
 
-// Hooks 中文描述映射
 const HOOK_DESCRIPTIONS: Record<string, string> = {
   SessionStart: '会话开始',
   SessionEnd: '会话结束',
@@ -31,7 +29,6 @@ const HOOK_DESCRIPTIONS: Record<string, string> = {
   SubagentStop: '子代理停止',
 };
 
-// 获取 hook 显示名称
 const getHookDisplayName = (name: string): string => {
   const desc = HOOK_DESCRIPTIONS[name];
   return desc ? `${name}（${desc}）` : name;
@@ -46,6 +43,8 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hideHeader }: SettingsModalProps) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const [activeTab, setActiveTab] = useState<'hooks' | 'general' | 'remote'>('hooks');
   const [hooksResult, setHooksResult] = useState<HooksCheckResult | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
@@ -59,7 +58,6 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
   const [connectionStatus, setConnectionStatus] = useState<CloudConnectionStatus>({ type: 'Disconnected' });
   const pollingRef = useRef<number | null>(null);
 
-  // Poll connection status when cloud mode is enabled
   const pollConnectionStatus = async () => {
     if (settings?.cloud_mode) {
       try {
@@ -73,11 +71,9 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
 
   useEffect(() => {
     if (isOpen && settings?.cloud_mode) {
-      // Start polling
       pollConnectionStatus();
       pollingRef.current = window.setInterval(pollConnectionStatus, 2000);
     } else {
-      // Stop polling
       if (pollingRef.current) {
         window.clearInterval(pollingRef.current);
         pollingRef.current = null;
@@ -137,6 +133,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
       const s = await invoke<AppSettings>('get_settings');
       setSettings(s);
       useAppStore.getState().setTheme(s.theme || 'dark');
+      invoke('set_app_theme', { theme: s.theme || 'dark' }).catch(console.error);
     } catch (e) {
       console.error('Failed to load settings:', e);
     }
@@ -157,15 +154,11 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
   const saveAll = async () => {
     setSaving(true);
     setMessage(null);
-
-    // Validate cloud server URL if cloud mode is enabled
     if (settings?.cloud_mode && !settings.cloud_server_url) {
       setMessage({ text: '请配置云服务器地址', type: 'error' });
       setSaving(false);
       return;
     }
-
-    // Validate URL format
     if (settings?.cloud_mode && settings.cloud_server_url) {
       const url = settings.cloud_server_url;
       if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
@@ -174,11 +167,8 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
         return;
       }
     }
-
     try {
-      // Save hooks
       await invoke('update_claude_hooks', { hooks: Array.from(selectedHooks) });
-      // Save settings (backend will validate and connect)
       if (settings) {
         await invoke('update_settings', { settings });
       }
@@ -194,15 +184,19 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
   if (!isOpen) return null;
 
   const isLoading = !settings || !hooksResult;
-
   const requiredCount = hooksResult?.hooks.filter(h => h.required).length ?? 0;
   const configuredCount = hooksResult?.hooks.filter(h => h.configured).length ?? 0;
 
+  // Shared style helpers
+  const cardStyle: React.CSSProperties = { background: colors.bgCard, borderColor: colors.borderLight };
+  const cardHoverStyle: React.CSSProperties = { background: colors.bgCardHover, borderColor: colors.borderLight };
+  const inputStyle: React.CSSProperties = { background: colors.bgInput, borderColor: colors.borderMedium, color: colors.textPrimary };
+
   return (
-    <div className={`flex flex-col ${className || 'h-full'} bg-[#0f0f23] w-full rounded-b-xl`}>
+    <div className={`flex flex-col ${className || 'h-full'} w-full rounded-b-xl`} style={{ background: colors.bgMain }}>
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 text-white/40">
+          <div className="flex flex-col items-center gap-3" style={{ color: colors.textMuted }}>
             <svg className="animate-spin w-6 h-6" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
             </svg>
@@ -211,65 +205,61 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
         </div>
       ) : (
       <>
-      {/* Top Navigation Bar with Save Button - hidden in desktop (has its own header) */}
       {!hideHeader && (
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+      <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
         <div className="flex items-center">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="flex items-center justify-center w-8 h-8 text-white/50 hover:text-white/80 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="flex items-center justify-center w-8 h-8 transition-colors"
+            style={{ color: colors.textMuted }}
+            onMouseEnter={e => (e.currentTarget.style.color = colors.textPrimary)}
+            onMouseLeave={e => (e.currentTarget.style.color = colors.textMuted)}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M12.707 5.293a1 1 0 0 0-1.414-1.414l-5 5a1 1 0 0 0 0 1.414l5 5a1 1 0 0 0 1.414-1.414L8.414 10l4.293-4.293z"/>
             </svg>
           </button>
-          <span className="ml-2 text-sm font-medium text-white/80">设置</span>
+          <span className="ml-2 text-sm font-medium" style={{ color: colors.textPrimary }}>设置</span>
         </div>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            saveAll();
-          }}
+          onClick={(e) => { e.stopPropagation(); saveAll(); }}
           disabled={saving}
-          className="px-3 py-1.5 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-xs font-medium"
+          className="px-3 py-1.5 rounded-lg transition-opacity text-xs font-medium disabled:opacity-50"
+          style={{ background: colors.accentGradient, color: '#ffffff' }}
         >
           {saving ? '保存中...' : '保存'}
         </button>
       </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex border-b border-white/10">
+      <div className="flex" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
         <button
           onClick={() => setActiveTab('hooks')}
-          className={`flex-1 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'hooks'
-              ? 'text-white border-b-2 border-[#7c3aed]'
-              : 'text-white/50 hover:text-white/70'
-          }`}
+          className="flex-1 py-2 text-xs font-medium transition-colors"
+          style={{
+            color: activeTab === 'hooks' ? colors.textPrimary : colors.textMuted,
+            borderBottom: activeTab === 'hooks' ? `2px solid ${colors.accentPrimary}` : '2px solid transparent',
+          }}
         >
           Hooks ({configuredCount}/{requiredCount})
         </button>
         <button
           onClick={() => setActiveTab('general')}
-          className={`flex-1 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'general'
-              ? 'text-white border-b-2 border-[#7c3aed]'
-              : 'text-white/50 hover:text-white/70'
-          }`}
+          className="flex-1 py-2 text-xs font-medium transition-colors"
+          style={{
+            color: activeTab === 'general' ? colors.textPrimary : colors.textMuted,
+            borderBottom: activeTab === 'general' ? `2px solid ${colors.accentPrimary}` : '2px solid transparent',
+          }}
         >
           通用
         </button>
         <button
           onClick={() => setActiveTab('remote')}
-          className={`flex-1 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'remote'
-              ? 'text-white border-b-2 border-[#7c3aed]'
-              : 'text-white/50 hover:text-white/70'
-          }`}
+          className="flex-1 py-2 text-xs font-medium transition-colors"
+          style={{
+            color: activeTab === 'remote' ? colors.textPrimary : colors.textMuted,
+            borderBottom: activeTab === 'remote' ? `2px solid ${colors.accentPrimary}` : '2px solid transparent',
+          }}
         >
           远程访问
         </button>
@@ -277,63 +267,45 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
           <button
             onClick={(e) => { e.stopPropagation(); saveAll(); }}
             disabled={saving}
-            className="px-3 py-1.5 my-0.5 mr-1 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-xs font-medium"
+            className="px-3 py-1.5 my-0.5 mr-1 rounded-lg transition-opacity text-xs font-medium disabled:opacity-50"
+            style={{ background: colors.accentGradient, color: '#ffffff' }}
           >
             {saving ? '保存中...' : '保存'}
           </button>
         )}
       </div>
 
-      {/* Content Area */}
       <div className="flex-1 overflow-y-auto py-2 px-2 scrollbar-thin">
         <AnimatePresence mode="wait">
           {activeTab === 'hooks' ? (
-            <motion.div
-              key="hooks"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              transition={{ duration: 0.15 }}
-            >
+            <motion.div key="hooks" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.15 }}>
               {hooksResult.missing_required.length > 0 && (
                 <div className="text-orange-400 text-xs mb-3 p-2 bg-orange-500/10 rounded">
                   ⚠️ 缺少必要的 Hooks: {hooksResult.missing_required.join(', ')}
                 </div>
               )}
-
-              {/* Required hooks - collapsible */}
               <div className="mb-3">
                 <button
                   onClick={() => setShowRequired(!showRequired)}
-                  className="w-full flex items-center justify-between p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] transition-colors"
+                  className="w-full flex items-center justify-between p-2 rounded-[10px] border transition-colors"
+                  style={showRequired ? cardHoverStyle : cardStyle}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-xs">必须的 Hooks</span>
-                    <span className="text-white/40 text-xs">({requiredCount})</span>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>必须的 Hooks</span>
+                    <span className="text-xs" style={{ color: colors.textMuted }}>({requiredCount})</span>
                   </div>
-                  <motion.span
-                    animate={{ rotate: showRequired ? 180 : 0 }}
-                    className="text-white/40 text-xs"
-                  >
+                  <motion.span animate={{ rotate: showRequired ? 180 : 0 }} className="text-xs" style={{ color: colors.textMuted }}>
                     ▼
                   </motion.span>
                 </button>
                 <AnimatePresence>
                   {showRequired && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                       <div className="mt-2 space-y-1 pl-2">
                         {hooksResult.hooks.filter(h => h.required).map(hook => (
-                          <div
-                            key={hook.name}
-                            className="flex items-center justify-between py-1 px-2 text-sm"
-                          >
-                            <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
-                            <span className="text-white/40 text-xs">{hook.timeout}s</span>
+                          <div key={hook.name} className="flex items-center justify-between py-1 px-2 text-sm">
+                            <span style={{ color: colors.textSecondary }}>{getHookDisplayName(hook.name)}</span>
+                            <span className="text-xs" style={{ color: colors.textMuted }}>{hook.timeout}s</span>
                           </div>
                         ))}
                       </div>
@@ -342,97 +314,55 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
                 </AnimatePresence>
               </div>
 
-              <div className="text-white/60 text-xs mb-2">可选 Hooks:</div>
+              <div className="text-xs mb-2" style={{ color: colors.textSecondary }}>可选 Hooks:</div>
               {hooksResult.hooks.filter(h => !h.required).map(hook => (
                 <label
                   key={hook.name}
-                  className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors mb-1"
+                  className="flex items-center gap-3 p-2 rounded-[10px] border cursor-pointer transition-colors mb-1"
+                  style={cardStyle}
+                  onMouseEnter={e => { e.currentTarget.style.background = colors.bgCardHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = colors.bgCard; }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedHooks.has(hook.name)}
-                    onChange={() => toggleHook(hook.name)}
-                    className="w-4 h-4 rounded accent-white"
-                  />
-                  <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
-                  <span className="text-white/40 text-xs">{hook.timeout}s</span>
+                  <input type="checkbox" checked={selectedHooks.has(hook.name)} onChange={() => toggleHook(hook.name)} className="w-4 h-4 rounded" />
+                  <span className="text-sm flex-1" style={{ color: colors.textPrimary }}>{getHookDisplayName(hook.name)}</span>
+                  <span className="text-xs" style={{ color: colors.textMuted }}>{hook.timeout}s</span>
                 </label>
               ))}
             </motion.div>
           ) : activeTab === 'general' ? (
-            <motion.div
-              key="general"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.15 }}
-              className="space-y-3"
-            >
-              {/* Toggle Options */}
+            <motion.div key="general" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.15 }} className="space-y-3">
               <div className="space-y-1">
-                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.auto_allow_permissions}
-                    onChange={e => setSettings({ ...settings, auto_allow_permissions: e.target.checked })}
-                    className="w-4 h-4 rounded accent-[#7c3aed]"
-                  />
-                  <div className="flex-1">
-                    <span className="text-white/80 text-sm">自动允许执行命令</span>
-                    <span className="text-white/40 text-xs ml-2">(Bash/Read等，Ask仍需确认)</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.auto_deny_on_timeout}
-                    onChange={e => setSettings({ ...settings, auto_deny_on_timeout: e.target.checked })}
-                    className="w-4 h-4 rounded accent-[#7c3aed]"
-                  />
-                  <span className="text-white/80 text-sm flex-1">超时时自动拒绝</span>
-                </label>
-
-                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.show_notifications}
-                    onChange={e => setSettings({ ...settings, show_notifications: e.target.checked })}
-                    className="w-4 h-4 rounded accent-[#7c3aed]"
-                  />
-                  <span className="text-white/80 text-sm flex-1">显示状态通知</span>
-                </label>
-
-                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.enable_logging}
-                    onChange={e => setSettings({ ...settings, enable_logging: e.target.checked })}
-                    className="w-4 h-4 rounded accent-[#7c3aed]"
-                  />
-                  <div className="flex-1">
-                    <span className="text-white/80 text-sm">启用日志记录</span>
-                    <span className="text-white/40 text-xs block">~/.cc-island/cc-island.log</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.show_thinking_messages}
-                    onChange={e => setSettings({ ...settings, show_thinking_messages: e.target.checked })}
-                    className="w-4 h-4 rounded accent-[#7c3aed]"
-                  />
-                  <div className="flex-1">
-                    <span className="text-white/80 text-sm">显示思考过程</span>
-                    <span className="text-white/40 text-xs ml-2">(ChatView中显示thinking内容)</span>
-                  </div>
-                </label>
+                {[
+                  { key: 'auto_allow_permissions', label: '自动允许执行命令', sub: '(Bash/Read等，Ask仍需确认)' },
+                  { key: 'auto_deny_on_timeout', label: '超时时自动拒绝' },
+                  { key: 'show_notifications', label: '显示状态通知' },
+                  { key: 'enable_logging', label: '启用日志记录', sub: '~/.cc-island/cc-island.log' },
+                  { key: 'show_thinking_messages', label: '显示思考过程', sub: '(ChatView中显示thinking内容)' },
+                ].map(item => (
+                  <label
+                    key={item.key}
+                    className="flex items-center gap-3 p-2 rounded-[10px] border cursor-pointer transition-colors"
+                    style={cardStyle}
+                    onMouseEnter={e => { e.currentTarget.style.background = colors.bgCardHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = colors.bgCard; }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(settings as any)[item.key] as boolean}
+                      onChange={e => setSettings({ ...settings, [item.key]: e.target.checked })}
+                      className="w-4 h-4 rounded"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm" style={{ color: colors.textPrimary }}>{item.label}</span>
+                      {item.sub && <span className="text-xs ml-2" style={{ color: colors.textMuted }}>{item.sub}</span>}
+                    </div>
+                  </label>
+                ))}
               </div>
 
               {/* Theme Selector */}
-              <div className="border-t border-white/10 pt-3">
-                <label className="text-white/60 text-xs block mb-2">界面主题</label>
+              <div style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: '0.75rem' }}>
+                <label className="text-xs block mb-2" style={{ color: colors.textSecondary }}>界面主题</label>
                 <div className="relative">
                   <select
                     value={settings.theme || 'dark'}
@@ -440,218 +370,149 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
                       const newTheme = e.target.value;
                       setSettings({ ...settings, theme: newTheme });
                       useAppStore.getState().setTheme(newTheme);
+                      invoke('set_app_theme', { theme: newTheme }).catch(console.error);
                     }}
-                    className="w-full px-3 py-2 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-sm focus:outline-none focus:border-[rgba(124,58,237,0.35)] appearance-none cursor-pointer"
+                    className="w-full px-3 py-2 border rounded-[10px] text-sm focus:outline-none appearance-none cursor-pointer"
+                    style={{ ...inputStyle, borderColor: colors.borderMedium }}
+                    onFocus={e => (e.currentTarget.style.borderColor = colors.accentPrimary)}
+                    onBlur={e => (e.currentTarget.style.borderColor = colors.borderMedium)}
                   >
                     {(Object.keys(THEME_LABELS) as ThemeId[]).map(id => (
-                      <option key={id} value={id} style={{ background: '#1a1a26', color: '#f1f5f9' }}>
+                      <option key={id} value={id} style={{ background: colors.selectOptionBg, color: colors.selectOptionText }}>
                         {THEME_LABELS[id]}
                       </option>
                     ))}
                   </select>
                   <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="10" height="6" viewBox="0 0 10 6" fill="none">
-                    <path d="M1 1L5 5L9 1" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
+                    <path d="M1 1L5 5L9 1" stroke={colors.textSecondary} strokeWidth="1.2" strokeLinecap="round"/>
                   </svg>
                 </div>
               </div>
 
               {/* Numeric Inputs */}
-              <div className="space-y-3 border-t border-white/10 pt-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">最大实例数</label>
-                    <input
-                      type="number"
-                      value={settings.max_instances}
-                      onChange={e => setSettings({ ...settings, max_instances: parseInt(e.target.value) || 10 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
+              <div className="space-y-3" style={{ borderTop: `1px solid ${colors.borderLight}`, paddingTop: '0.75rem' }}>
+                {[
+                  [
+                    { key: 'max_instances', label: '最大实例数' },
+                    { key: 'max_popup_queue', label: '弹窗队列' },
+                  ],
+                  [
+                    { key: 'permission_timeout', label: '权限超时(秒)' },
+                    { key: 'ask_timeout', label: 'Ask超时(秒)' },
+                  ],
+                  [
+                    { key: 'warning_time', label: '警告时间(秒)' },
+                    { key: 'critical_time', label: '紧急时间(秒)' },
+                  ],
+                  [
+                    { key: 'poll_interval', label: '刷新间隔(ms)' },
+                    { key: 'notification_auto_close', label: '通知关闭(ms)' },
+                  ],
+                ].map((row, i) => (
+                  <div className="grid grid-cols-2 gap-2" key={i}>
+                    {row.map(field => (
+                      <div key={field.key}>
+                        <label className="text-xs block mb-1" style={{ color: colors.textSecondary }}>{field.label}</label>
+                        <input
+                          type="number"
+                          value={(settings as any)[field.key]}
+                          onChange={e => setSettings({ ...settings, [field.key]: parseInt(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 border rounded-[10px] text-xs focus:outline-none"
+                          style={inputStyle}
+                          onFocus={e => (e.currentTarget.style.borderColor = colors.accentPrimary)}
+                          onBlur={e => (e.currentTarget.style.borderColor = colors.borderMedium)}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">弹窗队列</label>
-                    <input
-                      type="number"
-                      value={settings.max_popup_queue}
-                      onChange={e => setSettings({ ...settings, max_popup_queue: parseInt(e.target.value) || 5 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">权限超时(秒)</label>
-                    <input
-                      type="number"
-                      value={settings.permission_timeout}
-                      onChange={e => setSettings({ ...settings, permission_timeout: parseInt(e.target.value) || 300 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">Ask超时(秒)</label>
-                    <input
-                      type="number"
-                      value={settings.ask_timeout}
-                      onChange={e => setSettings({ ...settings, ask_timeout: parseInt(e.target.value) || 120 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">警告时间(秒)</label>
-                    <input
-                      type="number"
-                      value={settings.warning_time}
-                      onChange={e => setSettings({ ...settings, warning_time: parseInt(e.target.value) || 30 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">紧急时间(秒)</label>
-                    <input
-                      type="number"
-                      value={settings.critical_time}
-                      onChange={e => setSettings({ ...settings, critical_time: parseInt(e.target.value) || 10 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">刷新间隔(ms)</label>
-                    <input
-                      type="number"
-                      value={settings.poll_interval}
-                      onChange={e => setSettings({ ...settings, poll_interval: parseInt(e.target.value) || 500 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/60 text-xs block mb-1">通知关闭(ms)</label>
-                    <input
-                      type="number"
-                      value={settings.notification_auto_close}
-                      onChange={e => setSettings({ ...settings, notification_auto_close: parseInt(e.target.value) || 5000 })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)]"
-                    />
-                  </div>
-                </div>
-
+                ))}
                 <div>
-                  <label className="text-white/60 text-xs block mb-1">Hook转发地址</label>
+                  <label className="text-xs block mb-1" style={{ color: colors.textSecondary }}>Hook转发地址</label>
                   <input
                     type="text"
                     placeholder="http://localhost:8080/hook"
                     value={settings.hook_forward_url || ''}
                     onChange={e => setSettings({ ...settings, hook_forward_url: e.target.value || null })}
-                    className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
+                    className="w-full px-2 py-1.5 border rounded-[10px] text-xs focus:outline-none"
+                    style={{ ...inputStyle, color: settings.hook_forward_url ? colors.textPrimary : colors.textMuted }}
+                    onFocus={e => (e.currentTarget.style.borderColor = colors.accentPrimary)}
+                    onBlur={e => (e.currentTarget.style.borderColor = colors.borderMedium)}
                   />
                 </div>
               </div>
             </motion.div>
           ) : (
-            <motion.div
-              key="remote"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.15 }}
-              className="space-y-3"
-            >
-              {/* Mobile Remote Access (Cloud Relay) */}
-              <div className="text-white/80 text-sm mb-2">通过云服务器实现手机远程访问</div>
+            <motion.div key="remote" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.15 }} className="space-y-3">
+              <div className="text-sm mb-2" style={{ color: colors.textPrimary }}>通过云服务器实现手机远程访问</div>
 
-              <label className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors">
-                <input
-                  type="checkbox"
-                  checked={settings.cloud_mode || false}
-                  onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })}
-                  className="w-4 h-4 rounded accent-[#7c3aed]"
-                />
+              <label
+                className="flex items-center gap-3 p-2 rounded-[10px] border cursor-pointer transition-colors"
+                style={cardStyle}
+                onMouseEnter={e => { e.currentTarget.style.background = colors.bgCardHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = colors.bgCard; }}
+              >
+                <input type="checkbox" checked={settings.cloud_mode || false} onChange={e => setSettings({ ...settings, cloud_mode: e.target.checked })} className="w-4 h-4 rounded" />
                 <div className="flex-1">
-                  <span className="text-white/80 text-sm">启用远程访问</span>
-                  <span className="text-white/40 text-xs ml-2">(通过云服务器)</span>
+                  <span className="text-sm" style={{ color: colors.textPrimary }}>启用远程访问</span>
+                  <span className="text-xs ml-2" style={{ color: colors.textMuted }}>(通过云服务器)</span>
                 </div>
               </label>
 
               {settings.cloud_mode && (
                 <div className="mt-2 space-y-2">
                   <div>
-                    <label className="text-white/60 text-xs block mb-1">云服务器地址</label>
+                    <label className="text-xs block mb-1" style={{ color: colors.textSecondary }}>云服务器地址</label>
                     <input
-                      type="text"
-                      placeholder="wss://cloud.example.com:17528"
+                      type="text" placeholder="wss://cloud.example.com:17528"
                       value={settings.cloud_server_url || ''}
                       onChange={e => setSettings({ ...settings, cloud_server_url: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
+                      className="w-full px-2 py-1.5 border rounded-[10px] text-xs focus:outline-none"
+                      style={inputStyle}
+                      onFocus={e => (e.currentTarget.style.borderColor = colors.accentPrimary)}
+                      onBlur={e => (e.currentTarget.style.borderColor = colors.borderMedium)}
                     />
                   </div>
-
                   <div>
-                    <label className="text-white/60 text-xs block mb-1">设备名称 (可选)</label>
+                    <label className="text-xs block mb-1" style={{ color: colors.textSecondary }}>设备名称 (可选)</label>
                     <input
-                      type="text"
-                      placeholder="我的电脑"
+                      type="text" placeholder="我的电脑"
                       value={settings.device_name || ''}
                       onChange={e => setSettings({ ...settings, device_name: e.target.value || null })}
-                      className="w-full px-2 py-1.5 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.10)] rounded-[10px] text-white text-xs focus:outline-none focus:border-[rgba(124,58,237,0.35)] placeholder-white/30"
+                      className="w-full px-2 py-1.5 border rounded-[10px] text-xs focus:outline-none"
+                      style={inputStyle}
+                      onFocus={e => (e.currentTarget.style.borderColor = colors.accentPrimary)}
+                      onBlur={e => (e.currentTarget.style.borderColor = colors.borderMedium)}
                     />
                   </div>
 
-                  <div className="bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] rounded-[10px] p-2 mt-2">
-                    <div className="text-white/50 text-xs">设备 Token:</div>
+                  <div className="border rounded-[10px] p-2 mt-2" style={{ ...cardStyle }}>
+                    <div className="text-xs" style={{ color: colors.textMuted }}>设备 Token:</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <code className="text-white/70 text-xs bg-black/30 px-1 rounded flex-1 truncate">
+                      <code className="text-xs bg-black/30 px-1 rounded flex-1 truncate" style={{ color: colors.textPrimary }}>
                         {deviceToken || '加载中...'}
                       </code>
-                      <button
-                        onClick={() => deviceToken && navigator.clipboard.writeText(deviceToken)}
-                        className="text-white/50 hover:text-white px-2 py-1 text-xs"
-                        disabled={!deviceToken}
-                      >
+                      <button onClick={() => deviceToken && navigator.clipboard.writeText(deviceToken)} disabled={!deviceToken} className="px-2 py-1 text-xs" style={{ color: colors.textMuted }}>
                         复制
                       </button>
-                      <button
-                        onClick={generateQRCode}
-                        className="text-white/50 hover:text-white px-2 py-1 text-xs"
-                      >
+                      <button onClick={generateQRCode} className="px-2 py-1 text-xs" style={{ color: colors.textMuted }}>
                         二维码
                       </button>
                     </div>
                   </div>
 
-                  <div className="text-white/40 text-xs">
-                    将此Token输入到手机App即可连接此设备
-                  </div>
+                  <div className="text-xs" style={{ color: colors.textMuted }}>将此Token输入到手机App即可连接此设备</div>
 
-                  {/* Connection Status */}
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="text-white/50 text-xs">连接状态:</span>
-                    {connectionStatus.type === 'Disconnected' && (
-                      <span className="text-white/40 text-xs">未连接</span>
-                    )}
+                    <span className="text-xs" style={{ color: colors.textMuted }}>连接状态:</span>
+                    {connectionStatus.type === 'Disconnected' && <span className="text-xs" style={{ color: colors.textMuted }}>未连接</span>}
                     {connectionStatus.type === 'Connecting' && (
                       <span className="text-yellow-400 text-xs flex items-center gap-1">
                         <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>●</motion.span>
                         连接中...
                       </span>
                     )}
-                    {connectionStatus.type === 'Connected' && (
-                      <span className="text-green-400 text-xs flex items-center gap-1">
-                        <span>●</span>
-                        已连接
-                      </span>
-                    )}
-                    {connectionStatus.type === 'Failed' && (
-                      <span className="text-red-400 text-xs flex items-center gap-1">
-                        <span>●</span>
-                        连接失败: {connectionStatus.message}
-                      </span>
-                    )}
+                    {connectionStatus.type === 'Connected' && <span className="text-green-400 text-xs flex items-center gap-1"><span>●</span>已连接</span>}
+                    {connectionStatus.type === 'Failed' && <span className="text-red-400 text-xs flex items-center gap-1"><span>●</span>连接失败: {connectionStatus.message}</span>}
                   </div>
                 </div>
               )}
@@ -659,16 +520,11 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
           )}
         </AnimatePresence>
 
-        {/* Message */}
         <AnimatePresence>
           {message && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`mt-3 p-2 rounded text-sm text-center ${
-                message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-              }`}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className={`mt-3 p-2 rounded text-sm text-center ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
             >
               {message.text}
             </motion.div>
@@ -680,16 +536,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChange, className, hi
       <AnimatePresence>
         {showQRModal && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 flex items-center justify-center z-50 bg-black/80"
             onClick={() => setShowQRModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               className="bg-black/90 rounded-lg p-4 max-w-sm"
               onClick={e => e.stopPropagation()}
             >
@@ -725,21 +577,17 @@ interface HooksSetupModalProps {
 }
 
 export function HooksSetupModal({ result, onComplete, className, hideHeader }: HooksSetupModalProps) {
+  const theme = useAppStore(s => s.theme);
+  const colors = getTheme(theme);
   const [selectedHooks, setSelectedHooks] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [showRequired, setShowRequired] = useState(false);
 
   useEffect(() => {
     const selected = new Set<string>();
-    result.hooks.forEach(h => {
-      if (h.required) {
-        selected.add(h.name);
-      }
-    });
+    result.hooks.forEach(h => { if (h.required) selected.add(h.name); });
     ['Stop', 'PostToolUseFailure'].forEach(name => {
-      if (result.hooks.find(h => h.name === name)) {
-        selected.add(name);
-      }
+      if (result.hooks.find(h => h.name === name)) selected.add(name);
     });
     setSelectedHooks(selected);
   }, [result]);
@@ -761,34 +609,26 @@ export function HooksSetupModal({ result, onComplete, className, hideHeader }: H
     try {
       await invoke('update_claude_hooks', { hooks: Array.from(selectedHooks) });
       onComplete();
-    } catch (e) {
-      console.error('Failed to save hooks:', e);
-    }
+    } catch (e) { console.error('Failed to save hooks:', e); }
     setSaving(false);
-  };
-
-  const skipSetup = () => {
-    onComplete();
   };
 
   const requiredHooks = result.hooks.filter(h => h.required);
   const optionalHooks = result.hooks.filter(h => !h.required);
 
+  const cardStyle: React.CSSProperties = { background: colors.bgCard, borderColor: colors.borderLight };
+
   return (
-    <div className={`flex flex-col ${className || 'h-full'} bg-[#0f0f23] w-full rounded-b-xl`}>
-      {/* Top Navigation Bar - hidden in desktop (has its own header) */}
+    <div className={`flex flex-col ${className || 'h-full'} w-full rounded-b-xl`} style={{ background: colors.bgMain }}>
       {!hideHeader && (
-      <div className="flex items-center px-3 py-2 border-b border-white/10">
-        <span className="text-sm font-medium text-white/80">配置 Claude Code Hooks</span>
+      <div className="flex items-center px-3 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>配置 Claude Code Hooks</span>
       </div>
       )}
 
       <div className="flex-1 overflow-y-auto px-3 py-2">
-        <p className="text-white/70 text-sm mb-4">
-          CC-Island 需要配置 Claude Code 的 Hooks 才能正常工作。
-        </p>
+        <p className="text-sm mb-4" style={{ color: colors.textPrimary }}>CC-Island 需要配置 Claude Code 的 Hooks 才能正常工作。</p>
 
-        {/* Required hooks */}
         <div className="mb-3">
           <button
             onClick={() => setShowRequired(!showRequired)}
@@ -798,27 +638,17 @@ export function HooksSetupModal({ result, onComplete, className, hideHeader }: H
               <span className="text-orange-400 text-sm font-medium">必须的 Hooks ({requiredHooks.length})</span>
               <span className="text-orange-300/50 text-xs">已自动选中</span>
             </div>
-            <motion.span
-              animate={{ rotate: showRequired ? 180 : 0 }}
-              className="text-orange-400/50 text-xs"
-            >
-              ▼
-            </motion.span>
+            <motion.span animate={{ rotate: showRequired ? 180 : 0 }} className="text-orange-400/50 text-xs">▼</motion.span>
           </button>
 
           <AnimatePresence>
             {showRequired && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                 <div className="mt-2 space-y-1 pl-2">
                   {requiredHooks.map(hook => (
                     <div key={hook.name} className="flex items-center justify-between py-1.5 px-2 text-sm">
-                      <span className="text-white/60">{getHookDisplayName(hook.name)}</span>
-                      <span className="text-white/40 text-xs">{hook.timeout}s</span>
+                      <span style={{ color: colors.textSecondary }}>{getHookDisplayName(hook.name)}</span>
+                      <span className="text-xs" style={{ color: colors.textMuted }}>{hook.timeout}s</span>
                     </div>
                   ))}
                 </div>
@@ -827,38 +657,35 @@ export function HooksSetupModal({ result, onComplete, className, hideHeader }: H
           </AnimatePresence>
         </div>
 
-        {/* Optional hooks */}
-        <div className="text-white/50 text-xs mb-2">可选 Hooks：</div>
+        <div className="text-xs mb-2" style={{ color: colors.textMuted }}>可选 Hooks：</div>
         <div className="space-y-1 max-h-[140px] overflow-y-auto">
           {optionalHooks.map(hook => (
             <label
               key={hook.name}
-              className="flex items-center gap-3 p-2 rounded-[10px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] cursor-pointer transition-colors"
+              className="flex items-center gap-3 p-2 rounded-[10px] border cursor-pointer transition-colors"
+              style={cardStyle}
+              onMouseEnter={e => { e.currentTarget.style.background = colors.bgCardHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = colors.bgCard; }}
             >
-              <input
-                type="checkbox"
-                checked={selectedHooks.has(hook.name)}
-                onChange={() => toggleHook(hook.name)}
-                className="w-4 h-4 rounded accent-[#7c3aed]"
-              />
-              <span className="text-white/80 text-sm flex-1">{getHookDisplayName(hook.name)}</span>
-              <span className="text-white/40 text-xs">{hook.timeout}s</span>
+              <input type="checkbox" checked={selectedHooks.has(hook.name)} onChange={() => toggleHook(hook.name)} className="w-4 h-4 rounded" />
+              <span className="text-sm flex-1" style={{ color: colors.textPrimary }}>{getHookDisplayName(hook.name)}</span>
+              <span className="text-xs" style={{ color: colors.textMuted }}>{hook.timeout}s</span>
             </label>
           ))}
         </div>
 
-        {/* Action buttons */}
         <div className="flex gap-2 mt-4">
           <button
-            onClick={skipSetup}
-            className="flex-1 py-2 bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.08)] text-white/70 rounded-lg transition-colors text-sm"
+            onClick={onComplete}
+            className="flex-1 py-2 border rounded-lg transition-colors text-sm"
+            style={{ background: colors.bgCard, borderColor: colors.borderLight, color: colors.textPrimary }}
           >
             稍后配置
           </button>
           <button
-            onClick={saveAndContinue}
-            disabled={saving}
-            className="flex-1 py-2 bg-gradient-to-br from-[#2d2b55] to-[#5a4fcf] hover:opacity-90 disabled:opacity-50 text-white rounded-lg transition-opacity text-sm font-medium"
+            onClick={saveAndContinue} disabled={saving}
+            className="flex-1 py-2 rounded-lg transition-opacity text-sm font-medium disabled:opacity-50"
+            style={{ background: colors.accentGradient, color: '#ffffff' }}
           >
             {saving ? '保存中...' : '保存并继续'}
           </button>

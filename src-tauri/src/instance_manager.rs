@@ -87,6 +87,9 @@ pub struct ClaudeInstance {
     /// When the session ended (Unix timestamp in seconds)
     #[serde(default)]
     pub ended_at: Option<u64>,
+    /// Tool activity history (backfilled from ACTIVITY_STORE, not persisted to sessions.json)
+    #[serde(default)]
+    pub activities: Vec<crate::activity_store::ToolActivityDetail>,
     // Fields for display persistence (minimum 3s display time)
     #[serde(skip)]
     pub display_status_until: Option<u64>, // Unix timestamp in ms
@@ -145,6 +148,7 @@ impl ClaudeInstance {
             last_activity_at: now,
             first_prompt: None,
             ended_at: None,
+            activities: vec![],
             display_status_until: None,
             display_status: None,
             display_tool: None,

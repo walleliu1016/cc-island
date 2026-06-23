@@ -409,6 +409,20 @@ fn close_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+fn set_app_theme(app: tauri::AppHandle, theme: String) -> Result<(), String> {
+    use tauri::Theme;
+    let t = match theme.as_str() {
+        "light" => Theme::Light,
+        _ => Theme::Dark,
+    };
+    for (_label, window) in app.webview_windows() {
+        let _ = window.set_theme(Some(t));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         window.set_focus().map_err(|e| e.to_string())?;
@@ -860,7 +874,11 @@ fn get_stats() -> StatsResponse {
 #[cfg(feature = "desktop")]
 #[tauri::command]
 fn get_history_sessions() -> Vec<instance_manager::ClaudeInstance> {
-    SHARED_STATE.read().history_store.get_ended()
+    let mut sessions = SHARED_STATE.read().history_store.get_ended();
+    for session in &mut sessions {
+        session.activities = ACTIVITY_STORE.get_activities(&session.session_id, 10).unwrap_or_default();
+    }
+    sessions
 }
 
 #[cfg(feature = "desktop")]
@@ -1326,6 +1344,7 @@ pub fn run() {
                 get_hostname,
                 get_device_token,
                 get_cloud_connection_status,
+                set_app_theme,
                 generate_device_qrcode,
                 get_alias,
                 set_alias,
